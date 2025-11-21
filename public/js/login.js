@@ -108,3 +108,88 @@ function logout() {
 
   window.location.href = "/login";
 }
+
+// Forgot Password Modal Functions
+function openForgotPasswordModal(event) {
+  event.preventDefault();
+  const modal = document.getElementById("forgotPasswordModal");
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function closeForgotPasswordModal() {
+  const modal = document.getElementById("forgotPasswordModal");
+  modal.style.display = "none";
+  document.body.style.overflow = "auto";
+  document.getElementById("forgotPasswordForm").reset();
+  document.getElementById("forgotPasswordMessage").innerHTML = "";
+}
+
+// Close modal when clicking outside of it
+document.addEventListener("DOMContentLoaded", () => {
+  const modal = document.getElementById("forgotPasswordModal");
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeForgotPasswordModal();
+      }
+    });
+  }
+
+  // Handle forgot password form submission
+  const forgotPasswordForm = document.getElementById("forgotPasswordForm");
+  if (forgotPasswordForm) {
+    forgotPasswordForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("resetEmail").value;
+      const messageDiv = document.getElementById("forgotPasswordMessage");
+      const submitBtn = forgotPasswordForm.querySelector(".btn-submit");
+
+      // Disable button and show loading state
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+
+      try {
+        const response = await fetch("/auth/forgot-password", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          messageDiv.innerHTML = `
+            <div class="alert alert-success">
+              ✅ Reset link sent! Check your email for instructions.
+            </div>
+          `;
+          forgotPasswordForm.reset();
+
+          // Close modal after 2 seconds
+          setTimeout(() => {
+            closeForgotPasswordModal();
+          }, 2000);
+        } else {
+          messageDiv.innerHTML = `
+            <div class="alert alert-danger">
+              ❌ ${data.error || "Failed to send reset link. Please try again."}
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error("Forgot password error:", error);
+        messageDiv.innerHTML = `
+          <div class="alert alert-danger">
+            ❌ An error occurred. Please check your connection and try again.
+          </div>
+        `;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send Reset Link";
+      }
+    });
+  }
+});

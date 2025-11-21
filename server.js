@@ -36,6 +36,7 @@ const authPages = {
   "/login": "login.html",
   "/signup": "signup.html",
   "/login-verification": "login-verification.html",
+  "/reset-password": "reset-password.html",
 };
 
 Object.entries(authPages).forEach(([route, page]) => {

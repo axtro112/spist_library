@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const db = require("../config/database");
+require("dotenv").config();
 
 const queryDB = (sql, params = []) => {
   return new Promise((resolve, reject) => {
@@ -145,6 +148,128 @@ router.post("/signup", async (req, res) => {
       success: false,
       message: "Error creating account",
     });
+  }
+});
+
+// Forgot Password Route - for both Admins and Students
+router.post("/forgot-password", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  try {
+    // Check if email exists in admins table
+    const adminResults = await queryDB("SELECT id FROM admins WHERE email = ?", [email]);
+
+    if (adminResults.length > 0) {
+      await queryDB(
+        "UPDATE admins SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
+        [hashedToken, expiry, email]
+      );
+    } else {
+      // Check if email exists in students table
+      const studentResults = await queryDB(
+        "SELECT id FROM students WHERE email = ?",
+        [email]
+      );
+
+      if (studentResults.length > 0) {
+        await queryDB(
+          "UPDATE students SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
+          [hashedToken, expiry, email]
+        );
+      } else {
+        // Do not leak existence - return generic message
+        return res.json({ message: "If this email exists, a reset link was sent." });
+      }
+    }
+
+    // Send Reset Email
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+    await transporter.sendMail({
+      to: email,
+      subject: "Reset Your Password - SPIST Library Management System",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Password Reset Request</h2>
+          <p>You requested to reset your password for your SPIST Library account.</p>
+          <p>Click the button below to reset your password:</p>
+          <a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">
+            Reset Password
+          </a>
+          <p><strong>Or copy this link:</strong></p>
+          <p>${resetLink}</p>
+          <p style="color: #666; font-size: 12px;">This link will expire in 10 minutes.</p>
+          <p style="color: #666; font-size: 12px;">If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
+
+    return res.json({ message: "If this email exists, a reset link was sent." });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Reset Password Route - Verify token and update password
+router.post("/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body || {};
+
+  if (!token) return res.status(400).json({ error: "Token is required" });
+  if (!newPassword || newPassword.length < 6)
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  try {
+    // Check admin table first
+    const adminResults = await queryDB(
+      "SELECT id, email FROM admins WHERE resetToken = ? AND resetTokenExpiry > NOW()",
+      [hashedToken]
+    );
+
+    if (adminResults.length > 0) {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await queryDB(
+        "UPDATE admins SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?",
+        [hashedPassword, adminResults[0].id]
+      );
+      return res.json({ message: "Password reset successfully" });
+    }
+
+    // Check student table
+    const studentResults = await queryDB(
+      "SELECT id, email FROM students WHERE resetToken = ? AND resetTokenExpiry > NOW()",
+      [hashedToken]
+    );
+
+    if (studentResults.length > 0) {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await queryDB(
+        "UPDATE students SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?",
+        [hashedPassword, studentResults[0].id]
+      );
+      return res.json({ message: "Password reset successfully" });
+    }
+
+    // Token not found or expired
+    return res.status(400).json({ error: "Invalid or expired reset token" });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 

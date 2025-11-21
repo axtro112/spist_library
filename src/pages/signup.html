@@ -40,7 +40,9 @@
 
             <div class="form-group">
               <label for="email">Email</label>
-              <input type="email" id="email" name="email" required />
+              <input type="email" id="email" name="email" required
+              pattern="c22-\d{4}-\d{2}@spist.edu.ph"
+              placeholder="c22-xxxx-xx@spist.edu.ph" />
             </div>
 
             <div class="form-group">
@@ -50,8 +52,8 @@
                 id="student_id"
                 name="student_id"
                 required
-                pattern="STD-\d{4}-\d{3}"
-                placeholder="STD-2023-003"
+                pattern="c22-\d{4}-\d{2}"
+                placeholder="c22-xxxx-xx"
               />
             </div>
 
@@ -65,14 +67,14 @@
                 <option value="BSCS">
                   Bachelor of Science in Computer Science
                 </option>
-                <option value="BSCE">
-                  Bachelor of Science in Civil Engineering
+                <option value="BSBM">
+                  Bachelor of Science in Business Management
                 </option>
-                <option value="BSME">
-                  Bachelor of Science in Mechanical Engineering
+                <option value="BSHM">
+                  Bachelor of Science in Hospitality Management
                 </option>
-                <option value="BSEE">
-                  Bachelor of Science in Electrical Engineering
+                <option value="BSED">
+                  Bachelor of Science in Education
                 </option>
               </select>
             </div>

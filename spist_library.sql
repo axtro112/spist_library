@@ -33,6 +33,8 @@ CREATE TABLE `admins` (
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `role` enum('super_admin','system_admin') DEFAULT 'system_admin',
+  `resetToken` varchar(255) DEFAULT NULL,
+  `resetTokenExpiry` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -138,6 +140,8 @@ CREATE TABLE `students` (
   `year_level` varchar(20) NOT NULL,
   `student_type` varchar(20) NOT NULL,
   `contact_number` varchar(20) DEFAULT NULL,
+  `resetToken` varchar(255) DEFAULT NULL,
+  `resetTokenExpiry` datetime DEFAULT NULL,
   `status` enum('active','inactive') DEFAULT 'active',
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

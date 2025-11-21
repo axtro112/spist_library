@@ -59,7 +59,7 @@ router.get("/books", async (req, res) => {
   const query = `
     SELECT 
       b.id, b.title, b.author, b.isbn, b.category, 
-      b.added_date, b.status,
+      b.added_date, b.status, b.quantity,
       CASE 
         WHEN bb.status = 'borrowed' THEN 'Borrowed'
         WHEN bb.status = 'overdue' THEN 'Overdue'
@@ -94,8 +94,8 @@ router.get("/books", async (req, res) => {
 });
 
 router.post("/books", async (req, res) => {
-  const { title, author, category, isbn } = req.body;
-  console.log("Adding new book:", { title, author, category, isbn });
+  const { title, author, category, isbn, quantity } = req.body;
+  console.log("Adding new book:", { title, author, category, isbn, quantity });
 
   if (!title || !author || !category || !isbn) {
     return res.status(400).json({
@@ -116,12 +116,13 @@ router.post("/books", async (req, res) => {
       });
     }
 
+    const bookQuantity = quantity || 1;
     const query = `
-      INSERT INTO books (title, author, isbn, category, added_date, status)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'available')
+      INSERT INTO books (title, author, isbn, category, added_date, status, quantity)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'available', ?)
     `;
 
-    const result = await queryDB(query, [title, author, isbn, category]);
+    const result = await queryDB(query, [title, author, isbn, category, bookQuantity]);
     res.status(201).json({
       success: true,
       message: "Book added successfully",
@@ -134,7 +135,10 @@ router.post("/books", async (req, res) => {
 
 router.put("/books/:id", async (req, res) => {
   const bookId = req.params.id;
-  const { title, author, category, isbn, status, student_id } = req.body;
+  const { title, author, category, isbn, status, student_id, quantity } = req.body;
+
+  console.log("PUT /books/:id received data:", { title, author, category, isbn, status, student_id, quantity });
+  console.log("Quantity type:", typeof quantity, "Value:", quantity);
 
   if (!title || !author || !category || !isbn) {
     return res.status(400).json({
@@ -159,10 +163,11 @@ router.put("/books/:id", async (req, res) => {
             throw new Error("Book not found");
           }
 
-          // Update book details
+          // Update book details with quantity
+          const bookQuantity = quantity || 1;
           await queryDB(
-            "UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ? WHERE id = ?",
-            [title, author, category, isbn, status, bookId]
+            "UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ? WHERE id = ?",
+            [title, author, category, isbn, status, bookQuantity, bookId]
           );
 
           // Handle borrowing status

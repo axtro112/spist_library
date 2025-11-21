@@ -100,6 +100,7 @@ function createBookRow(book) {
     <td>${book.id}</td>
     <td>${book.title}</td>
     <td>${book.author}</td>
+    <td>${book.quantity !== null && book.quantity !== undefined ? book.quantity : ''}</td>
     <td>${book.category}</td>
     <td>${book.isbn}</td>
     <td>${formatDate(book.added_date)}</td>
@@ -149,6 +150,7 @@ function handleEditClick(book) {
   const formElements = {
     title: document.getElementById("titleEdit"),
     author: document.getElementById("authorEdit"),
+    quantity: document.getElementById("No#BooksEdit"),
     category: document.getElementById("categoryEdit"),
     isbn: document.getElementById("isbnEdit"),
     status: document.getElementById("statusEdit"),
@@ -163,6 +165,7 @@ function handleEditClick(book) {
 
   formElements.title.value = book.title || "";
   formElements.author.value = book.author || "";
+  formElements.quantity.value = book.quantity || "";
   formElements.category.value = book.category || "";
   formElements.isbn.value = book.isbn || "";
 
@@ -205,14 +208,18 @@ function handleEditClick(book) {
 async function handleAddBook(e) {
   e.preventDefault();
 
+  const quantityValue = document.getElementById("No#Books").value;
+  
   const formData = {
     title: document.getElementById("title").value.trim(),
     author: document.getElementById("author").value.trim(),
+    quantity: quantityValue ? parseInt(quantityValue, 10) : null,
     category: document.getElementById("category").value.trim(),
     isbn: document.getElementById("isbn").value.trim(),
   };
 
-  if (Object.values(formData).some((value) => !value)) {
+  // Validate required fields
+  if (!formData.title || !formData.author || formData.quantity === null || !formData.category || !formData.isbn) {
     alert("Please fill in all fields");
     return;
   }
@@ -246,13 +253,22 @@ async function handleEditBook(e) {
   e.preventDefault();
 
   const bookId = document.getElementById("adminEdit").dataset.bookId;
+  const quantityValue = document.getElementById("No#BooksEdit").value;
+  
   const formData = {
     title: document.getElementById("titleEdit").value.trim(),
     author: document.getElementById("authorEdit").value.trim(),
+    quantity: quantityValue ? parseInt(quantityValue, 10) : null,
     category: document.getElementById("categoryEdit").value.trim(),
     isbn: document.getElementById("isbnEdit").value.trim(),
     status: document.getElementById("statusEdit").value,
   };
+
+  // Validate required fields
+  if (!formData.title || !formData.author || formData.quantity === null || !formData.category || !formData.isbn) {
+    alert("Please fill in all fields");
+    return;
+  }
 
   if (formData.status === "borrowed") {
     const studentId = document.getElementById("studentEdit").value;
@@ -263,11 +279,6 @@ async function handleEditBook(e) {
     formData.student_id = studentId;
   }
 
-  if (Object.values(formData).some((value) => !value)) {
-    alert("Please fill in all fields");
-    return;
-  }
-
   if (!validateISBN(formData.isbn)) {
     alert("Please enter a valid 10 or 13-digit ISBN number");
     return;
@@ -275,6 +286,7 @@ async function handleEditBook(e) {
 
   try {
     console.log("Sending update request with data:", formData);
+    console.log("Quantity being sent:", formData.quantity, "Type:", typeof formData.quantity);
     const response = await fetch(`/api/admin/books/${bookId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

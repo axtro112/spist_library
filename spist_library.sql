@@ -59,7 +59,8 @@ CREATE TABLE `books` (
   `isbn` varchar(20) DEFAULT NULL,
   `category` varchar(50) DEFAULT NULL,
   `added_date` datetime DEFAULT current_timestamp(),
-  `status` enum('available','borrowed','maintenance') DEFAULT 'available'
+  `status` enum('available','borrowed','maintenance') DEFAULT 'available',
+  `quantity` int(11) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

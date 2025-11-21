@@ -556,8 +556,7 @@
           document.getElementById("adminName").textContent = adminData.fullname;
           document.getElementById("adminEmail").textContent = adminData.email;
           document.getElementById("adminRole").textContent = adminData.role;
-          document.getElementById("adminInitial").textContent =
-            adminData.fullname.charAt(0).toUpperCase();
+          document.getElementById("adminInitial").textContent =adminData.fullname.charAt(0).toUpperCase();
         } catch (error) {
           console.error("Error fetching admin data:", error);
         }
@@ -648,6 +647,7 @@
                   <th>ID</th>
                   <th>Title</th>
                   <th>Author</th>
+                  <th>Quantity</th>
                   <th>Category</th>
                   <th>ISBN</th>
                   <th>Added Date</th>
@@ -679,6 +679,10 @@
             <input type="text" id="author" name="author" required />
           </div>
           <div class="form-group">
+            <label for="No#Books">No#Books</label>
+            <input type="number" id="No#Books" name="No#Books" value="0" min="0" max="10" required/>
+          </div>
+          <div class="form-group">
             <label for="category">Category</label>
             <input type="text" id="category" name="category" required />
           </div>
@@ -708,6 +712,10 @@
           <div class="form-group">
             <label for="authorEdit">Author</label>
             <input type="text" id="authorEdit" name="author" required />
+          </div>
+          <div class="form-group">
+            <label for="No#BooksEdit">No#Books</label>
+            <input type="number" id="No#BooksEdit" name="No#Books" value="0" min="0" max="10" required/>
           </div>
           <div class="form-group">
             <label for="categoryEdit">Category</label>

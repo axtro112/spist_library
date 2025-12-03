@@ -1,0 +1,219 @@
+/* ============================
+   BACKUP STYLESHEET
+   Description: Minimal fallback styles to keep UI readable if primary CSS fails
+   Note: This should be the last stylesheet linked in HTML files
+   ============================ */
+
+/* ============================
+   SECTION: Reset & Base
+   Description: Basic typography and body defaults
+   ============================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+/* ============================
+   SECTION: Layout & Containers
+   Description: Basic container structure
+   ============================ */
+
+.container,
+.main-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.sidebar-container {
+  width: 250px;
+  min-height: 100vh;
+  background-color: #4caf50;
+  color: white;
+}
+
+.maincontent {
+  padding: 20px;
+  background-color: white;
+  border-radius: 8px;
+}
+
+/* ============================
+   SECTION: Tables
+   Description: Basic table styling
+   ============================ */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  background-color: white;
+}
+
+table th {
+  background-color: #f5f5f5;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #ddd;
+  font-weight: 600;
+}
+
+table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+table tr:hover {
+  background-color: #f9f9f9;
+}
+
+/* ============================
+   SECTION: Buttons
+   Description: Basic button defaults
+   ============================ */
+
+button,
+.btn,
+input[type="submit"],
+input[type="button"] {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  background-color: #4caf50;
+  color: white;
+  transition: opacity 0.3s;
+}
+
+button:hover,
+.btn:hover {
+  opacity: 0.9;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================
+   SECTION: Forms
+   Description: Basic form inputs
+   ============================ */
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+/* ============================
+   SECTION: Navigation
+   Description: Basic nav styling
+   ============================ */
+
+nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+nav ul li {
+  margin-bottom: 10px;
+}
+
+nav ul li a {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  padding: 10px;
+}
+
+/* ============================
+   SECTION: Modals
+   Description: Basic modal structure
+   ============================ */
+
+/* IMPORTANT:
+   Modals must be hidden by default (display: none).
+   They should ONLY appear when explicitly triggered by user actions.
+   Never set display: flex or display: block here. */
+/* Modal styles moved to specific CSS files (login.css, admin.css, etc.) */
+/* This prevents conflicts with page-specific modal styling */
+
+/* ============================
+   SECTION: Utility Classes
+   Description: Text alignment, spacing
+   ============================ */
+
+.text-center {
+  text-align: center;
+}
+
+.text-error {
+  color: #d32f2f;
+}
+
+.text-success {
+  color: #2e7d32;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ============================
+   SECTION: Responsive
+   Description: Basic responsive breakpoints
+   ============================ */
+
+@media (max-width: 768px) {
+  .sidebar-container {
+    width: 100%;
+    min-height: auto;
+  }
+  
+  .container,
+  .main-container {
+    padding: 10px;
+  }
+  
+  table {
+    font-size: 12px;
+  }
+  
+  button,
+  .btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+}

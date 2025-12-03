@@ -3,419 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+    <link rel="icon" type="image/png" href="/public/img/small.png" />
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/student.css" />
-    <!-- Fallback styles in case common.css is missing -->
-    <style>
-      /* Basic reset */
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        background: url("/img/schoolppp.png") no-repeat center center fixed;
-        background-size: cover;
-        min-height: 100vh;
-        position: relative;
-      }
-
-      body::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(76, 175, 80, 0.1);
-        z-index: 0;
-      }
-
-      .main-container {
-        display: flex;
-        min-height: 100vh;
-        position: relative;
-        z-index: 1;
-        padding: 20px;
-      }
-
-      .sidebar-container {
-        width: 250px;
-        height: 100vh;
-        position: fixed;
-        left: 0;
-        top: 0;
-        z-index: 100;
-      }
-
-      .sidebar {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        backdrop-filter: blur(5px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .logo {
-        padding: 20px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .logo img {
-        width: 40px;
-        height: 40px;
-        object-fit: contain;
-      }
-
-      .logo h3 {
-        color: white;
-        font-size: 1.2em;
-        font-weight: 600;
-        margin: 0;
-      }
-
-      .admin-profile {
-        padding: 20px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .profile-info {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-      }
-
-      .avatar {
-        width: 45px;
-        height: 45px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .avatar .material-symbols-outlined {
-        font-size: 24px;
-        color: white;
-      }
-
-      .user-details {
-        flex: 1;
-      }
-
-      .user-details h4 {
-        color: white;
-        font-size: 1em;
-        margin: 0 0 5px 0;
-        font-weight: 500;
-      }
-
-      .user-details p {
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 0.85em;
-        margin: 0;
-      }
-
-      .nav {
-        flex: 1;
-        padding: 20px 10px;
-      }
-
-      .nav ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-      }
-
-      .nav ul li {
-        margin-bottom: 5px;
-      }
-
-      .nav ul li a {
-        color: white;
-        text-decoration: none;
-        padding: 12px 15px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        font-size: 0.95em;
-      }
-
-      .nav ul li a span:last-child {
-        font-weight: 400;
-      }
-
-      .nav ul li a:hover {
-        background: rgba(255, 255, 255, 0.15);
-        transform: translateX(5px);
-      }
-
-      .nav ul li.active a {
-        background: rgba(255, 255, 255, 0.2);
-        font-weight: 500;
-      }
-
-      .nav .material-symbols-outlined {
-        font-size: 20px;
-        opacity: 0.9;
-      }
-
-      .container {
-        flex: 1;
-        margin-left: 270px;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        max-width: 1400px;
-      }
-
-      .maincontent {
-        flex: 1;
-        padding: 0;
-      }
-
-      .welcome-banner {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        color: white;
-        padding: 15px 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        backdrop-filter: blur(5px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-
-      .welcome-banner h2 {
-        font-size: 1.5em;
-        margin-bottom: 5px;
-      }
-
-      .welcome-banner p {
-        font-size: 0.9em;
-        opacity: 0.9;
-      }
-
-      .dashboard-stats {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
-        margin-bottom: 20px;
-      }
-
-      .stat-card {
-        background: rgba(76, 175, 80, 0.15);
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        backdrop-filter: blur(5px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        transition: transform 0.3s ease;
-      }
-
-      .stat-card:hover {
-        transform: translateY(-2px);
-      }
-
-      .stat-card .material-symbols-outlined {
-        font-size: 24px;
-        margin-bottom: 8px;
-        color: white;
-      }
-
-      .stat-card h3 {
-        color: white;
-        font-size: 0.9em;
-        margin-bottom: 5px;
-      }
-
-      .stat-card p {
-        color: white;
-        font-size: 1.5em;
-        font-weight: bold;
-      }
-
-      .section-heading {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 20px 0 15px;
-        color: white;
-      }
-
-      .section-heading h3 {
-        font-size: 1.2em;
-      }
-
-      .table-wrapper {
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 20px;
-        backdrop-filter: blur(5px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-
-      .user-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-
-      .user-table th {
-        background: rgba(76, 175, 80, 0.1);
-        padding: 10px;
-        text-align: left;
-        font-weight: 600;
-        color: #333;
-      }
-
-      .user-table td {
-        padding: 10px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-      }
-
-      .user-table tr:last-child td {
-        border-bottom: none;
-      }
-
-      .status-pill {
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.85em;
-        font-weight: 500;
-      }
-
-      .status-pill.borrowed {
-        background-color: #e3f2fd;
-        color: #1976d2;
-      }
-
-      .status-pill.overdue {
-        background-color: #fbe9e7;
-        color: #d84315;
-      }
-
-      .status-pill.available {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-      }
-
-      .book-borrow-btn {
-        background-color: #44a347;
-        border: none;
-        border-radius: 15px;
-        color: white;
-        padding: 5px 10px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 0.85em;
-      }
-
-      .book-borrow-btn:hover {
-        background-color: #357d38;
-        transform: translateY(-1px);
-      }
-
-      .book-borrow-btn[disabled] {
-        background-color: #cccccc;
-        cursor: not-allowed;
-      }
-
-      .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-      }
-
-      .modal-content {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        padding: 20px;
-        border-radius: 10px;
-        width: 90%;
-        max-width: 400px;
-        color: white;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-
-      .modal-content h2 {
-        color: white;
-        margin-bottom: 15px;
-      }
-
-      .modal-content p {
-        color: white;
-        margin-bottom: 20px;
-      }
-
-      .modal-content label {
-        color: white !important;
-      }
-
-      .form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 20px;
-      }
-
-      .submit-btn,
-      .cancel-btn,
-      .logout-confirm-btn {
-        padding: 8px 16px;
-        border-radius: 5px;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background-color: white;
-        color: #4caf50;
-        font-weight: 500;
-      }
-
-      .submit-btn:hover,
-      .cancel-btn:hover,
-      .logout-confirm-btn:hover {
-        transform: translateY(-1px);
-        background-color: rgba(255, 255, 255, 0.9);
-      }
-
-      .cancel-btn {
-        background-color: rgba(255, 255, 255, 0.8);
-      }
-
-      @media (min-width: 1600px) {
-        .container {
-          margin: 0 auto;
-          margin-left: 270px;
-        }
-      }
-    </style>
 
     <!-- Icons -->
     <link
@@ -428,6 +18,7 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="/css/backup.css" />
 
     <!-- JavaScript -->
     <script src="/js/user.js" defer></script>
@@ -494,7 +85,16 @@
         }
       });
 
-      // Function to show logout modal
+      /* ========================================
+         MODAL FUNCTIONS
+         ======================================== */
+
+      // IMPORTANT:
+      // Modals must ONLY open when user explicitly clicks a button.
+      // Do NOT call these functions from DOMContentLoaded, window.onload,
+      // or any automatic triggers on page load.
+
+      // Function to show logout modal - ONLY call from logout button click
       function showLogoutModal() {
         document.getElementById("logoutModal").style.display = "flex";
       }
@@ -518,7 +118,7 @@
         }, 1000);
       }
 
-      // Function to show book borrow modal
+      // Function to show book borrow modal - ONLY call when user clicks a Borrow button
       function showBorrowModal(bookId) {
         sessionStorage.setItem("currentBorrowBookId", bookId);
         // Set minimum date to today and maximum date to 30 days from now
@@ -938,21 +538,16 @@
         <p id="borrowConfirmMessage">
           Are you sure you want to borrow this book?
         </p>
-        <div class="form-group" style="margin-bottom: 15px">
+        <div class="form-group">
           <label
             for="returnDate"
-            style="display: block; margin-bottom: 5px; color: black"
+            class="modal-label"
             >Select Return Date:</label
           >
           <input
             type="date"
             id="returnDate"
-            style="
-              width: 100%;
-              padding: 8px;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-            "
+            class="date-input"
             required
           />
         </div>

@@ -59,13 +59,19 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 async function loadBooks() {
   try {
+    console.log("[FRONTEND] Fetching books from /api/admin/books...");
     const response = await fetch("/api/admin/books");
+    console.log("[FRONTEND] Response status:", response.status, response.statusText);
+    
     if (!response.ok) {
       const data = await response.json();
+      console.error("[FRONTEND] API error:", data);
       throw new Error(data.message || "Failed to fetch books");
     }
     const books = await response.json();
-    console.log("Books data received:", books);
+    console.log("[FRONTEND] Books data received:", books);
+    console.log("[FRONTEND] Number of books:", books.length);
+    console.log("[FRONTEND] First book:", books[0]);
     displayBooks(books);
   } catch (error) {
     console.error("Error:", error);
@@ -75,36 +81,72 @@ async function loadBooks() {
 
 function displayBooks(books) {
   const tbody = document.querySelector(".user-table tbody");
+  console.log("[FRONTEND] displayBooks called with", books.length, "books");
+  console.log("[FRONTEND] Table tbody element found:", !!tbody);
+  
+  if (!tbody) {
+    console.error("[FRONTEND] ERROR: Table tbody not found!");
+    return;
+  }
+  
   tbody.innerHTML = "";
 
-  books.forEach((book) => {
-    console.log("Processing book:", book);
+  if (books.length === 0) {
+    console.warn("[FRONTEND] No books to display (empty array)");
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">No books found</td></tr>';
+    return;
+  }
+
+  books.forEach((book, index) => {
+    console.log(`[FRONTEND] Processing book ${index + 1}/${books.length}:`, book.title);
     const row = createBookRow(book);
     tbody.appendChild(row);
   });
+  
+  console.log("[FRONTEND] Successfully rendered", books.length, "book rows");
+  
+  // Clear bulk selection when table is reloaded
+  if (typeof clearSelection === 'function') {
+    clearSelection();
+  }
 }
 
 function createBookRow(book) {
   const row = document.createElement("tr");
-  const statusClass =
-    book.current_status.toLowerCase() === "borrowed" ||
-    book.current_status.toLowerCase() === "overdue"
-      ? "status-borrowed"
-      : "status-available";
+  
+  // Determine availability status
+  const availableQty = book.available_quantity !== undefined ? book.available_quantity : book.quantity;
+  const totalQty = book.quantity || 1;
+  let statusText = `Available (${availableQty}/${totalQty})`;
+  let statusClass = "status-available";
+  
+  if (availableQty === 0) {
+    statusText = "All Borrowed";
+    statusClass = "status-borrowed";
+  }
 
   const isBorrowed =
-    book.current_status.toLowerCase() === "borrowed" ||
-    book.current_status.toLowerCase() === "overdue";
+    book.current_status && (book.current_status.toLowerCase() === "borrowed" ||
+    book.current_status.toLowerCase() === "overdue");
 
+  // Gmail-style bulk operations: Add checkbox column
   row.innerHTML = `
+    <td class="checkbox-col">
+      <input 
+        type="checkbox" 
+        class="book-row-checkbox" 
+        data-book-id="${book.id}"
+        onchange="handleRowCheckboxChange(this)"
+      />
+    </td>
     <td>${book.id}</td>
     <td>${book.title}</td>
     <td>${book.author}</td>
-    <td>${book.quantity !== null && book.quantity !== undefined ? book.quantity : ''}</td>
+    <td>${totalQty}</td>
     <td>${book.category}</td>
     <td>${book.isbn}</td>
     <td>${formatDate(book.added_date)}</td>
-    <td class="${statusClass}">${book.current_status}</td>
+    <td class="${statusClass}">${statusText}</td>
     <td class="borrowed-by ${isBorrowed ? "active" : ""}">${
     book.borrowed_by || "-"
   }</td>
@@ -209,13 +251,15 @@ async function handleAddBook(e) {
   e.preventDefault();
 
   const quantityValue = document.getElementById("No#Books").value;
+  const adminId = sessionStorage.getItem("adminId"); // Get admin ID from session
   
   const formData = {
     title: document.getElementById("title").value.trim(),
     author: document.getElementById("author").value.trim(),
-    quantity: quantityValue ? parseInt(quantityValue, 10) : null,
+    quantity: quantityValue ? parseInt(quantityValue, 10) : 1,
     category: document.getElementById("category").value.trim(),
     isbn: document.getElementById("isbn").value.trim(),
+    adminId: adminId ? parseInt(adminId, 10) : null, // Include admin ID
   };
 
   // Validate required fields

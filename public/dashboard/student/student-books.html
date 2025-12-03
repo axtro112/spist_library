@@ -6,399 +6,7 @@
     <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/student.css" />
-    <!-- Fallback styles in case common.css i missing -->
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        background: url("/img/schoolppp.png") no-repeat center center fixed;
-        background-size: cover;
-        min-height: 100vh;
-        position: relative;
-      }
-
-      body::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(76, 175, 80, 0.1);
-        z-index: 0;
-      }
-
-      .main-container {
-        display: flex;
-        min-height: 100vh;
-        position: relative;
-        z-index: 1;
-        padding: 20px;
-      }
-
-      .sidebar-container {
-        width: 250px;
-        height: 100vh;
-        position: fixed;
-        left: 0;
-        top: 0;
-        z-index: 100;
-      }
-
-      .sidebar {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        backdrop-filter: blur(5px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .logo {
-        padding: 20px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .logo img {
-        width: 40px;
-        height: 40px;
-        object-fit: contain;
-      }
-
-      .logo h3 {
-        color: white;
-        font-size: 1.2em;
-        font-weight: 600;
-        margin: 0;
-      }
-
-      .admin-profile {
-        padding: 20px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .profile-info {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-      }
-
-      .avatar {
-        width: 45px;
-        height: 45px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .avatar .material-symbols-outlined {
-        font-size: 24px;
-        color: white;
-      }
-
-      .user-details {
-        flex: 1;
-      }
-
-      .user-details h4 {
-        color: white;
-        font-size: 1em;
-        margin: 0 0 5px 0;
-        font-weight: 500;
-      }
-
-      .user-details p {
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 0.85em;
-        margin: 0;
-      }
-
-      .nav {
-        flex: 1;
-        padding: 20px 10px;
-      }
-
-      .nav ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-      }
-
-      .nav ul li {
-        margin-bottom: 5px;
-      }
-
-      .nav ul li a {
-        color: white;
-        text-decoration: none;
-        padding: 12px 15px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        font-size: 0.95em;
-      }
-
-      .nav ul li a span:last-child {
-        font-weight: 400;
-      }
-
-      .nav ul li a:hover {
-        background: rgba(255, 255, 255, 0.15);
-        transform: translateX(5px);
-      }
-
-      .nav ul li.active a {
-        background: rgba(255, 255, 255, 0.2);
-        font-weight: 500;
-      }
-
-      .nav .material-symbols-outlined {
-        font-size: 20px;
-        opacity: 0.9;
-      }
-
-      /* Adjust main container margin */
-      .container {
-        margin-left: 270px;
-        flex: 1;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        max-width: 1400px;
-      }
-
-      @media (min-width: 1600px) {
-        .container {
-          margin: 0 auto;
-          margin-left: 270px;
-        }
-      }
-
-      /* Fix for any potential conflicts */
-      .modal-content,
-      .user-table th,
-      .user-table td {
-        color: inherit;
-      }
-
-      .user-table th {
-        color: #333;
-        background-color: #f5f5f5;
-        padding: 12px;
-        text-align: left;
-        border-bottom: 2px solid #ddd;
-      }
-
-      .user-table tbody tr td {
-        color: #333;
-      }
-
-      /* Additional book browse styles */
-      .search-filter-bar {
-        display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
-        align-items: center;
-      }
-
-      .search-bar {
-        flex-grow: 1;
-        position: relative;
-      }
-
-      .search-bar input {
-        width: 100%;
-        padding: 10px 15px;
-        border-radius: 20px;
-        border: none;
-        background-color: rgba(255, 255, 255, 0.2);
-        color: white;
-      }
-
-      .search-bar input::placeholder {
-        color: rgba(255, 255, 255, 0.7);
-      }
-
-      .filter-dropdown select {
-        padding: 8px 15px;
-        border-radius: 20px;
-        border: none;
-        background-color: rgba(255, 255, 255, 0.2);
-        color: white;
-        appearance: none;
-        padding-right: 30px;
-        background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-        background-repeat: no-repeat;
-        background-position: right 10px center;
-        background-size: 12px;
-      }
-
-      .filter-dropdown select option {
-        background-color: #4caf50;
-        color: white;
-      }
-
-      .book-borrow-btn {
-        background-color: #44a347;
-        border: none;
-        border-radius: 20px;
-        color: white;
-        padding: 6px 12px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-      }
-
-      .book-borrow-btn:hover {
-        background-color: #357d38;
-      }
-
-      .book-borrow-btn[disabled] {
-        background-color: #cccccc;
-        cursor: not-allowed;
-      }
-
-      /* Status pill styles */
-      .status-pill {
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.85em;
-        font-weight: 500;
-      }
-
-      .status-pill.borrowed {
-        background-color: #e3f2fd;
-        color: #1976d2;
-      }
-
-      .status-pill.available {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-      }
-
-      .pagination {
-        display: flex;
-        justify-content: center;
-        margin-top: 20px;
-        gap: 10px;
-      }
-
-      .pagination button {
-        background-color: rgba(255, 255, 255, 0.2);
-        border: none;
-        border-radius: 5px;
-        color: white;
-        padding: 8px 12px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-      }
-
-      .pagination button:hover {
-        background-color: rgba(255, 255, 255, 0.3);
-      }
-
-      .pagination button.active {
-        background-color: rgba(255, 255, 255, 0.4);
-        font-weight: bold;
-      }
-
-      /* Modal styles */
-      .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-      }
-
-      .modal-content {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        padding: 20px;
-        border-radius: 10px;
-        width: 90%;
-        max-width: 400px;
-        color: white;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-
-      .modal-content h2 {
-        color: white;
-        margin-bottom: 15px;
-      }
-
-      .modal-content p {
-        color: white;
-        margin-bottom: 20px;
-      }
-
-      .modal-content label {
-        color: white !important;
-      }
-
-      .modal-content input[type="date"] {
-        background: rgba(255, 255, 255, 0.9);
-        border: none;
-        border-radius: 4px;
-        padding: 8px;
-        width: 100%;
-        color: #333;
-      }
-
-      .form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 20px;
-      }
-
-      .submit-btn,
-      .cancel-btn,
-      .logout-confirm-btn {
-        padding: 8px 16px;
-        border-radius: 5px;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background-color: white;
-        color: #4caf50;
-        font-weight: 500;
-      }
-
-      .submit-btn:hover,
-      .cancel-btn:hover,
-      .logout-confirm-btn:hover {
-        transform: translateY(-1px);
-        background-color: rgba(255, 255, 255, 0.9);
-      }
-
-      .cancel-btn {
-        background-color: rgba(255, 255, 255, 0.8);
-      }
-    </style>
+    <link rel="stylesheet" href="/css/backup.css" />
 
     <!-- Icons -->
     <link
@@ -553,7 +161,15 @@
         });
       });
 
-      // Function to show book borrow modal
+      /* ========================================
+         MODAL FUNCTIONS
+         ======================================== */
+
+      // IMPORTANT:
+      // Modals must ONLY open when user explicitly clicks a button.
+      // Do NOT call these functions automatically on page load.
+
+      // Function to show book borrow modal - ONLY call when user clicks Borrow button
       function showBorrowModal(bookId) {
         sessionStorage.setItem("currentBorrowBookId", bookId);
         // Set minimum date to today and maximum date to 30 days from now
@@ -626,7 +242,7 @@
         }
       }
 
-      // Function to show logout modal
+      // Function to show logout modal - ONLY call from logout button click
       function showLogoutModal() {
         document.getElementById("logoutModal").style.display = "flex";
       }
@@ -768,21 +384,16 @@
         <p id="borrowConfirmMessage">
           Are you sure you want to borrow this book?
         </p>
-        <div class="form-group" style="margin-bottom: 15px">
+        <div class="form-group">
           <label
             for="returnDate"
-            style="display: block; margin-bottom: 5px; color: black"
+            class="modal-label"
             >Select Return Date:</label
           >
           <input
             type="date"
             id="returnDate"
-            style="
-              width: 100%;
-              padding: 8px;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-            "
+            class="date-input"
             required
           />
         </div>

@@ -1,3 +1,6 @@
+// Add console log to verify script is loaded
+console.log("login.js loaded successfully");
+
 function login() {
   const body = document.body;
   body.classList.add("fade-out");
@@ -110,19 +113,32 @@ function logout() {
 }
 
 // Forgot Password Modal Functions
+// IMPORTANT: Use classList.remove('hidden') instead of style.display
+// because the modal has .hidden class with !important in CSS
+
 function openForgotPasswordModal(event) {
   event.preventDefault();
+  console.log("Opening forgot password modal"); // Debug log
   const modal = document.getElementById("forgotPasswordModal");
-  modal.style.display = "flex";
-  document.body.style.overflow = "hidden";
+  if (modal) {
+    modal.classList.remove("hidden"); // Remove hidden class instead of setting display
+    document.body.style.overflow = "hidden";
+  } else {
+    console.error("Forgot password modal not found");
+  }
 }
 
 function closeForgotPasswordModal() {
+  console.log("Closing forgot password modal"); // Debug log
   const modal = document.getElementById("forgotPasswordModal");
-  modal.style.display = "none";
-  document.body.style.overflow = "auto";
-  document.getElementById("forgotPasswordForm").reset();
-  document.getElementById("forgotPasswordMessage").innerHTML = "";
+  if (modal) {
+    modal.classList.add("hidden"); // Add hidden class instead of setting display
+    document.body.style.overflow = "auto";
+    const form = document.getElementById("forgotPasswordForm");
+    const messageDiv = document.getElementById("forgotPasswordMessage");
+    if (form) form.reset();
+    if (messageDiv) messageDiv.innerHTML = "";
+  }
 }
 
 // Close modal when clicking outside of it
@@ -139,15 +155,35 @@ document.addEventListener("DOMContentLoaded", () => {
   // Handle forgot password form submission
   const forgotPasswordForm = document.getElementById("forgotPasswordForm");
   if (forgotPasswordForm) {
+    console.log("Forgot password form found, attaching event listener"); // Debug log
     forgotPasswordForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = document.getElementById("resetEmail").value;
+      console.log("Forgot password form submitted"); // Debug log
+      
+      const emailInput = document.getElementById("resetEmail");
+      const email = emailInput ? emailInput.value : "";
       const messageDiv = document.getElementById("forgotPasswordMessage");
       const submitBtn = forgotPasswordForm.querySelector(".btn-submit");
 
+      if (!email) {
+        console.error("Email input not found or empty");
+        if (messageDiv) {
+          messageDiv.innerHTML = `
+            <div class="alert alert-danger">
+              ❌ Please enter your email address.
+            </div>
+          `;
+        }
+        return;
+      }
+
+      console.log("Sending reset link to:", email); // Debug log
+
       // Disable button and show loading state
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Sending...";
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Sending...";
+      }
 
       try {
         const response = await fetch("/auth/forgot-password", {
@@ -159,13 +195,16 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         const data = await response.json();
+        console.log("Response from server:", data); // Debug log
 
         if (response.ok) {
-          messageDiv.innerHTML = `
-            <div class="alert alert-success">
-              ✅ Reset link sent! Check your email for instructions.
-            </div>
-          `;
+          if (messageDiv) {
+            messageDiv.innerHTML = `
+              <div class="alert alert-success">
+                ✅ Reset link sent! Check your email for instructions.
+              </div>
+            `;
+          }
           forgotPasswordForm.reset();
 
           // Close modal after 2 seconds
@@ -173,23 +212,31 @@ document.addEventListener("DOMContentLoaded", () => {
             closeForgotPasswordModal();
           }, 2000);
         } else {
-          messageDiv.innerHTML = `
-            <div class="alert alert-danger">
-              ❌ ${data.error || "Failed to send reset link. Please try again."}
-            </div>
-          `;
+          if (messageDiv) {
+            messageDiv.innerHTML = `
+              <div class="alert alert-danger">
+                ❌ ${data.error || "Failed to send reset link. Please try again."}
+              </div>
+            `;
+          }
         }
       } catch (error) {
         console.error("Forgot password error:", error);
-        messageDiv.innerHTML = `
-          <div class="alert alert-danger">
-            ❌ An error occurred. Please check your connection and try again.
-          </div>
-        `;
+        if (messageDiv) {
+          messageDiv.innerHTML = `
+            <div class="alert alert-danger">
+              ❌ An error occurred. Please check your connection and try again.
+            </div>
+          `;
+        }
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Send Reset Link";
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Send Reset Link";
+        }
       }
     });
+  } else {
+    console.error("Forgot password form not found in DOM");
   }
 });

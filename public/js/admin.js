@@ -18,11 +18,21 @@ function setupPasswordToggle(toggleId, fieldIds) {
   });
 }
 
+/* ========================================
+   MODAL FUNCTIONS
+   ======================================== */
+
+// IMPORTANT:
+// These modal functions should ONLY be called when a user explicitly clicks
+// a button or link. They must NEVER be called automatically on page load,
+// from DOMContentLoaded, or from any automatic triggers.
+
 function showModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) modal.style.display = "flex";
 }
 
+// Modal helper functions - only call these from user-triggered events (onclick, button clicks, etc.)
 const showAdminModal = () => showModal("adminModal");
 const showAdminEditModal = () => showModal("adminEdit");
 const showDeleteModal = () => showModal("modalDelete");

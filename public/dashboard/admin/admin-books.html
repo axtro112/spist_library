@@ -6,505 +6,7 @@
     <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/admin.css" />
-    <!-- Fallback styles in case common.css i missing -->
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        background: url("/img/schoolppp.png") no-repeat center center fixed;
-        background-size: cover;
-        min-height: 100vh;
-        position: relative;
-      }
-
-      body::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(76, 175, 80, 0.1);
-        z-index: 0;
-      }
-
-      .main-container {
-        display: flex;
-        min-height: 100vh;
-        position: relative;
-        z-index: 1;
-        padding: 20px;
-      }
-
-      .sidebar {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        width: 220px;
-        height: 100vh;
-        position: fixed;
-        left: 0;
-        top: 0;
-        padding-top: 20px;
-        z-index: 100;
-        backdrop-filter: blur(5px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .container {
-        flex: 1;
-        margin-left: 240px;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        max-width: 1400px;
-      }
-
-      .admin-header {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        color: white;
-        padding: 15px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        position: sticky;
-        top: 0;
-        z-index: 90;
-        backdrop-filter: blur(5px);
-        border-radius: 10px;
-        margin-bottom: 20px;
-      }
-
-      .admin-info {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-      }
-
-      .admin-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background-color: rgba(255, 255, 255, 0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 20px;
-      }
-
-      .admin-details h3 {
-        color: white;
-        margin-bottom: 5px;
-        font-size: 1em;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-      }
-
-      .admin-details p {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 0.8em;
-        margin-bottom: 2px;
-      }
-
-      .admin-info .material-symbols-outlined {
-        font-size: 2.5em;
-      }
-
-      .user-info {
-        background: linear-gradient(
-          135deg,
-          rgba(76, 175, 80, 0.95),
-          rgba(56, 142, 60, 0.95)
-        );
-        color: white;
-        padding: 20px;
-        margin-bottom: 20px;
-        border-radius: 10px;
-        backdrop-filter: blur(5px);
-      }
-
-      .user-info h2 {
-        margin-bottom: 5px;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-      }
-
-      .user-email {
-        font-size: 0.9em;
-        opacity: 0.9;
-      }
-
-      .maincontent {
-        padding: 0;
-      }
-
-      .table-wrapper {
-        background: rgba(255, 255, 255, 0.95);
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        backdrop-filter: blur(5px);
-      }
-
-      .user-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 0;
-      }
-
-      .user-table th,
-      .user-table td {
-        padding: 15px;
-        text-align: left;
-        border-bottom: 1px solid rgba(76, 175, 80, 0.2);
-      }
-
-      .user-table th {
-        background-color: rgba(76, 175, 80, 0.1);
-        color: #1b5e20;
-        font-weight: 600;
-      }
-
-      .user-table tr:last-child td {
-        border-bottom: none;
-      }
-
-      .user-table tr:hover {
-        background-color: rgba(76, 175, 80, 0.05);
-      }
-
-      .logo {
-        padding: 15px;
-        color: white;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .logo img {
-        width: 35px;
-        height: 35px;
-      }
-
-      .nav {
-        margin-top: 15px;
-      }
-
-      .nav ul {
-        list-style: none;
-      }
-
-      .nav ul li {
-        margin-bottom: 3px;
-      }
-
-      .nav ul li a {
-        color: white;
-        text-decoration: none;
-        padding: 10px 15px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        opacity: 0.9;
-        transition: all 0.3s ease;
-        font-size: 0.95em;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-      }
-
-      .nav ul li a:hover {
-        background: rgba(255, 255, 255, 0.15);
-        opacity: 1;
-        transform: translateX(5px);
-      }
-
-      .nav ul li.active a {
-        background: rgba(255, 255, 255, 0.2);
-        opacity: 1;
-        font-weight: 500;
-      }
-
-      .nav .material-symbols-outlined {
-        font-size: 20px;
-      }
-
-      .add-admin {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 5px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        transition: all 0.3s ease;
-      }
-
-      .add-admin:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: translateY(-2px);
-      }
-
-      /* Add animations */
-      .table-wrapper {
-        animation: fadeIn 0.5s ease-out;
-      }
-
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @media (min-width: 1600px) {
-        .container {
-          margin: 0 auto;
-          margin-left: 240px;
-        }
-      }
-
-      /* Modal Styles */
-      .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100vh;
-        background-color: rgba(0, 0, 0, 0.7);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-        overflow: hidden;
-      }
-
-      .modal.show {
-        display: flex;
-      }
-
-      .modal-content {
-        background: white;
-        padding: 2rem;
-        border-radius: 12px;
-        width: 90%;
-        max-width: 500px;
-        position: relative;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-      }
-
-      .modal-content h2 {
-        color: #1b5e20;
-        margin-bottom: 1.5rem;
-        font-size: 1.5rem;
-        font-weight: 600;
-        text-align: center;
-      }
-
-      .form-group {
-        margin-bottom: 1.5rem;
-      }
-
-      .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        color: #2e7d32;
-        font-weight: 600;
-        font-size: 1rem;
-      }
-
-      .form-group input {
-        width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e8f5e9;
-        border-radius: 8px;
-        font-size: 1rem;
-        color: #1b5e20;
-        background: #f5f5f5;
-        transition: all 0.3s ease;
-      }
-
-      .form-group input:hover {
-        border-color: #81c784;
-        background: #ffffff;
-      }
-
-      .form-group input:focus {
-        border-color: #4caf50;
-        background: #ffffff;
-        box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.1);
-        outline: none;
-      }
-
-      .form-group input::placeholder {
-        color: #9e9e9e;
-      }
-
-      .form-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 2rem;
-      }
-
-      .submit-btn,
-      .cancel-btn {
-        padding: 12px 24px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        min-width: 120px;
-        text-align: center;
-      }
-
-      .submit-btn {
-        background: #4caf50;
-        color: white;
-        box-shadow: 0 2px 4px rgba(76, 175, 80, 0.2);
-      }
-
-      .submit-btn:hover {
-        background: #43a047;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(76, 175, 80, 0.2);
-      }
-
-      .cancel-btn {
-        background: #ff5252;
-        color: white;
-        box-shadow: 0 2px 4px rgba(255, 82, 82, 0.2);
-      }
-
-      .cancel-btn:hover {
-        background: #ff1744;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(255, 82, 82, 0.2);
-      }
-
-      .delete-confirm-btn {
-        background: #ff5252;
-        color: white;
-        padding: 12px 24px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 4px rgba(255, 82, 82, 0.2);
-      }
-
-      .delete-confirm-btn:hover {
-        background: #ff1744;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(255, 82, 82, 0.2);
-      }
-
-      /* Modal animations */
-      @keyframes modalFadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(-20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      /* Fix for modal backdrop */
-      body.modal-open {
-        overflow: hidden;
-      }
-
-      /* Dropdown Select Styles */
-      .form-group select {
-        width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e8f5e9;
-        border-radius: 8px;
-        font-size: 1rem;
-        color: #1b5e20;
-        background: #f5f5f5;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        appearance: none; /* Remove default arrow */
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231b5e20' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 12px center;
-        background-size: 16px;
-      }
-
-      .form-group select:hover {
-        border-color: #81c784;
-        background-color: #ffffff;
-      }
-
-      .form-group select:focus {
-        border-color: #4caf50;
-        background: #ffffff;
-        box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.1);
-        outline: none;
-      }
-
-      /* Status colors */
-      .status-available {
-        color: #4caf50;
-        font-weight: 500;
-      }
-
-      .status-borrowed {
-        color: #ff5252;
-        font-weight: 500;
-      }
-
-      .status-borrowed small {
-        display: block;
-        font-size: 0.8em;
-        color: #666;
-        margin-top: 4px;
-      }
-
-      /* Borrowed by styles */
-      .borrowed-by {
-        font-weight: 500;
-        color: #1b5e20;
-      }
-
-      .borrowed-by.active {
-        color: #ff5252;
-      }
-
-      /* Disabled button styles */
-      .btn.delete-btn[disabled] {
-        opacity: 0.5;
-        cursor: not-allowed;
-        background: #ccc;
-      }
-
-      .btn.delete-btn[disabled]:hover {
-        background: #ccc;
-        transform: none;
-      }
-    </style>
+    <link rel="stylesheet" href="/css/bulk-operations.css" />
 
     <!-- Icons -->
     <link
@@ -517,6 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="/css/backup.css" />
 
     <!-- JavaScript -->
     <script>
@@ -533,6 +36,8 @@
     </script>
     <script src="/js/admin.js" defer></script>
     <script src="/js/books.js" defer></script>
+    <script src="/js/books-import-export.js" defer></script>
+    <script src="/js/bulk-operations.js" defer></script>
 
     <script>
       document.addEventListener("DOMContentLoaded", async function () {
@@ -631,19 +136,87 @@
         <div class="maincontent">
           <div class="user-info">
             <h2>Book Management</h2>
-            <button class="add-admin" onclick="showModal('adminModal')">
-              <span class="material-symbols-outlined">add</span>Add Book
-            </button>
+            <div class="book-actions-buttons">
+              <button class="add-admin" onclick="showModal('adminModal')">
+                <span class="material-symbols-outlined">add</span>Add Book
+              </button>
+              <button class="add-admin btn-import" onclick="showModal('importModal')">
+                <span class="material-symbols-outlined">upload</span>Import File
+              </button>
+              <div class="dropdown-container">
+                <button class="add-admin btn-export dropdown-toggle" onclick="toggleExportDropdown(event)">
+                  <span class="material-symbols-outlined">download</span>Download
+                  <span class="material-symbols-outlined dropdown-arrow">arrow_drop_down</span>
+                </button>
+                <div class="dropdown-menu" id="exportDropdown">
+                  <a href="javascript:void(0)" onclick="exportBooksCSV()">
+                    <span class="material-symbols-outlined">description</span>
+                    <div class="dropdown-text">
+                      <span class="dropdown-title">Plain Text (.txt)</span>
+                      <span class="dropdown-subtitle">CSV format</span>
+                    </div>
+                  </a>
+                  <a href="javascript:void(0)" onclick="exportBooks()">
+                    <span class="material-symbols-outlined">table_chart</span>
+                    <div class="dropdown-text">
+                      <span class="dropdown-title">Microsoft Word (.docx)</span>
+                      <span class="dropdown-subtitle">Excel format</span>
+                    </div>
+                  </a>
+                  <a href="javascript:void(0)" onclick="downloadTemplate()">
+                    <span class="material-symbols-outlined">file_download</span>
+                    <div class="dropdown-text">
+                      <span class="dropdown-title">OpenDocument Format (.odt)</span>
+                      <span class="dropdown-subtitle">Import template</span>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="spacecontainer">
             <div class="spacerdiv"></div>
           </div>
 
+          <!-- Gmail-style Bulk Operations Toolbar -->
+          <div class="books-bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <input 
+                type="checkbox" 
+                id="bulkMasterCheckbox" 
+                class="bulk-master-checkbox"
+                title="Select all"
+              />
+              <span id="bulkSelectionText" class="bulk-selection-text"></span>
+            </div>
+            <div class="bulk-toolbar-right">
+              <button 
+                id="bulkEditBtn" 
+                class="bulk-action-btn" 
+                title="Edit selected books"
+                disabled
+              >
+                <span class="material-symbols-outlined">edit</span>
+              </button>
+              <button 
+                id="bulkDeleteBtn" 
+                class="bulk-action-btn delete-action" 
+                title="Delete selected books"
+                disabled
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </div>
+
           <div class="table-wrapper">
             <table class="user-table">
               <thead>
                 <tr>
+                  <th class="checkbox-col">
+                    <input type="checkbox" style="visibility: hidden;" />
+                  </th>
                   <th>ID</th>
                   <th>Title</th>
                   <th>Author</th>
@@ -732,7 +305,7 @@
               <option value="borrowed">Borrowed</option>
             </select>
           </div>
-          <div class="form-group" id="studentSelectGroup" style="display: none">
+          <div class="form-group form-group-hidden" id="studentSelectGroup">
             <label for="studentEdit">Assign to Student</label>
             <select id="studentEdit" name="student">
               <option value="">Select a student...</option>
@@ -775,5 +348,113 @@
         </div>
       </div>
     </div>
+
+    <!-- Import Books Modal -->
+    <div id="importModal" class="modal">
+      <div class="modal-content modal-content-wide">
+        <h2>Import Books from CSV or Excel</h2>
+        <form id="importForm" enctype="multipart/form-data">
+          <div class="form-group">
+            <label for="csvFile">Select CSV or Excel File</label>
+            <input type="file" id="csvFile" name="csvFile" accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required />
+            
+            <!-- CSV/Excel Format Instructions -->
+            <div class="csv-format-info">
+              <strong>
+                <span class="material-symbols-outlined icon-inline">info</span>
+                File Format Requirements (CSV or Excel)
+              </strong>
+              <div class="csv-format-details">
+                <div class="csv-format-section">
+                  <strong>Required columns (in order):</strong><br>
+                  <code class="csv-format-code">title,author,isbn,category,quantity</code>
+                </div>
+                <div class="csv-format-rules">
+                  <strong>Validation Rules:</strong>
+                </div>
+                <ul class="csv-format-list">
+                  <li><strong>Required fields:</strong> title, author, isbn, category (rows with missing fields will be skipped)</li>
+                  <li><strong>Quantity:</strong> Defaults to 1 if empty; use 0 for borrowed/missing books</li>
+                  <li><strong>Duplicate ISBNs:</strong> Rows with ISBNs already in the database will be skipped</li>
+                  <li><strong>Status rules:</strong> Quantity ≥ 1 = "available"; Quantity = 0 = "borrowed" or "missing" based on borrowing records</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div id="importProgress" class="import-progress">
+            <label>Upload Progress</label>
+            <div class="progress-bar-container">
+              <div id="importProgressBar" class="progress-bar">
+                0%
+              </div>
+            </div>
+          </div>
+
+          <div id="importResults" class="import-results">
+            <h4>Import Results</h4>
+            <div id="importResultsContent"></div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="submit-btn" id="importSubmitBtn">
+              <span class="material-symbols-outlined icon-inline">upload_file</span>
+              Import Books
+            </button>
+            <button type="button" class="cancel-btn" onclick="closeModal(); resetImportForm();">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Bulk Edit Modal -->
+    <div id="bulkEditModal" class="modal">
+      <div class="modal-content">
+        <h2>Edit Selected Books</h2>
+        <form id="bulkEditForm" onsubmit="handleBulkEditSubmit(event)">
+          <div class="form-group">
+            <label for="bulkCategory">Category</label>
+            <input 
+              type="text" 
+              id="bulkCategory" 
+              name="category" 
+              placeholder="Leave empty to keep unchanged"
+            />
+            <div class="field-note">Apply new category to all selected books</div>
+          </div>
+
+          <div class="form-group">
+            <label for="bulkStatus">Status</label>
+            <select id="bulkStatus" name="status">
+              <option value="">-- Keep unchanged --</option>
+              <option value="available">Available</option>
+              <option value="borrowed">Borrowed</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
+            <div class="field-note">Update status for all selected books</div>
+          </div>
+
+          <div class="form-group">
+            <label for="bulkQuantity">Quantity</label>
+            <input 
+              type="number" 
+              id="bulkQuantity" 
+              name="quantity" 
+              min="0" 
+              placeholder="Leave empty to keep unchanged"
+            />
+            <div class="field-note">Set quantity for all selected books</div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="submit-btn">Update Books</button>
+            <button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </body>
 </html>
+

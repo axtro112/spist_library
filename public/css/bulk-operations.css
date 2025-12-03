@@ -1,0 +1,126 @@
+/* ============================
+   GMAIL-STYLE BULK OPERATIONS TOOLBAR
+   Description: Minimal styling for bulk actions bar
+   Reuses existing admin.css classes where possible
+   ============================ */
+
+.books-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(76, 175, 80, 0.1);
+}
+
+.bulk-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Master checkbox styling */
+.bulk-master-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #4caf50;
+}
+
+/* Selection text (e.g., "3 selected") */
+.bulk-selection-text {
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+  display: none; /* Hidden when no selection */
+}
+
+/* Bulk action icon buttons */
+.bulk-action-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bulk-action-btn:hover:not(:disabled) {
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.bulk-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bulk-action-btn .material-symbols-outlined {
+  font-size: 20px;
+  color: #555;
+}
+
+.bulk-action-btn:hover:not(:disabled) .material-symbols-outlined {
+  color: #4caf50;
+}
+
+.bulk-action-btn.delete-action .material-symbols-outlined {
+  color: #d32f2f;
+}
+
+.bulk-action-btn.delete-action:hover:not(:disabled) {
+  background: rgba(211, 47, 47, 0.1);
+}
+
+/* Row checkbox in table */
+.book-row-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4caf50;
+}
+
+/* Checkbox column in table */
+.checkbox-col {
+  width: 40px;
+  text-align: center;
+}
+
+/* Bulk edit modal - reuses existing modal styles */
+#bulkEditModal .form-group {
+  margin-bottom: 16px;
+}
+
+#bulkEditModal label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+}
+
+#bulkEditModal input,
+#bulkEditModal select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#bulkEditModal .field-note {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}

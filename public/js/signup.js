@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const studentId = document.getElementById("student_id").value;
     const department = document.getElementById("department").value;
     const yearLevel = document.getElementById("year_level").value;
+    const studentType = document.getElementById("student_type").value;
     const contactNumber = document.getElementById("contact_number").value;
 
     // Validate all required fields
@@ -37,6 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
       !studentId ||
       !department ||
       !yearLevel ||
+      !studentType ||
       !contactNumber
     ) {
       alert("Please fill in all required fields");
@@ -51,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
       student_id: studentId,
       department,
       year_level: yearLevel,
+      student_type: studentType,
       contact_number: contactNumber,
     });
 
@@ -74,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
         password: password,
         department: department.trim(),
         year_level: yearLevel,
-        student_type: "undergraduate",
+        student_type: studentType,
         contact_number: contactNumber.trim(),
         status: "active", // Setting a default status for new accounts
       };

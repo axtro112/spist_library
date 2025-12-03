@@ -109,6 +109,15 @@ router.post("/signup", async (req, res) => {
       status,
     } = req.body;
 
+    // Validate student_type against new ENUM values
+    const validTypes = ['undergraduate', 'graduate', 'transferee'];
+    if (!validTypes.includes(student_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid student type. Must be: undergraduate, graduate, or transferee',
+      });
+    }
+
     const existingCheck = await checkExistingStudent(email, student_id);
     if (existingCheck.exists) {
       return res.status(400).json({

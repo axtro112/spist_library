@@ -6,24 +6,30 @@ const db = require("../config/database");
 router.get("/", async (req, res) => {
   try {
     const { search, category } = req.query;
-    let query = "SELECT * FROM books WHERE 1=1";
+    let query = `
+      SELECT b.*, a.fullname as added_by_name,
+        CASE WHEN b.available_quantity > 0 THEN 1 ELSE 0 END as is_available
+      FROM books b
+      LEFT JOIN admins a ON b.added_by = a.id
+      WHERE b.status = 'active'
+    `;
     const params = [];
 
     // Add search filter if provided
     if (search) {
-      query += " AND (title LIKE ? OR author LIKE ? OR isbn LIKE ?)";
+      query += " AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ?)";
       const searchParam = `%${search}%`;
       params.push(searchParam, searchParam, searchParam);
     }
 
     // Add category filter if provided
     if (category && category !== "") {
-      query += " AND category = ?";
+      query += " AND b.category = ?";
       params.push(category);
     }
 
     // Add order by
-    query += " ORDER BY title ASC";
+    query += " ORDER BY b.title ASC";
 
     // Execute query using the queryDB helper function
     const books = await queryDB(query, params);
@@ -40,7 +46,7 @@ router.get("/", async (req, res) => {
 router.get("/categories", async (req, res) => {
   try {
     const query =
-      "SELECT DISTINCT category FROM books WHERE status != 'deleted' ORDER BY category ASC";
+      "SELECT DISTINCT category FROM books WHERE status = 'active' ORDER BY category ASC";
     const categories = await queryDB(query);
     res.json(categories);
   } catch (error) {
@@ -63,31 +69,46 @@ const queryDB = (sql, params = []) => {
 
 // POST /api/books/borrow - Borrow a book
 router.post("/borrow", async (req, res) => {
-  const { bookId, studentId, borrowDate, returnDate, notes } = req.body;
+  const { bookId, studentId, borrowDate, returnDate, notes, adminId } = req.body;
 
   try {
-    // Check if book is available
-    const books = await queryDB("SELECT status FROM books WHERE id = ?", [
+    // Check if book has available copies
+    const books = await queryDB("SELECT available_quantity FROM books WHERE id = ? AND status = 'active'", [
       bookId,
     ]);
-    if (!books.length || books[0].status !== "available") {
+    if (!books.length || books[0].available_quantity <= 0) {
       return res.status(400).json({
         success: false,
-        message: "Book is not available for borrowing",
+        message: "No copies available for borrowing",
       });
     }
 
-    // Create borrowing record
-    await queryDB(
-      "INSERT INTO book_borrowings (book_id, student_id, borrow_date, expected_return_date, notes) VALUES (?, ?, ?, ?, ?)",
-      [bookId, studentId, borrowDate, returnDate, notes]
-    );
+    // Create borrowing record and decrease available quantity in transaction
+    await new Promise((resolve, reject) => {
+      db.beginTransaction(async (err) => {
+        if (err) return reject(err);
 
-    // Update book status
-    await queryDB("UPDATE books SET status = ? WHERE id = ?", [
-      "borrowed",
-      bookId,
-    ]);
+        try {
+          // Create borrowing record
+          await queryDB(
+            "INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, approved_by, notes, status) VALUES (?, ?, ?, ?, ?, ?, 'borrowed')",
+            [bookId, studentId, borrowDate, returnDate, adminId || null, notes]
+          );
+
+          // Decrease available quantity
+          await queryDB("UPDATE books SET available_quantity = available_quantity - 1 WHERE id = ?", [
+            bookId,
+          ]);
+
+          db.commit((err) => {
+            if (err) return reject(err);
+            resolve();
+          });
+        } catch (error) {
+          db.rollback(() => reject(error));
+        }
+      });
+    });
 
     res.json({ success: true, message: "Book borrowed successfully" });
   } catch (error) {

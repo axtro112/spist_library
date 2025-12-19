@@ -258,3 +258,8 @@ document.addEventListener("DOMContentLoaded", () => {
     console.error("Forgot password form not found in DOM");
   }
 });
+
+// ✅ Google OAuth Sign In
+function signInWithGoogle() {
+  window.location.href = '/auth/google';
+}

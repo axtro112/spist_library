@@ -117,3 +117,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+// ✅ Google OAuth Sign Up
+function signUpWithGoogle() {
+  window.location.href = '/auth/google';
+}

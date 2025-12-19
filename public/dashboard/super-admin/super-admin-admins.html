@@ -22,6 +22,7 @@
 
     <!-- JavaScript -->
     <script src="/js/admin.js" defer></script>
+    <script src="/js/super-admin-guard.js" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", async function () {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
@@ -29,13 +30,15 @@
         const adminRole = sessionStorage.getItem("adminRole");
         const adminId = sessionStorage.getItem("adminId");
 
-        // ✅ ROLE-BASED ACCESS: Store admin role for permission checks
+        // Store for authorization checks
         window.currentAdminRole = adminRole;
         window.currentAdminId = adminId;
 
-        if (isLoggedIn !== "true" || userRole !== "admin") {
-          alert("Please log in with admin credentials to access this page.");
+        // Super Admin access control - redirect non-super admins
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
           window.location.href = "/login";
+          return;
         }
 
         try {
@@ -48,32 +51,9 @@
 
           document.getElementById("adminName").textContent = adminData.fullname;
           document.getElementById("adminEmail").textContent = adminData.email;
-          
-          // ✅ FIX: Format role display properly
-          const roleDisplay = adminData.role === 'super_admin' ? 'Super Admin' : 'System Admin';
-          document.getElementById("adminRole").textContent = roleDisplay;
-          
+          document.getElementById("adminRole").textContent = "Super Admin";
           document.getElementById("adminInitial").textContent =
             adminData.fullname.charAt(0).toUpperCase();
-
-          // ✅ AUTHORIZATION: Hide admin management controls for system_admin
-          if (adminRole !== 'super_admin') {
-            // Hide "Add Admin" button
-            const addAdminBtn = document.querySelector('.add-admin');
-            if (addAdminBtn) {
-              addAdminBtn.style.display = 'none';
-            }
-            
-            // Add read-only notice
-            const userInfo = document.querySelector('.user-info');
-            if (userInfo && !document.querySelector('.read-only-notice')) {
-              const notice = document.createElement('p');
-              notice.className = 'read-only-notice';
-              notice.style.cssText = 'color: #666; font-size: 14px; margin-top: 10px;';
-              notice.innerHTML = '<em>📖 Read-only access - Only Super Admins can manage admin accounts</em>';
-              userInfo.appendChild(notice);
-            }
-          }
 
           // Fetch all admins
           await loadAdmins();
@@ -100,19 +80,20 @@
             // Display shows: 'Super Admin' or 'System Admin'
             const roleDisplay = admin.role === 'super_admin' ? 'Super Admin' : 'System Admin';
             
-            // ✅ AUTHORIZATION: Only show Edit/Delete buttons for super_admin
-            const actionButtons = window.currentAdminRole === 'super_admin' 
-              ? `<button class="btn edit-btn" onclick="showModalEdit(${admin.id})">Edit</button>
-                 <button class="btn delete-btn" onclick="modalDelete(${admin.id})">Delete</button>`
-              : `<span style="color: #999; font-style: italic;">Read-only</span>`;
-            
             tr.innerHTML = `
               <td>${admin.id}</td>
               <td>${admin.fullname}</td>
               <td>${roleDisplay}</td>
               <td>${admin.email}</td>
               <td>${new Date(admin.created_at).toLocaleDateString()}</td>
-              <td>${actionButtons}</td>
+              <td>
+                <button class="btn edit-btn" onclick="showModalEdit(${
+                  admin.id
+                })">Edit</button>
+                <button class="btn delete-btn" onclick="modalDelete(${
+                  admin.id
+                })">Delete</button>
+              </td>
             `;
             tbody.appendChild(tr);
           });
@@ -350,7 +331,7 @@
       }
     </script>
 
-    <title>Admin Management - SPIST Library</title>
+    <title>Admin Management - SPIST Library (Super Admin)</title>
   </head>
 
   <body>
@@ -365,29 +346,39 @@
         <nav class="nav">
           <ul>
             <li>
-              <a href="/admin-dashboard">
+              <a href="/super-admin-dashboard">
                 <span class="material-symbols-outlined">dashboard</span>
                 Dashboard
               </a>
             </li>
+            <li class="active">
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
             <li>
-              <a href="/admin-books">
+              <a href="/super-admin-books">
                 <span class="material-symbols-outlined">book</span>
                 Books
               </a>
             </li>
             <li>
-              <a href="/admin-users">
+              <a href="/super-admin-users">
                 <span class="material-symbols-outlined">group</span>
                 Users
               </a>
             </li>
-            <li class="active">
-              <a href="/admin-admins">
-                <span class="material-symbols-outlined"
-                  >admin_panel_settings</span
-                >
-                Admins
+            <li>
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">history</span>
+                Audit Logs
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
               </a>
             </li>
             <li>

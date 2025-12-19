@@ -20,16 +20,20 @@
     <link rel="stylesheet" href="/css/backup.css" />
 
     <script src="/js/admin.js" defer></script>
+    <script src="/js/super-admin-guard.js" defer></script>
     <script src="/js/user.js" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", async function () {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
         const userRole = sessionStorage.getItem("userRole");
+        const adminRole = sessionStorage.getItem("adminRole");
         const adminId = sessionStorage.getItem("adminId");
 
-        if (isLoggedIn !== "true" || userRole !== "admin") {
-          alert("Please log in with admin credentials to access this page.");
+        // Super Admin access control
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
           window.location.href = "/login";
+          return;
         }
 
         try {
@@ -41,11 +45,7 @@
 
           document.getElementById("adminName").textContent = adminData.fullname;
           document.getElementById("adminEmail").textContent = adminData.email;
-          
-          // ✅ FIX: Format role display properly
-          const roleDisplay = adminData.role === 'super_admin' ? 'Super Admin' : 'System Admin';
-          document.getElementById("adminRole").textContent = roleDisplay;
-          
+          document.getElementById("adminRole").textContent = adminData.role;
           document.getElementById("adminInitial").textContent =
             adminData.fullname.charAt(0).toUpperCase();
         } catch (error) {
@@ -336,28 +336,41 @@
         <nav class="nav">
           <ul>
             <li>
-              <a href="/admin-dashboard">
+              <a href="/super-admin-dashboard">
                 <span class="material-symbols-outlined">dashboard</span>
                 Dashboard
               </a>
             </li>
             <li>
-              <a href="/admin-books">
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books">
                 <span class="material-symbols-outlined">book</span>
                 Books
               </a>
             </li>
             <li class="active">
-              <a href="/admin-users">
+              <a href="/super-admin-users">
                 <span class="material-symbols-outlined">group</span>
                 Users
               </a>
             </li>
             <li>
-              <a href="/admin-admins">
-                <span class="material-symbols-outlined"
-                  >admin_panel_settings</span
-                >
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">history</span>
+                Audit Logs
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
+              </a>
+            </li>
                 Admins
               </a>
             </li>

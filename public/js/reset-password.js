@@ -29,8 +29,20 @@ function setLoading(isLoading) {
 // Toggle password visibility
 function togglePassword(fieldId) {
   const field = document.getElementById(fieldId);
-  const button = event.target.closest('.toggle-password');
-  const icon = button.querySelector('i');
+  const buttons = document.querySelectorAll('.toggle-password');
+  
+  // Find the button that corresponds to this field
+  let targetButton;
+  buttons.forEach(button => {
+    const wrapper = button.closest('.password-input-wrapper');
+    if (wrapper && wrapper.querySelector(`#${fieldId}`)) {
+      targetButton = button;
+    }
+  });
+  
+  if (!targetButton) return;
+  
+  const icon = targetButton.querySelector('i');
 
   if (field.type === "password") {
     field.type = "text";

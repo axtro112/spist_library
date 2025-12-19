@@ -21,7 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script src="/js/admin.js" defer></script>
-    <script src="/js/system-admin-guard.js" defer></script>
+    <script src="/js/super-admin-guard.js" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", async function () {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
@@ -29,16 +29,10 @@
         const adminRole = sessionStorage.getItem("adminRole");
         const adminId = sessionStorage.getItem("adminId");
 
-        // System Admin access control - redirect super_admin to their dashboard
-        if (isLoggedIn !== "true" || userRole !== "admin") {
-          alert("Please log in with admin credentials to access this page.");
+        // Super Admin access control
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
           window.location.href = "/login";
-          return;
-        }
-
-        // If super_admin, redirect to super admin dashboard
-        if (adminRole === "super_admin") {
-          window.location.href = "/super-admin-dashboard";
           return;
         }
 
@@ -51,11 +45,7 @@
 
           document.getElementById("adminName").textContent = adminData.fullname;
           document.getElementById("adminEmail").textContent = adminData.email;
-          
-          // ✅ FIX: Format role display properly
-          const roleDisplay = adminData.role === 'super_admin' ? 'Super Admin' : 'System Admin';
-          document.getElementById("adminRole").textContent = roleDisplay;
-          
+          document.getElementById("adminRole").textContent = "Super Admin";
           document.getElementById("adminInitial").textContent =
             adminData.fullname.charAt(0).toUpperCase();
 
@@ -80,6 +70,11 @@
             statsData.registeredStudents || 0;
           document.getElementById("overdueBooks").textContent =
             statsData.overdueBooks || 0;
+          
+          // Super Admin specific stats
+          document.getElementById("totalAdmins").textContent =
+            statsData.totalAdmins || 0;
+          document.getElementById("systemHealth").textContent = "Healthy";
 
           updateCharts(statsData);
         } catch (error) {
@@ -326,7 +321,7 @@
       }
     </script>
 
-    <title>Admin Dashboard - SPIST Library</title>
+    <title>Super Admin Dashboard - SPIST Library</title>
   </head>
 
   <body>
@@ -335,34 +330,45 @@
         <div class="logo">
           <img src="/img/school-logo-large.png" alt="SPIST Logo" />
           <h3>SPIST Library</h3>
+          <p style="font-size: 11px; color: #666; margin-top: 5px;">Super Admin</p>
         </div>
 
         <nav class="nav">
           <ul>
             <li class="active">
-              <a href="/admin-dashboard">
+              <a href="/super-admin-dashboard">
                 <span class="material-symbols-outlined">dashboard</span>
                 Dashboard
               </a>
             </li>
             <li>
-              <a href="/admin-books">
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books">
                 <span class="material-symbols-outlined">book</span>
                 Books
               </a>
             </li>
             <li>
-              <a href="/admin-users">
+              <a href="/super-admin-users">
                 <span class="material-symbols-outlined">group</span>
                 Users
               </a>
             </li>
             <li>
-              <a href="/admin-admins">
-                <span class="material-symbols-outlined"
-                  >admin_panel_settings</span
-                >
-                Admins
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">fact_check</span>
+                Audit Logs
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
               </a>
             </li>
             <li>
@@ -379,19 +385,20 @@
         <div class="admin-header">
           <div class="admin-info">
             <div class="admin-avatar">
-              <span id="adminInitial">A</span>
+              <span id="adminInitial">S</span>
             </div>
             <div class="admin-details">
-              <h3 id="adminName">Admin User</h3>
-              <p id="adminEmail">admin@spist.edu</p>
-              <p id="adminRole">Super Admin</p>
+              <h3 id="adminName">Super Admin</h3>
+              <p id="adminEmail">superadmin@spist.edu</p>
+              <p id="adminRole" style="color: #FF5722; font-weight: bold;">Super Admin</p>
             </div>
           </div>
         </div>
 
         <div class="maincontent">
           <div class="dashboard-header">
-            <h2>Dashboard Overview</h2>
+            <h2>Super Admin Dashboard</h2>
+            <p style="color: #666; font-size: 14px;">System-wide overview and management</p>
           </div>
 
           <div class="stats-container">
@@ -408,8 +415,16 @@
               <div class="number" id="registeredStudents">0</div>
             </div>
             <div class="stat-card">
+              <h3>Total Admins</h3>
+              <div class="number" id="totalAdmins">0</div>
+            </div>
+            <div class="stat-card">
               <h3>Overdue Books</h3>
               <div class="number" id="overdueBooks">0</div>
+            </div>
+            <div class="stat-card">
+              <h3>System Health</h3>
+              <div class="number" id="systemHealth" style="font-size: 18px; color: #4CAF50;">Healthy</div>
             </div>
           </div>
 
@@ -423,7 +438,7 @@
           </div>
 
           <div class="recent-activity">
-            <h3>Recent Activity</h3>
+            <h3>Recent System Activity</h3>
             <ul class="activity-list" id="activityList"></ul>
           </div>
         </div>

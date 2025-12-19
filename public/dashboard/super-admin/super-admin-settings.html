@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+
+    <script src="/js/admin.js" defer></script>
+    <script src="/js/super-admin-guard.js" defer></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", async function () {
+        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+        const userRole = sessionStorage.getItem("userRole");
+        const adminRole = sessionStorage.getItem("adminRole");
+        const adminId = sessionStorage.getItem("adminId");
+
+        // Super Admin access control
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
+          window.location.href = "/login";
+          return;
+        }
+
+        try {
+          const adminResponse = await fetch(`/api/admin/${adminId}`);
+          if (!adminResponse.ok) {
+            throw new Error("Failed to fetch admin information");
+          }
+          const adminData = await adminResponse.json();
+
+          document.getElementById("adminName").textContent = adminData.fullname;
+          document.getElementById("adminEmail").textContent = adminData.email;
+          document.getElementById("adminRole").textContent = "Super Admin";
+          document.getElementById("adminInitial").textContent =
+            adminData.fullname.charAt(0).toUpperCase();
+        } catch (error) {
+          console.error("Error:", error);
+        }
+      });
+
+      function showLogoutModal() {
+        document.getElementById("logoutModal").style.display = "flex";
+      }
+
+      function closeLogoutModal() {
+        document.getElementById("logoutModal").style.display = "none";
+      }
+
+      function logout() {
+        sessionStorage.clear();
+        window.location.href = "/login";
+      }
+    </script>
+
+    <title>System Settings - SPIST Library (Super Admin)</title>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="logo">
+          <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+          <h3>SPIST Library</h3>
+        </div>
+
+        <nav class="nav">
+          <ul>
+            <li>
+              <a href="/super-admin-dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books">
+                <span class="material-symbols-outlined">book</span>
+                Books
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-users">
+                <span class="material-symbols-outlined">group</span>
+                Users
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">history</span>
+                Audit Logs
+              </a>
+            </li>
+            <li class="active">
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
+              </a>
+            </li>
+            <li>
+              <a href="#" onclick="showLogoutModal()">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="container">
+        <div class="admin-header">
+          <div class="admin-info">
+            <div class="admin-avatar">
+              <span id="adminInitial">A</span>
+            </div>
+            <div class="admin-details">
+              <h3 id="adminName">Admin User</h3>
+              <p id="adminEmail">admin@spist.edu</p>
+              <p id="adminRole">Super Admin</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="maincontent">
+          <div class="user-info">
+            <h2>System Settings</h2>
+          </div>
+
+          <div class="spacecontainer">
+            <div class="spacerdiv"></div>
+          </div>
+
+          <div style="padding: 40px; text-align: center; background: #f5f5f5; border-radius: 8px; margin: 20px;">
+            <span class="material-symbols-outlined" style="font-size: 64px; color: #666;">settings</span>
+            <h3 style="color: #666; margin-top: 20px;">System Settings</h3>
+            <p style="color: #999; margin-top: 10px;">
+              This feature will provide system configuration options including:
+            </p>
+            <ul style="list-style: none; padding: 0; color: #999; margin-top: 15px;">
+              <li>• Database backup and restore</li>
+              <li>• Email notification settings</li>
+              <li>• Library operating hours</li>
+              <li>• Late fee configuration</li>
+              <li>• System maintenance mode</li>
+            </ul>
+            <p style="color: #999; margin-top: 20px; font-style: italic;">
+              Coming soon...
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal">
+      <div class="modal-content">
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to log out?</p>
+        <div class="form-actions">
+          <button class="logout-confirm-btn" onclick="logout()">Logout</button>
+          <button class="cancel-btn" onclick="closeLogoutModal()">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

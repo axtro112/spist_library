@@ -66,8 +66,19 @@ async function handleSubmit(event) {
       form.classList.add("fade-out");
 
       setTimeout(() => {
-        window.location.href =
-          data.userRole === "admin" ? "/admin-dashboard" : "/student-dashboard";
+        // Route based on user role and admin type
+        if (data.userRole === "admin") {
+          // Route admins based on their specific role
+          if (data.role === "super_admin") {
+            window.location.href = "/super-admin-dashboard";
+          } else {
+            // system_admin or other admin roles
+            window.location.href = "/admin-dashboard";
+          }
+        } else {
+          // Student login
+          window.location.href = "/student-dashboard";
+        }
       }, 500);
     } else {
       alert("Invalid email or password. Please try again.");
@@ -121,7 +132,7 @@ function openForgotPasswordModal(event) {
   console.log("Opening forgot password modal"); // Debug log
   const modal = document.getElementById("forgotPasswordModal");
   if (modal) {
-    modal.classList.remove("hidden"); // Remove hidden class instead of setting display
+    modal.style.display = "flex";
     document.body.style.overflow = "hidden";
   } else {
     console.error("Forgot password modal not found");
@@ -132,7 +143,7 @@ function closeForgotPasswordModal() {
   console.log("Closing forgot password modal"); // Debug log
   const modal = document.getElementById("forgotPasswordModal");
   if (modal) {
-    modal.classList.add("hidden"); // Add hidden class instead of setting display
+    modal.style.display = "none";
     document.body.style.overflow = "auto";
     const form = document.getElementById("forgotPasswordForm");
     const messageDiv = document.getElementById("forgotPasswordMessage");
@@ -163,16 +174,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const emailInput = document.getElementById("resetEmail");
       const email = emailInput ? emailInput.value : "";
       const messageDiv = document.getElementById("forgotPasswordMessage");
-      const submitBtn = forgotPasswordForm.querySelector(".btn-submit");
+      const submitBtn = forgotPasswordForm.querySelector('button[type="submit"]');
 
       if (!email) {
         console.error("Email input not found or empty");
         if (messageDiv) {
-          messageDiv.innerHTML = `
-            <div class="alert alert-danger">
-              ❌ Please enter your email address.
-            </div>
-          `;
+          messageDiv.style.display = "block";
+          messageDiv.style.backgroundColor = "#f8d7da";
+          messageDiv.style.color = "#721c24";
+          messageDiv.style.borderLeft = "4px solid #dc3545";
+          messageDiv.textContent = "Please enter your email address.";
         }
         return;
       }
@@ -182,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Disable button and show loading state
       if (submitBtn) {
         submitBtn.disabled = true;
+        const originalText = submitBtn.textContent;
         submitBtn.textContent = "Sending...";
       }
 
@@ -197,37 +209,43 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = await response.json();
         console.log("Response from server:", data); // Debug log
 
+        if (messageDiv) {
+          messageDiv.style.display = "block";
+        }
+
         if (response.ok) {
           if (messageDiv) {
-            messageDiv.innerHTML = `
-              <div class="alert alert-success">
-                ✅ Reset link sent! Check your email for instructions.
-              </div>
-            `;
+            messageDiv.style.backgroundColor = "#d4edda";
+            messageDiv.style.color = "#155724";
+            messageDiv.style.borderLeft = "4px solid #28a745";
+            messageDiv.textContent = "✅ Reset link sent! Check your email for instructions.";
           }
           forgotPasswordForm.reset();
 
-          // Close modal after 2 seconds
+          // Close modal after 3 seconds
           setTimeout(() => {
             closeForgotPasswordModal();
-          }, 2000);
+            if (messageDiv) {
+              messageDiv.style.display = "none";
+              messageDiv.textContent = "";
+            }
+          }, 3000);
         } else {
           if (messageDiv) {
-            messageDiv.innerHTML = `
-              <div class="alert alert-danger">
-                ❌ ${data.error || "Failed to send reset link. Please try again."}
-              </div>
-            `;
+            messageDiv.style.backgroundColor = "#f8d7da";
+            messageDiv.style.color = "#721c24";
+            messageDiv.style.borderLeft = "4px solid #dc3545";
+            messageDiv.textContent = `❌ ${data.error || "Failed to send reset link. Please try again."}`;
           }
         }
       } catch (error) {
         console.error("Forgot password error:", error);
         if (messageDiv) {
-          messageDiv.innerHTML = `
-            <div class="alert alert-danger">
-              ❌ An error occurred. Please check your connection and try again.
-            </div>
-          `;
+          messageDiv.style.display = "block";
+          messageDiv.style.backgroundColor = "#f8d7da";
+          messageDiv.style.color = "#721c24";
+          messageDiv.style.borderLeft = "4px solid #dc3545";
+          messageDiv.textContent = "❌ An error occurred. Please check your connection and try again.";
         }
       } finally {
         if (submitBtn) {

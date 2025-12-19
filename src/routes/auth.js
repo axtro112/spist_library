@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const db = require("../config/database");
+const passport = require("../config/passport");
 require("dotenv").config();
 
 const queryDB = (sql, params = []) => {
@@ -48,11 +49,13 @@ router.post("/login", async (req, res) => {
 
     const admin = await authenticateAdmin(email, password);
     if (admin) {
+      // ✅ LOGIN: Return admin role exactly as stored in database
+      console.log(`[AUTH] Admin login successful: ${admin.email} with role '${admin.role}'`);
       return res.json({
         success: true,
         userRole: "admin",
         adminId: admin.id,
-        role: admin.role,
+        role: admin.role, // 'super_admin' or 'system_admin' from DB
       });
     }
 
@@ -97,6 +100,8 @@ const checkExistingStudent = async (email, studentId) => {
 
 router.post("/signup", async (req, res) => {
   try {
+    console.log("Received signup request with body:", req.body); // Add logging
+    
     const {
       student_id,
       fullname,
@@ -109,9 +114,19 @@ router.post("/signup", async (req, res) => {
       status,
     } = req.body;
 
+    // Validate required fields
+    if (!student_id || !fullname || !email || !password || !department || !year_level || !student_type || !contact_number) {
+      console.log("Missing required fields");
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required',
+      });
+    }
+
     // Validate student_type against new ENUM values
     const validTypes = ['undergraduate', 'graduate', 'transferee'];
     if (!validTypes.includes(student_type)) {
+      console.log("Invalid student type:", student_type);
       return res.status(400).json({
         success: false,
         message: 'Invalid student type. Must be: undergraduate, graduate, or transferee',
@@ -120,6 +135,7 @@ router.post("/signup", async (req, res) => {
 
     const existingCheck = await checkExistingStudent(email, student_id);
     if (existingCheck.exists) {
+      console.log("User already exists:", existingCheck.message);
       return res.status(400).json({
         success: false,
         message: existingCheck.message,
@@ -135,6 +151,10 @@ router.post("/signup", async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
+    console.log("Attempting to insert student with data:", {
+      student_id, fullname, email, department, year_level, student_type, contact_number, status
+    });
+
     await queryDB(insertQuery, [
       student_id,
       fullname,
@@ -144,18 +164,19 @@ router.post("/signup", async (req, res) => {
       year_level,
       student_type,
       contact_number,
-      status,
+      status || 'active',
     ]);
 
+    console.log("Student created successfully");
     res.json({
       success: true,
       message: "Account created successfully",
     });
   } catch (err) {
-    console.error("Signup error:", err);
+    console.error("Signup error details:", err);
     res.status(500).json({
       success: false,
-      message: "Error creating account",
+      message: "Error creating account: " + err.message,
     });
   }
 });
@@ -281,5 +302,41 @@ router.post("/reset-password", async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 });
+
+// Google OAuth Routes
+router.get(
+  "/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+router.get(
+  "/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login.html" }),
+  (req, res) => {
+    // Successful authentication
+    const user = req.user;
+    
+    if (user.userType === "admin") {
+      // Set admin session data
+      res.cookie("adminRole", user.role, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
+      res.cookie("adminEmail", user.email, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
+      res.cookie("adminName", user.fullname, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
+      
+      // Redirect based on role
+      if (user.role === "super_admin") {
+        res.redirect("/dashboard/super-admin/super-admin-dashboard.html");
+      } else {
+        res.redirect("/dashboard/admin/admin-dashboard.html");
+      }
+    } else {
+      // Set student session data
+      res.cookie("studentId", user.userId, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
+      res.cookie("studentEmail", user.email, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
+      res.cookie("studentName", user.fullname, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
+      
+      res.redirect("/dashboard/student/student-dashboard.html");
+    }
+  }
+);
 
 module.exports = router;

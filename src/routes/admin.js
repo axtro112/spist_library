@@ -42,6 +42,73 @@ router.use((req, res, next) => {
   next();
 });
 
+// Authorization middleware for admin management
+async function requireSuperAdmin(req, res, next) {
+  try {
+    const { currentAdminId } = req.body;
+    
+    if (!currentAdminId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required"
+      });
+    }
+
+    const results = await queryDB(
+      "SELECT role FROM admins WHERE id = ?",
+      [currentAdminId]
+    );
+
+    if (results.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Admin not found"
+      });
+    }
+
+    if (results[0].role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only Super Admins can manage admin accounts."
+      });
+    }
+
+    next();
+  } catch (err) {
+    console.error("Authorization error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Authorization check failed"
+    });
+  }
+}
+
+// GET endpoint for single admin (used for profile display)
+router.get("/:id", async (req, res) => {
+  try {
+    const adminId = req.params.id;
+    const results = await queryDB(
+      "SELECT id, fullname, email, role, created_at FROM admins WHERE id = ?",
+      [adminId]
+    );
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found"
+      });
+    }
+
+    res.json(results[0]);
+  } catch (err) {
+    console.error("Error fetching admin:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch admin information"
+    });
+  }
+});
+
 // Get all active students
 router.get("/students", async (req, res) => {
   const query = `
@@ -324,6 +391,8 @@ router.get("/dashboard/stats", async (req, res) => {
     `,
     registeredStudents:
       "SELECT COUNT(*) as count FROM students WHERE status = 'active'",
+    totalAdmins:
+      "SELECT COUNT(*) as count FROM admins WHERE is_active = 1",
     overdueBooks:
       "SELECT COUNT(*) as count FROM book_borrowings WHERE status = 'overdue'",
     borrowingTrends: `
@@ -465,14 +534,43 @@ router.get("/:id", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { fullname, email, password, role } = req.body;
+    const { fullname, email, password, role, currentAdminId } = req.body;
 
+    // ✅ AUTHORIZATION: Only super_admin can create admins
+    if (currentAdminId) {
+      const currentAdmin = await queryDB(
+        "SELECT role FROM admins WHERE id = ?",
+        [currentAdminId]
+      );
+      
+      if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
+        console.log(`[ADMIN CREATE] Access denied: User ${currentAdminId} is not super_admin`);
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Only Super Admins can create admin accounts.",
+        });
+      }
+    }
+
+    // ✅ VALIDATION: Ensure all required fields are present
     if (!fullname || !email || !password || !role) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
     }
+
+    // ✅ ROLE VALIDATION: Ensure role is valid enum value
+    // Only accept: 'super_admin' or 'system_admin'
+    if (role !== 'super_admin' && role !== 'system_admin') {
+      console.error(`[ADMIN CREATE] Invalid role received: '${role}'`);
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Must be 'super_admin' or 'system_admin'`,
+      });
+    }
+
+    console.log(`[ADMIN CREATE] Creating admin with role: '${role}'`); // Debug log
 
     const existingAdmin = await queryDB(
       "SELECT id FROM admins WHERE email = ?",
@@ -492,6 +590,8 @@ router.post("/", async (req, res) => {
       [fullname, email, hashedPassword, role]
     );
 
+    console.log(`[ADMIN CREATE] Admin created successfully with ID ${result.insertId} and role '${role}'`);
+
     res.status(201).json({
       success: true,
       message: "Admin created successfully",
@@ -504,8 +604,37 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const { fullname, email, password, role } = req.body;
+    const { fullname, email, password, role, currentAdminId } = req.body;
     const adminId = req.params.id;
+
+    // ✅ AUTHORIZATION: Only super_admin can update admins
+    if (currentAdminId) {
+      const currentAdmin = await queryDB(
+        "SELECT role FROM admins WHERE id = ?",
+        [currentAdminId]
+      );
+      
+      if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
+        console.log(`[ADMIN UPDATE] Access denied: User ${currentAdminId} is not super_admin`);
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Only Super Admins can update admin accounts.",
+        });
+      }
+    }
+
+    // ✅ ROLE VALIDATION: If role is being updated, validate it
+    if (role && role !== 'super_admin' && role !== 'system_admin') {
+      console.error(`[ADMIN UPDATE] Invalid role received: '${role}'`);
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Must be 'super_admin' or 'system_admin'`,
+      });
+    }
+
+    if (role) {
+      console.log(`[ADMIN UPDATE] Updating admin ${adminId} role to '${role}'`);
+    }
 
     const admin = await queryDB("SELECT id FROM admins WHERE id = ?", [
       adminId,
@@ -564,6 +693,8 @@ router.put("/:id", async (req, res) => {
       params
     );
 
+    console.log(`[ADMIN UPDATE] Admin ${adminId} updated successfully${role ? ` with role '${role}'` : ''}`);
+
     res.json({
       success: true,
       message: "Admin updated successfully",
@@ -575,6 +706,24 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
+    const currentAdminId = req.query.currentAdminId || req.body.currentAdminId;
+
+    // ✅ AUTHORIZATION: Only super_admin can delete admins
+    if (currentAdminId) {
+      const currentAdmin = await queryDB(
+        "SELECT role FROM admins WHERE id = ?",
+        [currentAdminId]
+      );
+      
+      if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
+        console.log(`[ADMIN DELETE] Access denied: User ${currentAdminId} is not super_admin`);
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Only Super Admins can delete admin accounts.",
+        });
+      }
+    }
+
     const result = await queryDB("DELETE FROM admins WHERE id = ?", [
       req.params.id,
     ]);

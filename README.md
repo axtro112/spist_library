@@ -7,7 +7,7 @@ A comprehensive, production-ready web-based library management system developed 
 **Current Version:** v2.0  
 **Database Schema:** v2.0  
 **Status:** ✅ Production Ready  
-**Last Updated:** December 3, 2025
+**Last Updated:** December 15, 2025
 
 > 📖 **Documentation Guide**: This README contains ALL documentation previously spread across multiple files:
 > - Installation & setup (formerly in DOCUMENTATION.md and DATABASE_SETUP.md)
@@ -32,6 +32,7 @@ A comprehensive, production-ready web-based library management system developed 
 - [Feature Documentation](#-feature-documentation)
 - [API Reference](#-api-reference)
 - [Security Best Practices](#-security-best-practices)
+  - [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
 - [Troubleshooting](#-troubleshooting)
 - [Project Structure](#-project-structure)
 - [File Index](#-file-index)
@@ -2548,6 +2549,109 @@ If you discover a security vulnerability, please email: security@spist.edu
    - SameSite cookie policy
    - Origin validation on sensitive operations
 
+### Role-Based Access Control (RBAC)
+
+**Implementation Date:** December 15, 2025
+
+The system implements granular role-based access control for admin management with two distinct roles:
+
+#### Admin Roles
+
+**Super Admin (`super_admin`)**
+- ✅ Full system access
+- ✅ Can create, edit, and delete admin accounts
+- ✅ Can manage books, users, and all system features
+- ✅ Access to super admin dashboard with extended features
+- ✅ Can view audit logs and system settings
+
+**System Admin (`system_admin`)**  
+- ✅ Can manage books (add, edit, delete)
+- ✅ Can manage students/users
+- ✅ Can approve borrowing requests
+- ✅ Can view dashboard statistics
+- ❌ **Cannot** create, edit, or delete admin accounts (read-only access)
+- ❌ **Cannot** access super admin features
+
+#### Backend Authorization
+
+All admin management endpoints (`POST /api/admin`, `PUT /api/admin/:id`, `DELETE /api/admin/:id`) enforce authorization:
+
+```javascript
+// Example: POST /api/admin (Create Admin)
+router.post("/", async (req, res) => {
+  const { currentAdminId } = req.body;
+  
+  // Check if current user is super_admin
+  const currentAdmin = await queryDB(
+    "SELECT role FROM admins WHERE id = ?",
+    [currentAdminId]
+  );
+  
+  if (currentAdmin[0].role !== 'super_admin') {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied. Only Super Admins can create admin accounts."
+    });
+  }
+  
+  // ... rest of create logic
+});
+```
+
+**Security:** Returns **403 Forbidden** if non-super_admin attempts to modify admin accounts, even via direct API calls or dev tools.
+
+#### Frontend UI Controls
+
+**System Admin View:**
+- ❌ "Add Admin" button hidden
+- ❌ Edit/Delete buttons replaced with "Read-only" text
+- ✅ Informational notice: *"📖 Read-only access - Only Super Admins can manage admin accounts"*
+- ✅ Can view all admin accounts in the table
+
+**Super Admin View:**
+- ✅ "Add Admin" button visible
+- ✅ Edit/Delete buttons visible and functional
+- ✅ Full administrative control
+
+#### Files Modified
+
+**Backend:**
+- `src/routes/admin.js` - Added role authorization to POST/PUT/DELETE endpoints
+
+**Frontend:**
+- `public/dashboard/admin/admin-admins.html` - Added UI controls and role checks
+- `public/dashboard/super-admin/super-admin-admins.html` - Added authorization data
+
+#### Testing RBAC
+
+**Test as System Admin (IDs: 8, 13):**
+```bash
+# Login and navigate to Admin Management
+# Verify:
+# - No "Add Admin" button
+# - No Edit/Delete buttons (shows "Read-only")
+# - Can view admin list
+# - API requests return 403
+```
+
+**Test as Super Admin (ID: 17):**
+```bash
+# Login and navigate to Admin Management  
+# Verify:
+# - "Add Admin" button present
+# - Edit/Delete buttons functional
+# - Can create/modify/delete admins
+# - API requests succeed
+```
+
+#### Current Admin Roles in Database
+
+| ID | Name | Role |
+|----|------|------|
+| 8 | Ameer Dela Peña | system_admin |
+| 13 | admin101 | system_admin |
+| 17 | jowel c galang | super_admin |
+
 ---
 
 ## 📊 Testing
@@ -3413,7 +3517,7 @@ While this README is comprehensive, detailed reference documents are also availa
 
 ---
 
-**Last Updated:** December 3, 2025  
+**Last Updated:** December 15, 2025  
 **Version:** 2.0.0  
 **Status:** ✅ Production Ready  
 **Schema Version:** v2.0  

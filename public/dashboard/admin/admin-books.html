@@ -72,6 +72,9 @@
       });
     </script>
 
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
+
     <title>Book Management - SPIST Library</title>
   </head>
 
@@ -181,6 +184,35 @@
 
           <div class="spacecontainer">
             <div class="spacerdiv"></div>
+          </div>
+
+          <!-- Search and Filter Section -->
+          <div class="search-filter-container">
+            <div class="search-bar-wrapper">
+              <span class="material-symbols-outlined search-icon">search</span>
+              <input 
+                type="text" 
+                id="searchInput" 
+                class="search-input" 
+                placeholder="Search by title, author, ISBN, or category..."
+              />
+            </div>
+            <div class="filter-controls">
+              <select id="categoryFilter" class="filter-select">
+                <option value="">All Categories</option>
+                <!-- Categories will be populated dynamically -->
+              </select>
+              <select id="statusFilter" class="filter-select">
+                <option value="">All Status</option>
+                <option value="Available">Available</option>
+                <option value="All Borrowed">Borrowed</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+              <button id="clearFilters" class="clear-filters-btn" title="Clear all filters">
+                <span class="material-symbols-outlined">filter_alt_off</span>
+                Clear
+              </button>
+            </div>
           </div>
 
           <!-- Gmail-style Bulk Operations Toolbar -->

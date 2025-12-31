@@ -5,7 +5,11 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const db = require("../config/database");
 const passport = require("../config/passport");
+const csrf = require("csurf");
 require("dotenv").config();
+
+// CSRF protection for auth routes
+const csrfProtection = csrf({ cookie: false });
 
 const queryDB = (sql, params = []) => {
   return new Promise((resolve, reject) => {
@@ -24,6 +28,13 @@ const authenticateAdmin = async (email, password) => {
   if (adminResults.length === 0) return null;
 
   const admin = adminResults[0];
+  
+  // Check if password exists in database
+  if (!admin.password) {
+    console.log(`[AUTH] Admin ${admin.email} has no password set`);
+    return null;
+  }
+  
   const passwordMatch = await bcrypt.compare(password, admin.password);
 
   return passwordMatch ? admin : null;
@@ -38,12 +49,19 @@ const authenticateStudent = async (email, password) => {
   if (studentResults.length === 0) return null;
 
   const student = studentResults[0];
+  
+  // Check if password exists in database
+  if (!student.password) {
+    console.log(`[AUTH] Student ${student.email} has no password set`);
+    return null;
+  }
+  
   const passwordMatch = await bcrypt.compare(password, student.password);
 
   return passwordMatch ? student : null;
 };
 
-router.post("/login", async (req, res) => {
+router.post("/login", csrfProtection, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -51,6 +69,15 @@ router.post("/login", async (req, res) => {
     if (admin) {
       // ✅ LOGIN: Return admin role exactly as stored in database
       console.log(`[AUTH] Admin login successful: ${admin.email} with role '${admin.role}'`);
+      
+      // Set session
+      req.session.user = {
+        id: admin.id,
+        email: admin.email,
+        userRole: "admin",
+        role: admin.role
+      };
+      
       return res.json({
         success: true,
         userRole: "admin",
@@ -61,6 +88,14 @@ router.post("/login", async (req, res) => {
 
     const student = await authenticateStudent(email, password);
     if (student) {
+      // Set session
+      req.session.user = {
+        id: student.id,
+        studentId: student.student_id,
+        email: student.email,
+        userRole: "student"
+      };
+      
       return res.json({
         success: true,
         userRole: "student",
@@ -98,7 +133,7 @@ const checkExistingStudent = async (email, studentId) => {
   return { exists: false };
 };
 
-router.post("/signup", async (req, res) => {
+router.post("/signup", csrfProtection, async (req, res) => {
   try {
     console.log("Received signup request with body:", req.body); // Add logging
     
@@ -123,15 +158,7 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    // Validate student_type against new ENUM values
-    const validTypes = ['undergraduate', 'graduate', 'transferee'];
-    if (!validTypes.includes(student_type)) {
-      console.log("Invalid student type:", student_type);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid student type. Must be: undergraduate, graduate, or transferee',
-      });
-    }
+    // Note: student_type validation removed to support free-text input (Student, Faculty, Staff, etc.)
 
     const existingCheck = await checkExistingStudent(email, student_id);
     if (existingCheck.exists) {
@@ -338,5 +365,13 @@ router.get(
     }
   }
 );
+
+// GET /auth/csrf-token - Get CSRF token for client-side requests
+router.get("/csrf-token", csrfProtection, (req, res) => {
+  res.json({
+    success: true,
+    csrfToken: req.csrfToken(),
+  });
+});
 
 module.exports = router;

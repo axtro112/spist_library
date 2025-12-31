@@ -351,7 +351,7 @@ async function handleImportSubmit(e) {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/admin/books/import", {
+    const response = await fetchWithCsrf("/api/admin/books/import", {
       method: "POST",
       body: formData,
     });

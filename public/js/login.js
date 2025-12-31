@@ -38,7 +38,7 @@ async function handleSubmit(event) {
   const passwordInput = document.getElementById("password").value;
 
   try {
-    const response = await fetch("/auth/login", {
+    const response = await fetchWithCsrf("/auth/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

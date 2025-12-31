@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../config/database");
+const { requireStudent, requireAdmin } = require("../middleware/auth");
 
 const executeQuery = (query, params = []) => {
   return new Promise((resolve, reject) => {
@@ -66,8 +67,46 @@ router.get("/:studentId/dashboard-stats", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const query = `${SELECT_STUDENT_FIELDS} ORDER BY student_id ASC`;
-    const students = await executeQuery(query);
+    // Extract search and filter parameters
+    const { search, department, year_level, status } = req.query;
+    
+    // Build WHERE conditions dynamically
+    let whereConditions = [];
+    let queryParams = [];
+    
+    // Search condition: search across name, student_id, email, department (partial match, case-insensitive)
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      whereConditions.push("(fullname LIKE ? OR student_id LIKE ? OR email LIKE ? OR department LIKE ?)");
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    // Department filter: exact match
+    if (department && department.trim()) {
+      whereConditions.push("department = ?");
+      queryParams.push(department.trim());
+    }
+    
+    // Year level filter: exact match
+    if (year_level && year_level.trim()) {
+      whereConditions.push("year_level = ?");
+      queryParams.push(year_level.trim());
+    }
+    
+    // Status filter: exact match
+    if (status && status.trim()) {
+      whereConditions.push("status = ?");
+      queryParams.push(status.trim());
+    }
+    
+    const whereClause = whereConditions.length > 0 
+      ? "WHERE " + whereConditions.join(" AND ")
+      : "";
+    
+    const query = `${SELECT_STUDENT_FIELDS} ${whereClause} ORDER BY student_id ASC`;
+    console.log("[BACKEND] Students query with filters:", { search, department, year_level, status });
+    
+    const students = await executeQuery(query, queryParams);
     res.json(students);
   } catch (err) {
     console.error("Error fetching students:", err);
@@ -375,6 +414,216 @@ router.get("/borrowing-history/:studentId", async (req, res) => {
     res.status(500).json({
       message: "Error fetching borrowing history",
       error: error.message,
+    });
+  }
+});
+
+/**
+ * 🆕 NEW ENDPOINT: Bulk Book Borrowing
+ * POST /api/students/borrow-multiple
+ * 
+ * Allows students to borrow multiple books (up to 5) in a single transaction.
+ */
+router.post("/borrow-multiple", async (req, res) => {
+  const { bookIds } = req.body;
+  
+  console.log("[BULK BORROW DEBUG] Full session:", JSON.stringify(req.session, null, 2));
+  console.log("[BULK BORROW DEBUG] Session user:", req.session.user);
+  console.log("[BULK BORROW DEBUG] Session ID:", req.sessionID);
+  
+  // Get the actual student_id (like "GOOGLE-xxx" or "STD-xxx"), not the numeric id
+  const studentId = req.session.user?.studentId;
+
+  console.log("[BULK BORROW] Using student_id:", studentId);
+
+  // Validation 1: Authentication
+  if (!studentId) {
+    console.log("[BULK BORROW ERROR] No studentId in session");
+    return res.status(401).json({ 
+      error: "Not authenticated. Please log in.",
+      debug: {
+        hasSession: !!req.session,
+        hasUser: !!req.session.user,
+        userKeys: req.session.user ? Object.keys(req.session.user) : []
+      }
+    });
+  }
+
+  // Validation 2: Request format
+  if (!bookIds || !Array.isArray(bookIds) || bookIds.length === 0) {
+    return res.status(400).json({ 
+      error: "Invalid request. Please provide an array of book IDs." 
+    });
+  }
+
+  // Validation 3: Maximum 5 books per request
+  if (bookIds.length > 5) {
+    return res.status(400).json({ 
+      error: "You can only borrow up to 5 books at a time." 
+    });
+  }
+
+  // Validation 4: Unique book IDs (prevent duplicates)
+  const uniqueBookIds = [...new Set(bookIds)];
+  if (uniqueBookIds.length !== bookIds.length) {
+    return res.status(400).json({ 
+      error: "Duplicate book IDs detected. Each book can only be borrowed once." 
+    });
+  }
+
+  try {
+    // Start transaction
+    await new Promise((resolve, reject) => {
+      db.beginTransaction((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Check current active borrowings for student
+    const countQuery = `
+      SELECT COUNT(*) as activeCount 
+      FROM book_borrowings 
+      WHERE student_id = ? 
+      AND status IN ('borrowed', 'overdue', 'pending')
+    `;
+
+    const countResult = await executeQuery(countQuery, [studentId]);
+    const currentActiveBorrowings = countResult[0].activeCount;
+
+    // Validation 5: Total borrowing limit (5 active at a time)
+    if (currentActiveBorrowings + uniqueBookIds.length > 5) {
+      await new Promise((resolve) => {
+        db.rollback(() => resolve());
+      });
+
+      return res.status(400).json({ 
+        error: `You currently have ${currentActiveBorrowings} active borrowing(s). You can only have 5 books borrowed at a time.`,
+        currentBorrowings: currentActiveBorrowings,
+        maxAllowed: 5
+      });
+    }
+
+    // Fetch book details and validate availability
+    const booksQuery = `
+      SELECT id, title, author, isbn, available_quantity, status 
+      FROM books 
+      WHERE id IN (?) 
+      AND status = 'active'
+    `;
+
+    const books = await executeQuery(booksQuery, [uniqueBookIds]);
+
+    // Validation 6: All books must exist
+    if (books.length !== uniqueBookIds.length) {
+      await new Promise((resolve) => {
+        db.rollback(() => resolve());
+      });
+
+      return res.status(404).json({ 
+        error: "One or more books not found or are not available for borrowing." 
+      });
+    }
+
+    // Validation 7: All books must have available copies
+    const unavailableBooks = books.filter(book => book.available_quantity <= 0);
+    if (unavailableBooks.length > 0) {
+      await new Promise((resolve) => {
+        db.rollback(() => resolve());
+      });
+
+      return res.status(400).json({ 
+        error: `The following books are not available: ${unavailableBooks.map(b => b.title).join(', ')}`,
+        unavailableBooks: unavailableBooks.map(b => ({
+          id: b.id,
+          title: b.title
+        }))
+      });
+    }
+
+    // Calculate default dates (current date + 14 days)
+    const borrowDate = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14); // 2 weeks borrowing period
+
+    const borrowDateStr = borrowDate.toISOString().split('T')[0];
+    const dueDateStr = dueDate.toISOString().split('T')[0];
+
+    // Create borrowing records and decrement quantities
+    const borrowings = [];
+
+    for (const book of books) {
+      // Insert borrowing record
+      const insertQuery = `
+        INSERT INTO book_borrowings 
+        (book_id, student_id, borrow_date, due_date, status) 
+        VALUES (?, ?, ?, ?, 'borrowed')
+      `;
+
+      const borrowingResult = await executeQuery(insertQuery, [
+        book.id, 
+        studentId, 
+        borrowDateStr, 
+        dueDateStr
+      ]);
+
+      // Decrement available_quantity (atomic operation with row lock)
+      const updateQuery = `
+        UPDATE books 
+        SET available_quantity = available_quantity - 1 
+        WHERE id = ? 
+        AND available_quantity > 0
+      `;
+
+      const updateResult = await executeQuery(updateQuery, [book.id]);
+
+      // Validation 8: Ensure quantity was actually decremented
+      if (updateResult.affectedRows === 0) {
+        throw new Error(`Failed to update quantity for book: ${book.title}`);
+      }
+
+      borrowings.push({
+        borrowingId: borrowingResult.insertId,
+        bookId: book.id,
+        title: book.title,
+        author: book.author,
+        borrowDate: borrowDateStr,
+        dueDate: dueDateStr
+      });
+    }
+
+    // Commit transaction
+    await new Promise((resolve, reject) => {
+      db.commit((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Log successful bulk borrow
+    console.log(`[BULK BORROW SUCCESS] Student ${studentId} borrowed ${borrowings.length} books:`, 
+      borrowings.map(b => b.title).join(', ')
+    );
+
+    // Success response
+    res.json({
+      success: true,
+      successCount: borrowings.length,
+      message: `Successfully borrowed ${borrowings.length} book(s). Due date: ${dueDateStr}`,
+      borrowings: borrowings,
+      dueDate: dueDateStr
+    });
+
+  } catch (error) {
+    // Rollback on any error
+    await new Promise((resolve) => {
+      db.rollback(() => resolve());
+    });
+
+    console.error("[BULK BORROW ERROR]", error);
+    res.status(500).json({ 
+      error: "Failed to process bulk borrowing request. Please try again.",
+      details: error.message 
     });
   }
 });

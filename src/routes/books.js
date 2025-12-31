@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../config/database");
+const { requireAuth } = require("../middleware/auth");
 
 // GET /api/books - Get all books with optional search and category filters
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
     const { search, category } = req.query;
     let query = `
@@ -43,7 +44,7 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/books/categories - Get all unique categories
-router.get("/categories", async (req, res) => {
+router.get("/categories", requireAuth, async (req, res) => {
   try {
     const query =
       "SELECT DISTINCT category FROM books WHERE status = 'active' ORDER BY category ASC";

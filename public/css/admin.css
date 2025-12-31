@@ -466,6 +466,116 @@ body.modal-open {
    Description: Table layouts, book lists, user tables
    ============================ */
 
+/* Search and Filter Section */
+.search-filter-container {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.search-bar-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 300px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #0e5e3f;
+  font-size: 20px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 15px 12px 40px;
+  border: 2px solid rgba(76, 175, 80, 0.3);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.search-input::placeholder {
+  padding-left: 30px;
+}
+
+.search-input:focus {
+  border-color: #0e5e3f;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.filter-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-select {
+  padding: 10px 15px;
+  border: 2px solid rgba(76, 175, 80, 0.3);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 150px;
+}
+
+.filter-select:focus {
+  border-color: #0e5e3f;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.filter-select:hover {
+  border-color: #0e5e3f;
+}
+
+.clear-filters-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 15px;
+  background-color: rgba(76, 175, 80, 0.1);
+  color: #0e5e3f;
+  border: 2px solid rgba(76, 175, 80, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.clear-filters-btn:hover {
+  background-color: rgba(76, 175, 80, 0.2);
+  border-color: #0e5e3f;
+}
+
+.clear-filters-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Responsive adjustments for search/filter */
+@media (min-width: 768px) {
+  .search-filter-container {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
 .table-wrapper {
   background: rgba(255, 255, 255, 0.95);
   padding: 20px;

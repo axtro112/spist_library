@@ -188,7 +188,7 @@ async function handleBulkDelete() {
   }
   
   try {
-    const response = await fetch('/api/admin/books/bulk-delete', {
+    const response = await fetchWithCsrf('/api/admin/books/bulk-delete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -279,7 +279,7 @@ async function handleBulkEditSubmit(e) {
   }
   
   try {
-    const response = await fetch('/api/admin/books/bulk-update', {
+    const response = await fetchWithCsrf('/api/admin/books/bulk-update', {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json'

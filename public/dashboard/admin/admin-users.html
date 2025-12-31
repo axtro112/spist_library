@@ -19,6 +19,8 @@
 
     <link rel="stylesheet" href="/css/backup.css" />
 
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
     <script src="/js/admin.js" defer></script>
     <script src="/js/user.js" defer></script>
     <script>
@@ -54,7 +56,28 @@
 
         async function fetchStudentsData() {
           try {
-            const response = await fetch("/api/students");
+            // Build query parameters for search/filter
+            const searchInput = document.getElementById('searchStudentInput');
+            const departmentFilter = document.getElementById('departmentFilter');
+            const yearLevelFilter = document.getElementById('yearLevelFilter');
+            const statusFilter = document.getElementById('statusFilterStudent');
+            
+            const params = new URLSearchParams();
+            if (searchInput && searchInput.value.trim()) {
+              params.append('search', searchInput.value.trim());
+            }
+            if (departmentFilter && departmentFilter.value) {
+              params.append('department', departmentFilter.value);
+            }
+            if (yearLevelFilter && yearLevelFilter.value) {
+              params.append('year_level', yearLevelFilter.value);
+            }
+            if (statusFilter && statusFilter.value) {
+              params.append('status', statusFilter.value);
+            }
+            
+            const url = `/api/students${params.toString() ? '?' + params.toString() : ''}`;
+            const response = await fetch(url);
             if (!response.ok) {
               throw new Error(
                 `Failed to fetch students data: ${response.statusText}`
@@ -159,6 +182,38 @@
         }
 
         fetchStudentsData();
+
+        // Setup search and filter event listeners
+        const searchInput = document.getElementById('searchStudentInput');
+        const departmentFilter = document.getElementById('departmentFilter');
+        const yearLevelFilter = document.getElementById('yearLevelFilter');
+        const statusFilter = document.getElementById('statusFilterStudent');
+        const clearFiltersBtn = document.getElementById('clearStudentFilters');
+        
+        // Debounce search input
+        let searchTimeout;
+        if (searchInput) {
+          searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => fetchStudentsData(), 300);
+          });
+        }
+        
+        // Apply filters immediately
+        if (departmentFilter) departmentFilter.addEventListener('change', () => fetchStudentsData());
+        if (yearLevelFilter) yearLevelFilter.addEventListener('change', () => fetchStudentsData());
+        if (statusFilter) statusFilter.addEventListener('change', () => fetchStudentsData());
+        
+        // Clear filters button
+        if (clearFiltersBtn) {
+          clearFiltersBtn.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            if (departmentFilter) departmentFilter.value = '';
+            if (yearLevelFilter) yearLevelFilter.value = '';
+            if (statusFilter) statusFilter.value = '';
+            fetchStudentsData();
+          });
+        }
 
         const userTable = document.querySelector(".user-table tbody");
         userTable.addEventListener("click", async function (e) {
@@ -423,6 +478,46 @@
                 <label>Days of visit:</label>
                 <span class="visit-value">3 days</span>
               </div>
+            </div>
+          </div>
+
+          <!-- Search and Filter Section for Students -->
+          <div class="search-filter-container">
+            <div class="search-bar-wrapper">
+              <span class="material-symbols-outlined search-icon">search</span>
+              <input 
+                type="text" 
+                id="searchStudentInput" 
+                class="search-input" 
+                placeholder="Search by name, student ID, email, or department..."
+              />
+            </div>
+            <div class="filter-controls">
+              <select id="departmentFilter" class="filter-select">
+                <option value="">All Departments</option>
+                <option value="BSIT">BSIT</option>
+                <option value="BSCS">BSCS</option>
+                <option value="BSBM">BSBM</option>
+                <option value="BSHM">BSHM</option>
+                <option value="BSED">BSED</option>
+              </select>
+              <select id="yearLevelFilter" class="filter-select">
+                <option value="">All Year Levels</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+                <option value="5">5th Year</option>
+              </select>
+              <select id="statusFilterStudent" class="filter-select">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <button id="clearStudentFilters" class="clear-filters-btn" title="Clear all filters">
+                <span class="material-symbols-outlined">filter_alt_off</span>
+                Clear
+              </button>
             </div>
           </div>
 

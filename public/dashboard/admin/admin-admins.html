@@ -21,6 +21,8 @@
     />
 
     <!-- JavaScript -->
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
     <script src="/js/admin.js" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", async function () {
@@ -77,6 +79,34 @@
 
           // Fetch all admins
           await loadAdmins();
+          
+          // Setup search and filter event listeners
+          const searchInput = document.getElementById('searchAdminInput');
+          const roleFilter = document.getElementById('roleFilter');
+          const clearFiltersBtn = document.getElementById('clearAdminFilters');
+          
+          // Debounce search input
+          let searchTimeout;
+          if (searchInput) {
+            searchInput.addEventListener('input', () => {
+              clearTimeout(searchTimeout);
+              searchTimeout = setTimeout(() => loadAdmins(), 300);
+            });
+          }
+          
+          // Apply role filter immediately
+          if (roleFilter) {
+            roleFilter.addEventListener('change', () => loadAdmins());
+          }
+          
+          // Clear filters button
+          if (clearFiltersBtn) {
+            clearFiltersBtn.addEventListener('click', () => {
+              if (searchInput) searchInput.value = '';
+              if (roleFilter) roleFilter.value = '';
+              loadAdmins();
+            });
+          }
         } catch (error) {
           console.error("Error:", error);
         }
@@ -84,7 +114,20 @@
 
       async function loadAdmins() {
         try {
-          const response = await fetch("/api/admin");
+          // Build query parameters for search/filter
+          const searchInput = document.getElementById('searchAdminInput');
+          const roleFilter = document.getElementById('roleFilter');
+          
+          const params = new URLSearchParams();
+          if (searchInput && searchInput.value.trim()) {
+            params.append('search', searchInput.value.trim());
+          }
+          if (roleFilter && roleFilter.value) {
+            params.append('role', roleFilter.value);
+          }
+          
+          const url = `/api/admin${params.toString() ? '?' + params.toString() : ''}`;
+          const response = await fetch(url);
           if (!response.ok) {
             throw new Error("Failed to fetch admins");
           }
@@ -425,6 +468,30 @@
 
           <div class="spacecontainer">
             <div class="spacerdiv"></div>
+          </div>
+
+          <!-- Search and Filter Section for Admins -->
+          <div class="search-filter-container">
+            <div class="search-bar-wrapper">
+              <span class="material-symbols-outlined search-icon">search</span>
+              <input 
+                type="text" 
+                id="searchAdminInput" 
+                class="search-input" 
+                placeholder="Search by name or email..."
+              />
+            </div>
+            <div class="filter-controls">
+              <select id="roleFilter" class="filter-select">
+                <option value="">All Roles</option>
+                <option value="super_admin">Super Admin</option>
+                <option value="system_admin">System Admin</option>
+              </select>
+              <button id="clearAdminFilters" class="clear-filters-btn" title="Clear all filters">
+                <span class="material-symbols-outlined">filter_alt_off</span>
+                Clear
+              </button>
+            </div>
           </div>
 
           <div class="table-wrapper">

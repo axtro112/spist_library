@@ -11,6 +11,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     />
 
+    <script src="/js/csrf-helper.js"></script>
     <script src="/js/signup.js" defer></script>
 
     <title>Sign Up - SPIST Library</title>
@@ -28,10 +29,6 @@
             <div class="logo-text">
               <h1>Southern Philippines Institute</h1>
               <h2>Institute of Science & Technology Tools</h2>
-              <p class="tagline">
-                Join our academic community and access a world of knowledge.
-                Register now to get started with the SPIST Library System.
-              </p>
             </div>
           </div>
         </div>
@@ -49,127 +46,174 @@
 
           <div id="errorMessage" class="error-message" style="display: none;"></div>
 
+          <!-- Step Indicator -->
+          <div class="step-indicator">
+            <div class="step active" id="step-indicator-1">
+              <span class="step-number">1</span>
+              <span class="step-label">Identity</span>
+            </div>
+            <div class="step" id="step-indicator-2">
+              <span class="step-number">2</span>
+              <span class="step-label">Academic Info</span>
+            </div>
+            <div class="step" id="step-indicator-3">
+              <span class="step-number">3</span>
+              <span class="step-label">Security</span>
+            </div>
+          </div>
+
           <form class="auth-form">
-            <div class="form-group">
-              <label for="fullname">Full Name</label>
-              <input
-                type="text"
-                id="fullname"
-                name="fullname"
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="email">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                pattern="c22-\d{4}-\d{2}@spist.edu.ph"
-                placeholder="c22-xxxx-xx@spist.edu.ph"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="student_id">Student ID</label>
-              <input
-                type="text"
-                id="student_id"
-                name="student_id"
-                pattern="c22-\d{4}-\d{2}"
-                placeholder="c22-xxxx-xx"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="department">Department</label>
-              <select id="department" name="department" required>
-                <option value="">Select Department</option>
-                <option value="BSIT">Bachelor of Science in Information Technology</option>
-                <option value="BSCS">Bachelor of Science in Computer Science</option>
-                <option value="BSBM">Bachelor of Science in Business Management</option>
-                <option value="BSHM">Bachelor of Science in Hospitality Management</option>
-                <option value="BSED">Bachelor of Science in Education</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="year_level">Year Level</label>
-              <select id="year_level" name="year_level" required>
-                <option value="">Select Year Level</option>
-                <option value="1">1st Year</option>
-                <option value="2">2nd Year</option>
-                <option value="3">3rd Year</option>
-                <option value="4">4th Year</option>
-                <option value="5">5th Year</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="student_type">Student Type</label>
-              <select id="student_type" name="student_type" required>
-                <option value="">Select Student Type</option>
-                <option value="undergraduate">Undergraduate</option>
-                <option value="graduate">Graduate</option>
-                <option value="transferee">Transferee</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="contact_number">Contact Number</label>
-              <input
-                type="tel"
-                id="contact_number"
-                name="contact_number"
-                pattern="[0-9]{11}"
-                placeholder="09XXXXXXXXX"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="password">Password</label>
-              <div class="password-input-wrapper">
+            <!-- STEP 1: Identity -->
+            <div class="signup-step-1">
+              <div class="form-group">
+                <label for="fullname">Full Name</label>
                 <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="Enter a strong password"
+                  type="text"
+                  id="fullname"
+                  name="fullname"
+                  placeholder="Enter your full name"
                   required
                 />
-                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('password')">
-                  <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
+              </div>
+
+              <div class="form-group">
+                <label for="email">Email Address</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  pattern="c22-\d{4}-\d{2}@spist.edu.ph"
+                  placeholder="c22-xxxx-xx@spist.edu.ph"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="student_id">Student ID</label>
+                <input
+                  type="text"
+                  id="student_id"
+                  name="student_id"
+                  pattern="c22-\d{4}-\d{2}"
+                  placeholder="c22-xxxx-xx"
+                  required
+                />
+              </div>
+
+              <button type="button" class="auth-button primary-button" onclick="goToStep2()">
+                Next
+              </button>
+            </div>
+
+            <!-- STEP 2: Academic Information -->
+            <div class="signup-step-2" style="display: none;">
+              <!-- Free-text input supports diverse user types including students, faculty, and staff -->
+              <div class="form-group">
+                <label for="student_type">User Type</label>
+                <input
+                  type="text"
+                  id="student_type"
+                  name="student_type"
+                  placeholder="Enter type (Student, Faculty, Staff)"
+                  required
+                />
+              </div>
+
+              <!-- Free-text input allows flexibility for various departments beyond predefined list -->
+              <div class="form-group">
+                <label for="department">Department</label>
+                <input
+                  type="text"
+                  id="department"
+                  name="department"
+                  placeholder="Enter department (Kinder-Senior High School, BSIT, BSCS, HR, Accounting, Faculty)"
+                  required
+                />
+              </div>
+
+              <!-- Free-text input accommodates students, faculty, and staff with varying levels -->
+              <div class="form-group">
+                <label for="year_level">Year Level</label>
+                <input
+                  type="text"
+                  id="year_level"
+                  name="year_level"
+                  placeholder="Enter year level (Kinder-Senior High, College Dept, Faculty, Staff)"
+                  required
+                />
+              </div>
+
+              <div class="button-group">
+                <button type="button" class="auth-button secondary-button" onclick="goBackToStep1()">
+                  Back
+                </button>
+                <button type="button" class="auth-button primary-button" onclick="goToStep3()">
+                  Next
                 </button>
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="confirmPassword">Confirm Password</label>
-              <div class="password-input-wrapper">
+            <!-- STEP 3: Security -->
+            <div class="signup-step-3" style="display: none;">
+              <div class="form-group">
+                <label for="contact_number">Contact Number</label>
                 <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  placeholder="Re-enter your password"
+                  type="tel"
+                  id="contact_number"
+                  name="contact_number"
+                  pattern="[0-9]{11}"
+                  placeholder="09771683520"
                   required
                 />
-                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('confirmPassword')">
-                  <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
+              </div>
+
+              <div class="form-group">
+                <label for="password">Password</label>
+                <div class="password-input-wrapper">
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Enter a strong password"
+                    required
+                  />
+                  <button type="button" class="toggle-password" onclick="togglePasswordVisibility('password')" aria-label="Toggle password visibility">
+                    <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <div class="password-input-wrapper">
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="Re-enter your password"
+                    required
+                  />
+                  <button type="button" class="toggle-password" onclick="togglePasswordVisibility('confirmPassword')" aria-label="Toggle password visibility">
+                    <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="button-group">
+                <button type="button" class="auth-button secondary-button" onclick="goBackToStep2()">
+                  Back
+                </button>
+                <button type="submit" class="auth-button primary-button">
+                  Create Account
                 </button>
               </div>
             </div>
-
-            <button type="submit" class="auth-button primary-button">Create Account</button>
           </form>
 
           <div class="divider">

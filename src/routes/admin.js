@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../config/database");
 const bcrypt = require("bcrypt");
 const upload = require("../middleware/upload");
+const { requireAdmin, requireSuperAdmin: requireSuperAdminMiddleware } = require("../middleware/auth");
 const {
   parseCSV,
   parseExcel,
@@ -83,32 +84,6 @@ async function requireSuperAdmin(req, res, next) {
   }
 }
 
-// GET endpoint for single admin (used for profile display)
-router.get("/:id", async (req, res) => {
-  try {
-    const adminId = req.params.id;
-    const results = await queryDB(
-      "SELECT id, fullname, email, role, created_at FROM admins WHERE id = ?",
-      [adminId]
-    );
-
-    if (results.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Admin not found"
-      });
-    }
-
-    res.json(results[0]);
-  } catch (err) {
-    console.error("Error fetching admin:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch admin information"
-    });
-  }
-});
-
 // Get all active students
 router.get("/students", async (req, res) => {
   const query = `
@@ -130,8 +105,48 @@ router.get("/students", async (req, res) => {
   }
 });
 
-// Book Management Routes
+// Book Management Routes with Search and Filter Support
 router.get("/books", async (req, res) => {
+  // Extract search and filter parameters from query string
+  const { search, category, status } = req.query;
+  
+  // Build WHERE conditions dynamically
+  let whereConditions = [];
+  let queryParams = [];
+  
+  // Base condition: only show active books (v2.0 status values)
+  whereConditions.push("b.status IN ('active', 'maintenance', 'retired')");
+  
+  // Search condition: search across title, author, ISBN, and category (partial match, case-insensitive)
+  if (search && search.trim()) {
+    const searchTerm = `%${search.trim()}%`;
+    whereConditions.push("(b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ? OR b.category LIKE ?)");
+    queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+  }
+  
+  // Category filter: exact match
+  if (category && category.trim()) {
+    whereConditions.push("b.category = ?");
+    queryParams.push(category.trim());
+  }
+  
+  // Status filter: match computed status (Available, All Borrowed, etc.)
+  // This is applied after computing current_status, so we'll filter in JavaScript if needed
+  // For SQL-level filtering, we check available_quantity
+  if (status && status.trim()) {
+    if (status === 'Available') {
+      whereConditions.push("b.available_quantity > 0");
+    } else if (status === 'All Borrowed') {
+      whereConditions.push("b.available_quantity = 0");
+    } else if (status === 'maintenance') {
+      whereConditions.push("b.status = 'maintenance'");
+    }
+  }
+  
+  const whereClause = whereConditions.length > 0 
+    ? "WHERE " + whereConditions.join(" AND ")
+    : "";
+  
   const query = `
     SELECT 
       b.id, b.title, b.author, b.isbn, b.category, 
@@ -158,13 +173,29 @@ router.get("/books", async (req, res) => {
         AND bb1.status IN ('borrowed', 'overdue')
     ) bb ON b.id = bb.book_id
     LEFT JOIN students s ON bb.student_id = s.student_id
-    WHERE (b.status IN ('available', 'borrowed', 'maintenance') OR b.status = '')
+    ${whereClause}
     ORDER BY b.id DESC
   `;
 
   try {
-    const results = await queryDB(query);
-    console.log("[BACKEND] Books query - returned", results.length, "books");
+    const results = await queryDB(query, queryParams);
+    console.log("[ADMIN BOOKS API] Query executed - returned", results.length, "books with filters:", { search, category, status });
+    console.log("[ADMIN BOOKS API] Query parameters:", queryParams);
+    console.log("[ADMIN BOOKS API] WHERE clause:", whereClause);
+    if (results.length > 0 && process.env.NODE_ENV !== 'production') {
+      console.log("[ADMIN BOOKS API] First 3 books:", results.slice(0, 3).map(b => ({
+        id: b.id,
+        title: b.title,
+        status: b.status,
+        available_quantity: b.available_quantity
+      })));
+    }
+    
+    // Log first 3 book categories for debugging
+    if (results.length > 0) {
+      console.log("[BACKEND] Sample book categories:", results.slice(0, 3).map(b => ({ id: b.id, title: b.title, category: b.category })));
+    }
+    
     res.json(results);
   } catch (err) {
     handleError(res, "Database error", err);
@@ -383,7 +414,9 @@ router.delete("/books/:id", async (req, res) => {
 // Dashboard Statistics Route
 router.get("/dashboard/stats", async (req, res) => {
   const queries = {
-    totalBooks: "SELECT COUNT(*) as count FROM books WHERE status != 'deleted'",
+    totalBooks: "SELECT COUNT(*) as count FROM books WHERE status IN ('active', 'maintenance', 'retired')",
+    totalCopies: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('active', 'maintenance', 'retired')",
+    availableBooks: "SELECT COALESCE(SUM(available_quantity), 0) as count FROM books WHERE status = 'active'",
     activeBorrowings: `
       SELECT COUNT(*) as count 
       FROM book_borrowings 
@@ -465,9 +498,9 @@ router.get("/dashboard/stats", async (req, res) => {
   try {
     const results = await Promise.allSettled(
       Object.entries(queries).map(async ([key, query]) => {
-        console.log(`Executing query for ${key}...`);
+        console.log(`[DASHBOARD STATS] Executing query for ${key}...`);
         const result = await queryDB(query);
-        console.log(`Results for ${key}:`, result);
+        console.log(`[DASHBOARD STATS] Results for ${key}:`, Array.isArray(result) ? (result[0]?.count || result.length) : result);
         return { key, result };
       })
     );
@@ -494,7 +527,13 @@ router.get("/dashboard/stats", async (req, res) => {
       }
     });
 
-    console.log("Final dashboard stats:", stats);
+    console.log("[DASHBOARD STATS] Final response:", {
+      totalBooks: stats.totalBooks,
+      totalCopies: stats.totalCopies,
+      availableBooks: stats.availableBooks,
+      activeBorrowings: stats.activeBorrowings,
+      registeredStudents: stats.registeredStudents
+    });
     res.json(stats);
   } catch (err) {
     handleError(res, "Error fetching dashboard statistics", err);
@@ -503,9 +542,34 @@ router.get("/dashboard/stats", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const admins = await queryDB(
-      "SELECT id, fullname, email, role, created_at FROM admins"
-    );
+    // Extract search and filter parameters
+    const { search, role } = req.query;
+    
+    // Build WHERE conditions dynamically
+    let whereConditions = [];
+    let queryParams = [];
+    
+    // Search condition: search across fullname and email (partial match, case-insensitive)
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      whereConditions.push("(fullname LIKE ? OR email LIKE ?)");
+      queryParams.push(searchTerm, searchTerm);
+    }
+    
+    // Role filter: exact match
+    if (role && role.trim()) {
+      whereConditions.push("role = ?");
+      queryParams.push(role.trim());
+    }
+    
+    const whereClause = whereConditions.length > 0 
+      ? "WHERE " + whereConditions.join(" AND ")
+      : "";
+    
+    const query = `SELECT id, fullname, email, role, created_at FROM admins ${whereClause}`;
+    console.log("[BACKEND] Admins query with filters:", { search, role });
+    
+    const admins = await queryDB(query, queryParams);
     res.json(admins);
   } catch (err) {
     handleError(res, "Failed to fetch admins", err);
@@ -598,6 +662,12 @@ router.post("/", async (req, res) => {
       adminId: result.insertId,
     });
   } catch (err) {
+    console.error('[ADMIN CREATE] Error creating admin:', err);
+    console.error('[ADMIN CREATE] Error details:', {
+      message: err.message,
+      code: err.code,
+      sqlMessage: err.sqlMessage
+    });
     handleError(res, "Failed to create admin", err);
   }
 });

@@ -21,6 +21,8 @@
     />
 
     <!-- JavaScript -->
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
     <script src="/js/user.js" defer></script>
     <script>
       // Authentication check - redirect if not logged in as student
@@ -83,7 +85,7 @@
           if (searchQuery) params.append("search", searchQuery);
           if (category) params.append("category", category);
 
-          const response = await fetch(`/api/books?${params.toString()}`);
+          const response = await fetchWithCsrf(`/api/books?${params.toString()}`);
           if (!response.ok) {
             throw new Error(`Failed to fetch books: ${response.status}`);
           }
@@ -94,20 +96,26 @@
           console.error("Error loading books:", error);
           document.querySelector(".user-table tbody").innerHTML = `
             <tr>
-              <td colspan="6" class="text-center">Error loading books</td>
+              <td colspan="7" class="text-center">Error loading books</td>
             </tr>
           `;
         }
       }
 
+      // 🆕 Multi-Book Selection State
+      const MAX_SELECTION = 5;
+      let selectedBooks = new Set();
+      let allBooksData = [];
+
       // Function to display books in the table
       function displayBooks(books) {
         const tableBody = document.querySelector(".user-table tbody");
+        allBooksData = books; // Cache for selection
 
         if (books.length === 0) {
           tableBody.innerHTML = `
             <tr>
-              <td colspan="6" class="text-center">No books found</td>
+              <td colspan="8" class="text-center">No books found</td>
             </tr>
           `;
           return;
@@ -115,28 +123,67 @@
 
         tableBody.innerHTML = books
           .map(
-            (book) => `
+            (book) => {
+              const isAvailable = book.available_quantity > 0;
+              const isSelected = selectedBooks.has(book.id);
+              return `
           <tr>
-            <td>${book.title}</td>
-            <td>${book.author}</td>
-            <td>${book.category}</td>
-            <td>${book.isbn}</td>
+            <td style="text-align: center; padding: 12px;">
+              <input 
+                type="checkbox" 
+                class="book-checkbox" 
+                data-book-id="${book.id}"
+                ${!isAvailable ? 'disabled' : ''}
+                ${isSelected ? 'checked' : ''}
+              />
+            </td>
+            <td>${book.id}</td>
+            <td><strong>${book.title}</strong></td>
+            <td>${book.author || 'Unknown'}</td>
+            <td style="text-align: center;">${book.quantity || book.available_quantity}</td>
+            <td>${book.category || 'Uncategorized'}</td>
+            <td>${book.isbn || 'N/A'}</td>
             <td>
-              <span class="status-pill ${book.status.toLowerCase()}">
-                ${book.status.charAt(0).toUpperCase() + book.status.slice(1)}
+              <span class="status-badge" style="
+                padding: 6px 12px; 
+                border-radius: 12px; 
+                font-size: 0.85em; 
+                font-weight: 600;
+                background: ${isAvailable ? '#e8f5e9' : '#ffebee'};
+                color: ${isAvailable ? '#2e7d32' : '#c62828'};
+                display: inline-block;
+              ">
+                ${isAvailable ? `Available (${book.available_quantity})` : 'Not Available'}
               </span>
             </td>
             <td>
-              ${
-                book.status.toLowerCase() === "available"
-                  ? `<button class="book-borrow-btn" onclick="showBorrowModal('${book.id}')">Borrow</button>`
-                  : '<button class="book-borrow-btn" disabled>Not Available</button>'
-              }
+              <button 
+                class="action-btn btn-borrow" 
+                onclick="showBorrowModal('${book.id}')"
+                ${!isAvailable ? 'disabled' : ''}
+                style="
+                  padding: 8px 16px; 
+                  border: none; 
+                  border-radius: 6px; 
+                  font-weight: 600;
+                  cursor: ${isAvailable ? 'pointer' : 'not-allowed'};
+                  background: ${isAvailable ? '#4CAF50' : '#ccc'};
+                  color: white;
+                  transition: all 0.3s;
+                "
+                onmouseover="if(!this.disabled) this.style.background='#45a049'"
+                onmouseout="if(!this.disabled) this.style.background='#4CAF50'"
+              >
+                ${isAvailable ? 'Borrow' : 'Unavailable'}
+              </button>
             </td>
           </tr>
-        `
+        `;
+            }
           )
           .join("");
+        
+        // No need to attachCheckboxListeners here anymore - using event delegation
       }
 
       // Function to handle search and filter
@@ -215,7 +262,7 @@
             return;
           }
 
-          const response = await fetch("/api/students/borrow-book", {
+          const response = await fetchWithCsrf("/api/students/borrow-book", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -257,6 +304,186 @@
         sessionStorage.clear();
         window.location.href = "/login";
       }
+
+      // 🆕 Bulk Borrow Functions
+      // Initialize event delegation for checkboxes (called once on DOMContentLoaded)
+      function initCheckboxEventDelegation() {
+        const tableBody = document.querySelector(".user-table tbody");
+        const selectAllCheckbox = document.getElementById("select-all-checkbox");
+
+        // Event delegation - ONE listener on parent handles all checkbox changes
+        tableBody.addEventListener("change", (e) => {
+          if (e.target.classList.contains("book-checkbox")) {
+            const bookId = parseInt(e.target.dataset.bookId);
+
+            if (e.target.checked) {
+              if (selectedBooks.size >= MAX_SELECTION) {
+                e.target.checked = false;
+                showSelectionLimitMessage();
+                return;
+              }
+              selectedBooks.add(bookId);
+            } else {
+              selectedBooks.delete(bookId);
+            }
+
+            updateSelectionUI();
+          }
+        });
+
+        // Select All checkbox handler (initialized once)
+        if (selectAllCheckbox) {
+          selectAllCheckbox.addEventListener("change", (e) => {
+            const availableBooks = allBooksData.filter(b => b.available_quantity > 0);
+            
+            if (e.target.checked) {
+              selectedBooks.clear();
+              availableBooks.slice(0, MAX_SELECTION).forEach(book => {
+                selectedBooks.add(book.id);
+              });
+
+              if (availableBooks.length > MAX_SELECTION) {
+                showSelectionLimitMessage();
+              }
+            } else {
+              selectedBooks.clear();
+            }
+
+            displayBooks(allBooksData);
+            updateSelectionUI();
+          });
+        }
+      }
+
+      function updateSelectionUI() {
+        const count = selectedBooks.size;
+        const borrowBtn = document.getElementById("borrow-selected-btn");
+        const clearBtn = document.getElementById("clear-selection-btn");
+        const countSpan = document.getElementById("selected-count");
+
+        if (countSpan) countSpan.textContent = count;
+
+        if (borrowBtn) {
+          if (count > 0) {
+            borrowBtn.disabled = false;
+            borrowBtn.style.opacity = "1";
+            borrowBtn.style.cursor = "pointer";
+            borrowBtn.style.background = "#4CAF50";
+            borrowBtn.onmouseover = () => borrowBtn.style.background = "#45a049";
+            borrowBtn.onmouseout = () => borrowBtn.style.background = "#4CAF50";
+            clearBtn.style.display = "block";
+          } else {
+            borrowBtn.disabled = true;
+            borrowBtn.style.opacity = "0.5";
+            borrowBtn.style.cursor = "not-allowed";
+            borrowBtn.style.background = "#9e9e9e";
+            borrowBtn.onmouseover = null;
+            borrowBtn.onmouseout = null;
+            clearBtn.style.display = "none";
+          }
+        }
+      }
+
+      function showSelectionLimitMessage() {
+        const message = document.getElementById("selection-message");
+        if (message) {
+          message.style.display = "block";
+          setTimeout(() => {
+            message.style.display = "none";
+          }, 3000);
+        }
+      }
+
+      // Bulk borrow button listeners
+      document.addEventListener("DOMContentLoaded", function() {
+        // Initialize event delegation for checkboxes (once on page load)
+        initCheckboxEventDelegation();
+
+        const borrowSelectedBtn = document.getElementById("borrow-selected-btn");
+        const clearSelectionBtn = document.getElementById("clear-selection-btn");
+        const cancelBorrowBtn = document.getElementById("cancel-borrow-btn");
+        const confirmBorrowBtn = document.getElementById("confirm-borrow-btn");
+
+        if (borrowSelectedBtn) {
+          borrowSelectedBtn.addEventListener("click", () => {
+            if (selectedBooks.size === 0) return;
+
+            const selectedBooksData = allBooksData.filter(book => selectedBooks.has(book.id));
+            const modal = document.getElementById("bulk-borrow-modal");
+            const booksList = document.getElementById("selected-books-list");
+            const bookCount = document.getElementById("modal-book-count");
+
+            booksList.innerHTML = selectedBooksData.map(book => `
+              <div class="selected-book-item">
+                <strong style="color: #2e7d32; font-size: 1.1em;">${book.title}</strong><br/>
+                <span style="font-size: 0.9em; color: #fff;">
+                  by ${book.author || 'Unknown'} | ISBN: ${book.isbn || 'N/A'}
+                </span>
+              </div>
+            `).join('');
+
+            bookCount.textContent = selectedBooks.size;
+            modal.style.display = "flex";
+          });
+        }
+
+        if (clearSelectionBtn) {
+          clearSelectionBtn.addEventListener("click", () => {
+            selectedBooks.clear();
+            displayBooks(allBooksData);
+            updateSelectionUI();
+          });
+        }
+
+        if (cancelBorrowBtn) {
+          cancelBorrowBtn.addEventListener("click", () => {
+            document.getElementById("bulk-borrow-modal").style.display = "none";
+          });
+        }
+
+        if (confirmBorrowBtn) {
+          confirmBorrowBtn.addEventListener("click", async () => {
+            const originalText = confirmBorrowBtn.textContent;
+            confirmBorrowBtn.disabled = true;
+            confirmBorrowBtn.textContent = "Processing...";
+
+            try {
+              const response = await fetchWithCsrf("/api/students/borrow-multiple", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  bookIds: Array.from(selectedBooks),
+                }),
+              });
+
+              const result = await response.json();
+
+              if (!response.ok) {
+                throw new Error(result.error || "Failed to borrow books");
+              }
+
+              alert(`✅ Successfully borrowed ${result.successCount} book(s)!\\n\\nDue date: ${result.dueDate}`);
+              
+              document.getElementById("bulk-borrow-modal").style.display = "none";
+              selectedBooks.clear();
+              await loadBooks(
+                document.querySelector(".search-bar input").value,
+                document.querySelector(".filter-dropdown select").value
+              );
+              updateSelectionUI();
+
+            } catch (error) {
+              console.error("Bulk borrow error:", error);
+              alert(`❌ Error: ${error.message}`);
+            } finally {
+              confirmBorrowBtn.disabled = false;
+              confirmBorrowBtn.textContent = originalText;
+            }
+          });
+        }
+      });
     </script>
 
     <title>Browse Books - SPIST Library</title>
@@ -344,22 +571,91 @@
             </div>
           </div>
 
+          <!-- Bulk Borrow Controls -->
+          <div class="bulk-borrow-controls" style="
+            margin: 20px 0; 
+            padding: 16px 20px; 
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8f5e9 100%);
+            border-radius: 10px; 
+            border-left: 4px solid #4CAF50;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          ">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <span style="font-weight: 600; color: #2e7d32; font-size: 0.95em;">
+                  📚 Bulk Borrow:
+                </span>
+                <button 
+                  id="borrow-selected-btn" 
+                  style="
+                    padding: 10px 24px; 
+                    opacity: 0.5; 
+                    cursor: not-allowed;
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    font-size: 0.9em;
+                    transition: all 0.3s;
+                  "
+                  disabled
+                >
+                  Borrow Selected (<span id="selected-count">0</span>/5)
+                </button>
+                <button 
+                  id="clear-selection-btn" 
+                  style="
+                    padding: 8px 18px; 
+                    background: #f44336; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 6px; 
+                    cursor: pointer; 
+                    display: none;
+                    font-weight: 600;
+                    font-size: 0.85em;
+                    transition: all 0.3s;
+                  "
+                >
+                  ✕ Clear Selection
+                </button>
+              </div>
+              <div id="selection-message" style="
+                display: none;
+                color: #d32f2f;
+                font-weight: 600;
+                font-size: 0.9em;
+                padding: 8px 16px;
+                background: #ffebee;
+                border-radius: 6px;
+              ">
+                ⚠️ Maximum 5 books can be selected
+              </div>
+            </div>
+          </div>
+
           <!-- Books Table -->
           <div class="table-wrapper">
             <table class="user-table">
               <thead>
                 <tr>
+                  <th style="width: 50px; text-align: center;">
+                    <input type="checkbox" id="select-all-checkbox" class="book-checkbox" title="Select/Deselect All" />
+                  </th>
+                  <th style="width: 60px;">ID</th>
                   <th>Title</th>
                   <th>Author</th>
+                  <th style="width: 100px; text-align: center;">Quantity</th>
                   <th>Category</th>
                   <th>ISBN</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th style="width: 150px;">Status</th>
+                  <th style="width: 120px;">Action</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td colspan="6" class="text-center">Loading books...</td>
+                  <td colspan="7" class="text-center">Loading books...</td>
                 </tr>
               </tbody>
             </table>
@@ -373,6 +669,31 @@
             <button>3</button>
             <button>&raquo;</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Borrow Confirmation Modal -->
+    <div id="bulk-borrow-modal" class="modal bulk-borrow-modal" style="display: none;">
+      <div class="modal-content" style="background: linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%);">
+        <h2 style="color: white; text-align: center; margin-bottom: 20px;">📚 Confirm Borrowing</h2>
+        <div id="selected-books-list" style="max-height: 400px; overflow-y: auto; margin: 15px 0;"></div>
+        <p style="color: white; text-align: center; margin: 20px 0; font-size: 1.1em;">
+          You are about to borrow <strong id="modal-book-count">0</strong> book(s). Please confirm.
+        </p>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+          <button 
+            id="confirm-borrow-btn" 
+            style="padding: 12px 30px; background: white; color: #2e7d32; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;"
+          >
+            ✓ Confirm Borrow
+          </button>
+          <button 
+            id="cancel-borrow-btn" 
+            style="padding: 12px 30px; background: #f44336; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;"
+          >
+            ✗ Cancel
+          </button>
         </div>
       </div>
     </div>

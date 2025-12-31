@@ -2,6 +2,8 @@ const express = require("express");
 const path = require("path");
 const bodyParser = require("body-parser");
 const session = require("express-session");
+const MySQLStore = require("express-mysql-session")(session);
+const csrf = require("csurf");
 const passport = require("./src/config/passport");
 const authRoutes = require("./src/routes/auth");
 const adminRoutes = require("./src/routes/admin");
@@ -36,16 +38,43 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Configure session middleware
+// MySQL session store configuration
+const sessionStoreOptions = {
+  host: process.env.DB_HOST || "localhost",
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "spist_library",
+  clearExpired: true,
+  checkExpirationInterval: 900000, // 15 minutes
+  expiration: 1800000, // 30 minutes
+  createDatabaseTable: true,
+  schema: {
+    tableName: 'sessions',
+    columnNames: {
+      session_id: 'session_id',
+      expires: 'expires',
+      data: 'data'
+    }
+  }
+};
+
+const sessionStore = new MySQLStore(sessionStoreOptions);
+
+// Configure session middleware with MySQL store
 app.use(
   session({
+    key: 'spist_library_session',
     secret: process.env.SESSION_SECRET || "spist-library-secret-key-change-in-production",
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Reset maxAge on every request
     cookie: {
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 1800000, // 30 minutes
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+      sameSite: 'strict', // CSRF protection
     },
   })
 );
@@ -53,6 +82,21 @@ app.use(
 // Initialize Passport
 app.use(passport.initialize());
 app.use(passport.session());
+
+// CSRF Protection middleware
+const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
+
+// Apply CSRF to routes (except auth routes that handle it separately)
+app.use("/api/admin", csrfProtection);
+app.use("/api/students", csrfProtection);
+app.use("/api/book-borrowings", csrfProtection);
+app.use("/api/books", csrfProtection);
+
+// Middleware to make CSRF token available to all routes
+app.use((req, res, next) => {
+  res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
+  next();
+});
 
 app.use("/auth", authRoutes);
 app.use("/api/admin", adminRoutes);

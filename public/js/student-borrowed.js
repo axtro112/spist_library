@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 async function loadBorrowingHistory() {
   try {
-    const response = await fetch(
+    const response = await fetchWithCsrf(
       `/api/students/borrowing-history/${sessionStorage.getItem("userID")}`
     );
     if (!response.ok) {

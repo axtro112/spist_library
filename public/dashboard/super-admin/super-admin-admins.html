@@ -21,6 +21,8 @@
     />
 
     <!-- JavaScript -->
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
     <script src="/js/admin.js" defer></script>
     <script src="/js/super-admin-guard.js" defer></script>
     <script>
@@ -43,7 +45,7 @@
 
         try {
           // Fetch current admin info
-          const adminResponse = await fetch(`/api/admin/${adminId}`);
+          const adminResponse = await fetchWithCsrf(`/api/admin/${adminId}`);
           if (!adminResponse.ok) {
             throw new Error("Failed to fetch admin information");
           }
@@ -64,7 +66,7 @@
 
       async function loadAdmins() {
         try {
-          const response = await fetch("/api/admin");
+          const response = await fetchWithCsrf("/api/admin");
           if (!response.ok) {
             throw new Error("Failed to fetch admins");
           }
@@ -124,7 +126,7 @@
 
       async function showModalEdit(adminId) {
         try {
-          const response = await fetch(`/api/admin/${adminId}`);
+          const response = await fetchWithCsrf(`/api/admin/${adminId}`);
           if (!response.ok) {
             throw new Error("Failed to fetch admin details");
           }
@@ -177,7 +179,7 @@
               
               console.log("Creating admin with role:", dbRole); // Debug log
               
-              const response = await fetch("/api/admin", {
+              const response = await fetchWithCsrf("/api/admin", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -243,8 +245,7 @@
                 data.password = password;
               }
 
-              const response = await fetch(`/api/admin/${adminId}`, {
-                method: "PUT",
+              const response = await fetchWithCsrf(`/api/admin/${adminId}`, {
                 method: "PUT",
                 headers: {
                   "Content-Type": "application/json",
@@ -276,7 +277,7 @@
               document.getElementById("modalDelete").dataset.adminId;
 
             try {
-              const response = await fetch(`/api/admin/${adminId}?currentAdminId=${window.currentAdminId}`, {
+              const response = await fetchWithCsrf(`/api/admin/${adminId}?currentAdminId=${window.currentAdminId}`, {
                 method: "DELETE",
               });
 
@@ -315,11 +316,6 @@
             confirmPassword.type = type;
           });
       });
-
-      // Function to show logout modal - ONLY call from logout link click
-      function showLogoutModal() {
-        document.getElementById("logoutModal").style.display = "flex";
-      }
 
       function closeLogoutModal() {
         document.getElementById("logoutModal").style.display = "none";

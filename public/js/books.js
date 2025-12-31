@@ -54,13 +54,89 @@ document.addEventListener("DOMContentLoaded", async function () {
     statusEdit.addEventListener("change", handleStatusChange);
   }
 
-  await Promise.all([loadBooks(), loadStudents()]);
+  await Promise.all([loadBooks(), loadStudents(), loadCategories()]);
+  
+  // Set up search and filter event listeners
+  setupSearchAndFilters();
 });
+
+// Load unique categories from all books to populate the dropdown
+async function loadCategories() {
+  try {
+    const response = await fetchWithCsrf('/api/admin/books');
+    if (!response.ok) return;
+    
+    const books = await response.json();
+    const categories = [...new Set(books.map(b => b.category).filter(c => c && c.trim()))];
+    categories.sort();
+    
+    const categoryFilter = document.getElementById('categoryFilter');
+    if (categoryFilter) {
+      // Keep the "All Categories" option and add the rest
+      const currentValue = categoryFilter.value;
+      categoryFilter.innerHTML = '<option value="">All Categories</option>';
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        categoryFilter.appendChild(option);
+      });
+      categoryFilter.value = currentValue;
+    }
+  } catch (error) {
+    console.error('Error loading categories:', error);
+  }
+}
+
+// Search and Filter functionality
+function setupSearchAndFilters() {
+  const searchInput = document.getElementById('searchInput');
+  const categoryFilter = document.getElementById('categoryFilter');
+  const statusFilter = document.getElementById('statusFilter');
+  const clearFiltersBtn = document.getElementById('clearFilters');
+  
+  // Debounce search input to avoid too many requests
+  let searchTimeout;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      loadBooks();
+    }, 300); // Wait 300ms after user stops typing
+  });
+  
+  // Apply filters immediately when changed
+  categoryFilter.addEventListener('change', () => loadBooks());
+  statusFilter.addEventListener('change', () => loadBooks());
+  
+  // Clear all filters button
+  clearFiltersBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    categoryFilter.value = '';
+    statusFilter.value = '';
+    loadBooks();
+  });
+}
+
+function getFilterParams() {
+  const search = document.getElementById('searchInput')?.value || '';
+  const category = document.getElementById('categoryFilter')?.value || '';
+  const status = document.getElementById('statusFilter')?.value || '';
+  
+  const params = new URLSearchParams();
+  if (search.trim()) params.append('search', search.trim());
+  if (category.trim()) params.append('category', category.trim());
+  if (status.trim()) params.append('status', status.trim());
+  
+  return params.toString();
+}
 
 async function loadBooks() {
   try {
-    console.log("[FRONTEND] Fetching books from /api/admin/books...");
-    const response = await fetch("/api/admin/books");
+    const filterParams = getFilterParams();
+    const url = `/api/admin/books${filterParams ? '?' + filterParams : ''}`;
+    
+    console.log("[FRONTEND] Fetching books from:", url);
+    const response = await fetchWithCsrf(url);
     console.log("[FRONTEND] Response status:", response.status, response.statusText);
     
     if (!response.ok) {
@@ -69,9 +145,7 @@ async function loadBooks() {
       throw new Error(data.message || "Failed to fetch books");
     }
     const books = await response.json();
-    console.log("[FRONTEND] Books data received:", books);
-    console.log("[FRONTEND] Number of books:", books.length);
-    console.log("[FRONTEND] First book:", books[0]);
+    console.log("[FRONTEND] Books data received:", books.length, "books");
     displayBooks(books);
   } catch (error) {
     console.error("Error:", error);
@@ -274,7 +348,7 @@ async function handleAddBook(e) {
   }
 
   try {
-    const response = await fetch("/api/admin/books", {
+    const response = await fetchWithCsrf("/api/admin/books", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
@@ -331,7 +405,7 @@ async function handleEditBook(e) {
   try {
     console.log("Sending update request with data:", formData);
     console.log("Quantity being sent:", formData.quantity, "Type:", typeof formData.quantity);
-    const response = await fetch(`/api/admin/books/${bookId}`, {
+    const response = await fetchWithCsrf(`/api/admin/books/${bookId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
@@ -360,7 +434,7 @@ async function handleDeleteBook() {
   }
 
   try {
-    const response = await fetch(`/api/admin/books/${bookId}`, {
+    const response = await fetchWithCsrf(`/api/admin/books/${bookId}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
     });
@@ -396,7 +470,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 async function loadStudents() {
   try {
-    const response = await fetch("/api/admin/students");
+    const response = await fetchWithCsrf("/api/admin/students");
     if (!response.ok) {
       throw new Error("Failed to fetch students");
     }

@@ -7,8 +7,19 @@ function getTokenFromURL() {
 // Show message helper
 function showMessage(message, type) {
   const messageContainer = document.getElementById("messageContainer");
-  const alertClass = `alert alert-${type}`;
-  messageContainer.innerHTML = `<div class="${alertClass}" role="alert">${message}</div>`;
+  messageContainer.style.display = "block";
+  
+  if (type === "success") {
+    messageContainer.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
+    messageContainer.style.color = "#2e7d32";
+    messageContainer.style.borderLeft = "4px solid #4CAF50";
+  } else {
+    messageContainer.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
+    messageContainer.style.color = "#c62828";
+    messageContainer.style.borderLeft = "4px solid #f44336";
+  }
+  
+  messageContainer.textContent = message;
   window.scrollTo(0, 0);
 }
 
@@ -86,31 +97,36 @@ function validatePasswords() {
 
   // Check length requirement
   if (newPassword.length >= 6) {
-    reqLength.style.color = "#2e7d32";
+    reqLength.style.color = "#a5d6a7";
     reqLength.innerHTML = '<i class="fas fa-check"></i> At least 6 characters';
   } else {
-    reqLength.style.color = "#c62828";
+    reqLength.style.color = "rgba(255, 255, 255, 0.7)";
     reqLength.innerHTML = '<i class="fas fa-times"></i> At least 6 characters';
   }
 
   // Check match requirement
   if (newPassword && confirmPassword) {
     if (newPassword === confirmPassword) {
-      matchIndicator.className = "match-indicator match";
-      matchIndicator.innerHTML =
-        '<span class="match-icon"><i class="fas fa-check-circle"></i></span> Passwords match';
-      reqMatch.style.color = "#2e7d32";
+      matchIndicator.style.display = "block";
+      matchIndicator.style.color = "#a5d6a7";
+      matchIndicator.style.fontSize = "13px";
+      matchIndicator.style.marginTop = "6px";
+      matchIndicator.innerHTML = '<i class="fas fa-check-circle"></i> Passwords match';
+      reqMatch.style.color = "#a5d6a7";
       reqMatch.innerHTML = '<i class="fas fa-check"></i> Passwords must match';
     } else {
-      matchIndicator.className = "match-indicator no-match";
-      matchIndicator.innerHTML =
-        '<span class="match-icon"><i class="fas fa-times-circle"></i></span> Passwords do not match';
-      reqMatch.style.color = "#c62828";
+      matchIndicator.style.display = "block";
+      matchIndicator.style.color = "#ffcdd2";
+      matchIndicator.style.fontSize = "13px";
+      matchIndicator.style.marginTop = "6px";
+      matchIndicator.innerHTML = '<i class="fas fa-times-circle"></i> Passwords do not match';
+      reqMatch.style.color = "#ffcdd2";
       reqMatch.innerHTML = '<i class="fas fa-times"></i> Passwords must match';
     }
   } else {
+    matchIndicator.style.display = "none";
     matchIndicator.innerHTML = "";
-    reqMatch.style.color = "#666";
+    reqMatch.style.color = "rgba(255, 255, 255, 0.7)";
     reqMatch.innerHTML = 'Passwords must match';
   }
 

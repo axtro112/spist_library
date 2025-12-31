@@ -180,10 +180,8 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error("Email input not found or empty");
         if (messageDiv) {
           messageDiv.style.display = "block";
-          messageDiv.style.backgroundColor = "#f8d7da";
-          messageDiv.style.color = "#721c24";
-          messageDiv.style.borderLeft = "4px solid #dc3545";
-          messageDiv.textContent = "Please enter your email address.";
+          messageDiv.className = "forgot-message error";
+          messageDiv.textContent = "⚠️ Please enter your email address.";
         }
         return;
       }
@@ -193,8 +191,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // Disable button and show loading state
       if (submitBtn) {
         submitBtn.disabled = true;
-        const originalText = submitBtn.textContent;
-        submitBtn.textContent = "Sending...";
+        submitBtn.innerHTML = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+            <circle cx="12" cy="12" r="10"></circle>
+          </svg>
+          Sending...
+        `;
       }
 
       try {
@@ -215,9 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (response.ok) {
           if (messageDiv) {
-            messageDiv.style.backgroundColor = "#d4edda";
-            messageDiv.style.color = "#155724";
-            messageDiv.style.borderLeft = "4px solid #28a745";
+            messageDiv.className = "forgot-message success";
             messageDiv.textContent = "✅ Reset link sent! Check your email for instructions.";
           }
           forgotPasswordForm.reset();
@@ -228,13 +228,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (messageDiv) {
               messageDiv.style.display = "none";
               messageDiv.textContent = "";
+              messageDiv.className = "forgot-message";
             }
           }, 3000);
         } else {
           if (messageDiv) {
-            messageDiv.style.backgroundColor = "#f8d7da";
-            messageDiv.style.color = "#721c24";
-            messageDiv.style.borderLeft = "4px solid #dc3545";
+            messageDiv.className = "forgot-message error";
             messageDiv.textContent = `❌ ${data.error || "Failed to send reset link. Please try again."}`;
           }
         }
@@ -242,15 +241,19 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error("Forgot password error:", error);
         if (messageDiv) {
           messageDiv.style.display = "block";
-          messageDiv.style.backgroundColor = "#f8d7da";
-          messageDiv.style.color = "#721c24";
-          messageDiv.style.borderLeft = "4px solid #dc3545";
+          messageDiv.className = "forgot-message error";
           messageDiv.textContent = "❌ An error occurred. Please check your connection and try again.";
         }
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.textContent = "Send Reset Link";
+          submitBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+            Send Reset Link
+          `;
         }
       }
     });

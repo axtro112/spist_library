@@ -155,24 +155,24 @@ npm install
 ```
 
 This installs:
-- `express` - Web framework
-- `mysql2` - Database driver
-- `bcrypt` - Password hashing
-- `dotenv` - Environment variables
-- `express-session` - Session management
-- `express-mysql-session` - MySQL session store
-- `csurf` - CSRF protection
-- `helmet` - Security headers (HTTP hardening)
-- `express-rate-limit` - Rate limiting (DDoS protection)
-- `cors` - Cross-Origin Resource Sharing
-- `passport` - Authentication middleware
-- `passport-google-oauth20` - Google OAuth integration
-- `multer` - File upload
-- `csv-parser` - CSV parsing
-- `xlsx` - Excel support
-- `nodemailer` - Email sending
-- `body-parser` - Request parsing
-- `express-validator` - Input validation and sanitization
+  "bcrypt": "^5.1.1",                    // Password hashing and encryption
+  "body-parser": "^1.20.2",              // Parse incoming request bodies (JSON, URL-encoded)
+  "cors": "^2.8.5",                      // Enable Cross-Origin Resource Sharing
+  "csurf": "^1.11.0",                    // CSRF protection middleware
+  "csv-parser": "^3.2.0",                // Parse CSV files for bulk imports
+  "dotenv": "^16.6.1",                   // Load environment variables from .env file
+  "express": "^4.18.2",                  // Web application framework
+  "express-mysql-session": "^3.0.3",     // MySQL session store for Express
+  "express-rate-limit": "^8.2.1",        // Rate limiting middleware for API protection
+  "express-session": "^1.18.2",          // Session management middleware
+  "express-validator": "^7.3.1",         // Input validation and sanitization
+  "helmet": "^8.1.0",                    // Security headers middleware
+  "multer": "^2.0.2",                    // Handle file uploads (CSV/Excel for bulk operations)
+  "mysql2": "^3.6.5",                    // MySQL database driver with Promise support
+  "nodemailer": "^6.9.7",                // Send emails (password reset functionality)
+  "passport": "^0.7.0",                  // Authentication middleware
+  "passport-google-oauth20": "^2.0.0",   // Google OAuth 2.0 authentication strategy
+  "xlsx": "^0.18.5"                      // Parse Excel files for bulk imports
 
 ### Step 3: Database Setup
 

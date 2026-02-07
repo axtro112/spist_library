@@ -1,0 +1,496 @@
+/* User Details Modal - Green Theme (Matching Login/Signup) */
+
+.user-details-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  z-index: 10001;
+  justify-content: center;
+  align-items: center;
+  animation: userDetailsFadeIn 0.3s ease;
+  padding: 20px;
+}
+
+.user-details-overlay.active {
+  display: flex;
+}
+
+.user-details-modal {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  animation: userDetailsSlideUp 0.4s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.user-details-header {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  padding: 24px 30px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: relative;
+}
+
+.user-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: white;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.user-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-header-info h2 {
+  margin: 0 0 6px 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-header-subtitle {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-header-subtitle .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.user-details-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.user-details-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+/* Body */
+.user-details-body {
+  padding: 30px;
+  overflow-y: auto;
+  flex: 1;
+  background: #f8f9fa;
+}
+
+.user-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+/* Info Card */
+.user-info-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.user-info-card h3 {
+  margin: 0 0 20px 0;
+  color: #28a745;
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-info-card h3 .material-symbols-outlined {
+  font-size: 26px;
+}
+
+.user-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.user-info-field:last-child {
+  margin-bottom: 0;
+}
+
+.user-info-label {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.user-info-value {
+  font-size: 1.05rem;
+  color: #2c3e50;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.user-status-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.user-status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.user-status-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Borrowings Card */
+.user-borrowings-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.user-borrowings-card h3 {
+  margin: 0 0 20px 0;
+  color: #28a745;
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-borrowings-card h3 .material-symbols-outlined {
+  font-size: 26px;
+}
+
+.borrowing-count {
+  background: #28a745;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.borrowing-item {
+  background: #f8f9fa;
+  border-left: 4px solid #28a745;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.2s;
+}
+
+.borrowing-item:hover {
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.15);
+  transform: translateX(4px);
+}
+
+.borrowing-item:last-child {
+  margin-bottom: 0;
+}
+
+.borrowing-item.overdue {
+  border-left-color: #dc3545;
+  background: #fff5f5;
+}
+
+.borrowing-title {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.borrowing-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.borrowing-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.borrowing-meta-item .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.borrowing-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.borrowing-status.borrowed {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.borrowing-status.overdue {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.borrowings-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+}
+
+.borrowings-empty .material-symbols-outlined {
+  font-size: 64px;
+  color: #28a745;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.borrowings-empty p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Loading State */
+.user-details-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6c757d;
+}
+
+.user-details-loading .material-symbols-outlined {
+  font-size: 56px;
+  animation: userDetailsSpin 1s linear infinite;
+  color: #28a745;
+}
+
+.user-details-loading p {
+  margin-top: 16px;
+  font-size: 1.05rem;
+}
+
+/* Error State */
+.user-details-error {
+  background: #fff5f5;
+  border-left: 4px solid #dc3545;
+  border-radius: 8px;
+  padding: 24px;
+  color: #721c24;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.user-details-error .material-symbols-outlined {
+  font-size: 36px;
+  color: #dc3545;
+  flex-shrink: 0;
+}
+
+/* Footer */
+.user-details-footer {
+  padding: 20px 30px;
+  background: white;
+  border-top: 1px solid #dee2e6;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.user-details-btn {
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+}
+
+.user-details-btn .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.user-details-btn-primary {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.user-details-btn-primary:hover {
+  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+  transform: translateY(-2px);
+}
+
+.user-details-btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.user-details-btn-secondary:hover {
+  background: #5a6268;
+}
+
+/* Animations */
+@keyframes userDetailsFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes userDetailsSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes userDetailsSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive - Tablet */
+@media (max-width: 768px) {
+  .user-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-details-header {
+    padding: 20px;
+    flex-wrap: wrap;
+  }
+
+  .user-header-info h2 {
+    font-size: 1.4rem;
+  }
+
+  .user-details-body {
+    padding: 20px;
+  }
+
+  .user-details-footer {
+    padding: 16px 20px;
+    flex-direction: column;
+  }
+
+  .user-details-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 480px) {
+  .user-details-overlay {
+    padding: 10px;
+  }
+
+  .user-details-modal {
+    max-height: 95vh;
+  }
+
+  .user-avatar {
+    width: 60px;
+    height: 60px;
+    font-size: 26px;
+  }
+
+  .user-details-header {
+    padding: 16px;
+  }
+
+  .user-header-info h2 {
+    font-size: 1.2rem;
+  }
+
+  .user-header-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .user-details-body {
+    padding: 16px;
+  }
+
+  .user-info-card,
+  .user-borrowings-card {
+    padding: 16px;
+  }
+
+  .borrowing-meta {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

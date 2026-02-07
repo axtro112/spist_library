@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../config/database");
+const db = require("../utils/db");
+const response = require("../utils/response");
+const logger = require("../utils/logger");
 const { requireAuth } = require("../middleware/auth");
 
 // GET /api/books - Get all books with optional search and category filters
@@ -12,7 +14,7 @@ router.get("/", requireAuth, async (req, res) => {
         CASE WHEN b.available_quantity > 0 THEN 1 ELSE 0 END as is_available
       FROM books b
       LEFT JOIN admins a ON b.added_by = a.id
-      WHERE b.status = 'active'
+      WHERE b.status = 'available'
     `;
     const params = [];
 
@@ -32,14 +34,13 @@ router.get("/", requireAuth, async (req, res) => {
     // Add order by
     query += " ORDER BY b.title ASC";
 
-    // Execute query using the queryDB helper function
-    const books = await queryDB(query, params);
-    res.json(books);
+    // Execute query using the db utility
+    const books = await db.query(query, params);
+    logger.info('Books fetched successfully', { count: books.length, search, category });
+    response.success(res, books);
   } catch (error) {
-    console.error("Error fetching books:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching books", error: error.message });
+    logger.error('Error fetching books', { error: error.message });
+    response.error(res, 'Error fetching books', error);
   }
 });
 
@@ -47,26 +48,53 @@ router.get("/", requireAuth, async (req, res) => {
 router.get("/categories", requireAuth, async (req, res) => {
   try {
     const query =
-      "SELECT DISTINCT category FROM books WHERE status = 'active' ORDER BY category ASC";
-    const categories = await queryDB(query);
-    res.json(categories);
+      "SELECT DISTINCT category FROM books WHERE status = 'available' AND category IS NOT NULL AND category != '' ORDER BY category ASC";
+    const categories = await db.query(query);
+    logger.info('Categories fetched successfully', { count: categories.length });
+    response.success(res, categories);
   } catch (error) {
-    console.error("Error fetching categories:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching categories", error: error.message });
+    logger.error('Error fetching categories', { error: error.message });
+    response.error(res, 'Error fetching categories', error);
   }
 });
 
-// Helper function for database queries
-const queryDB = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) reject(err);
-      else resolve(results);
-    });
-  });
-};
+// GET /api/books/:id - Get single book by ID (for notification modal deep link)
+router.get("/:id", requireAuth, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+
+    const query = `
+      SELECT 
+        id,
+        title,
+        author,
+        category,
+        isbn,
+        description,
+        quantity,
+        available_quantity,
+        status,
+        added_date,
+        updated_at
+      FROM books
+      WHERE id = ? AND status != 'deleted'
+      LIMIT 1
+    `;
+
+    const books = await db.query(query, [bookId]);
+
+    if (!books || books.length === 0) {
+      logger.warn('Book not found for detail fetch', { bookId });
+      return response.notFound(res, 'Book not found');
+    }
+
+    logger.info('Book detail fetched', { bookId });
+    response.success(res, books[0]);
+  } catch (error) {
+    logger.error('Error fetching book detail', { error: error.message, bookId: req.params.id });
+    response.error(res, 'Error fetching book detail', error);
+  }
+});
 
 // POST /api/books/borrow - Borrow a book
 router.post("/borrow", async (req, res) => {
@@ -74,51 +102,51 @@ router.post("/borrow", async (req, res) => {
 
   try {
     // Check if book has available copies
-    const books = await queryDB("SELECT available_quantity FROM books WHERE id = ? AND status = 'active'", [
+    const books = await db.query("SELECT available_quantity FROM books WHERE id = ? AND status = 'active'", [
       bookId,
     ]);
     if (!books.length || books[0].available_quantity <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No copies available for borrowing",
-      });
+      logger.warn('Book borrow attempt - no copies available', { bookId });
+      return response.validationError(res, 'No copies available for borrowing');
     }
 
     // Create borrowing record and decrease available quantity in transaction
-    await new Promise((resolve, reject) => {
-      db.beginTransaction(async (err) => {
-        if (err) return reject(err);
+    await db.beginTransaction();
+    try {
+      // Create borrowing record
+      await db.query(
+        "INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, approved_by, notes, status) VALUES (?, ?, ?, ?, ?, ?, 'borrowed')",
+        [bookId, studentId, borrowDate, returnDate, adminId || null, notes]
+      );
 
-        try {
-          // Create borrowing record
-          await queryDB(
-            "INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, approved_by, notes, status) VALUES (?, ?, ?, ?, ?, ?, 'borrowed')",
-            [bookId, studentId, borrowDate, returnDate, adminId || null, notes]
-          );
+      // Decrease available quantity
+      await db.query("UPDATE books SET available_quantity = available_quantity - 1 WHERE id = ?", [
+        bookId,
+      ]);
 
-          // Decrease available quantity
-          await queryDB("UPDATE books SET available_quantity = available_quantity - 1 WHERE id = ?", [
-            bookId,
-          ]);
-
-          db.commit((err) => {
-            if (err) return reject(err);
-            resolve();
-          });
-        } catch (error) {
-          db.rollback(() => reject(error));
-        }
-      });
-    });
-
-    res.json({ success: true, message: "Book borrowed successfully" });
+      await db.commit();
+      logger.info('Book borrowed successfully', { bookId, studentId });
+      response.success(res, null, 'Book borrowed successfully');
+    } catch (transactionError) {
+      await db.rollback();
+      throw transactionError;
+    }
   } catch (error) {
-    console.error("Error borrowing book:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error borrowing book",
-      error: error.message,
-    });
+    logger.error('Error borrowing book', { error: error.message, bookId, studentId });
+    response.error(res, 'Error borrowing book', error);
+  }
+});
+
+// Add logging to debug the 500 error
+router.get('/api/admin/books', async (req, res) => {
+  try {
+    logger.info('Fetching books data');
+    const books = await db.query('SELECT * FROM books');
+    logger.info('Books data fetched successfully', { count: books.length });
+    res.status(200).json({ success: true, data: books });
+  } catch (error) {
+    logger.error('Error fetching books data', { error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 });
 

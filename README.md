@@ -1,4 +1,4 @@
-# 📚 SPIST Library Management System
+﻿#  SPIST Library Management System
 
 **Complete Documentation & Setup Guide** - All documentation consolidated here!
 
@@ -6,28 +6,28 @@ A comprehensive, production-ready web-based library management system developed 
 
 **Current Version:** v2.0  
 **Database Schema:** v2.0  
-**Status:** ✅ Production Ready  
+**Status:**  Production Ready  
 **Last Updated:** December 15, 2025
 
-> 📖 **Documentation Guide**: This README contains ALL documentation previously spread across multiple files:
+>  **Documentation Guide**: This README contains ALL documentation previously spread across multiple files:
 > - Installation & setup (formerly in DOCUMENTATION.md and DATABASE_SETUP.md)
 > - API reference and features (from DOCUMENTATION.md)
 > - Quick commands (from QUICK_REFERENCE.md)
 > - File structure (from INDEX.md)  
 > - Integration status (from INTEGRATION_SUMMARY.md)
 >
-> 📂 **Detailed reference files** still available: `README_DETAILED.md`, `DOCUMENTATION.md`, `DATABASE_SETUP.md`
+>  **Detailed reference files** still available: `README_DETAILED.md`, `DOCUMENTATION.md`, `DATABASE_SETUP.md`
 
 ---
 
-## 📋 Table of Contents
+##  Table of Contents
 
 - [Quick Start](#-quick-start)
 - [Key Features](#-key-features-v20)
 - [System Requirements](#-system-requirements)
 - [Installation Guide](#-installation-guide)
-- [Environment Configuration](#️-environment-configuration)
-- [Database Setup](#️-database-setup)
+- [Environment Configuration](#-environment-configuration)
+- [Database Setup](#-database-setup)
 - [Multi-Environment Setup](#-multi-environment-setup)
 - [Feature Documentation](#-feature-documentation)
 - [API Reference](#-api-reference)
@@ -39,7 +39,7 @@ A comprehensive, production-ready web-based library management system developed 
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ```bash
 # 1. Clone repository
@@ -70,51 +70,52 @@ npm start
 - Admin: `admin@spist.edu` / `admin123`
 - Student: `STD-2024-001` / `student123`
 
-⚠️ **IMPORTANT**: Change default passwords immediately!
+ **IMPORTANT**: Change default passwords immediately!
 
 ---
 
-## ✨ Key Features v2.0
+##  Key Features v2.0
 
-### 🎯 New in v2.0
+###  New in v2.0
 
-- ✅ **Multi-Environment Support** - Separate dev, test, staging, production databases
-- ✅ **Excel Import/Export** - Import/export books via CSV or Excel (.xlsx, .xls)
-- ✅ **Gmail-Style Bulk Operations** - Select multiple books for bulk edit/delete
-- ✅ **Environment Variables** - Secure configuration via .env files
-- ✅ **Normalized Headers** - Excel imports work regardless of header case
-- ✅ **Audit Logs** - Track all database changes
-- ✅ **Available Quantity Tracking** - Real-time book availability
-- ✅ **Admin Approval Workflow** - Track who approved borrowings
+-  **Multi-Environment Support** - Separate dev, test, staging, production databases
+-  **Excel Import/Export** - Import/export books via CSV or Excel (.xlsx, .xls)
+-  **Gmail-Style Bulk Operations** - Select multiple books for bulk edit/delete
+-  **Environment Variables** - Secure configuration via .env files
+-  **Normalized Headers** - Excel imports work regardless of header case
+-  **Audit Logs** - Track all database changes
+-  **Available Quantity Tracking** - Real-time book availability
+-  **Admin Approval Workflow** - Track who approved borrowings
 
-### 📚 Core Features
+###  Core Features
 
 **Admin Features:**
-- 📊 Interactive Dashboard with real-time statistics
-- 📚 Book Management (add, edit, delete, bulk operations)
-- 👥 User Management (students and admins)
-- 📤 Import/Export (CSV and Excel)
-- 🔍 Audit Trail (who added books, who approved borrowings)
-- 📈 Advanced Reports and Analytics
+-  Interactive Dashboard with real-time statistics
+-  Book Management (add, edit, delete, bulk operations)
+-  User Management (students and admins)
+-  Import/Export (CSV and Excel)
+-  Audit Trail (who added books, who approved borrowings)
+-  Advanced Reports and Analytics
 
 **Student Features:**
-- 🔐 Secure Login with password hashing
-- 📖 Browse Available Books with search and filters
-- 📚 Borrow Books with due date tracking
-- ⏰ Track Borrowed Books and return status
-- 📧 Email Notifications for password reset
+-  Secure Login with password hashing
+-  Browse Available Books with search and filters
+-  Borrow Books with due date tracking
+-  Track Borrowed Books and return status
+-  Email Notifications for password reset
 
 **Technical Features:**
-- 🌍 Multi-Environment Configuration (dev/test/staging/prod)
-- 🔒 Bcrypt Password Hashing (10 salt rounds)
-- 📧 Email Password Reset via Gmail
-- 🗄️ MySQL/MariaDB Database with optimized indexes
-- 🚀 Performance Optimized queries
-- 📦 Bulk Operations with transaction safety
+-  Multi-Environment Configuration (dev/test/staging/prod)
+-  Bcrypt Password Hashing (10 salt rounds)
+-  Email Password Reset via Gmail
+-  MySQL/MariaDB Database with optimized indexes
+-  Performance Optimized queries
+-  Bulk Operations with transaction safety
+-  Input validation and sanitization (express-validator)
 
 ---
 
-## 💻 System Requirements
+##  System Requirements
 
 ### Server Requirements
 
@@ -138,7 +139,7 @@ npm start
 
 ---
 
-## 📦 Installation Guide
+##  Installation Guide
 
 ### Step 1: Clone Repository
 
@@ -161,6 +162,9 @@ This installs:
 - `express-session` - Session management
 - `express-mysql-session` - MySQL session store
 - `csurf` - CSRF protection
+- `helmet` - Security headers (HTTP hardening)
+- `express-rate-limit` - Rate limiting (DDoS protection)
+- `cors` - Cross-Origin Resource Sharing
 - `passport` - Authentication middleware
 - `passport-google-oauth20` - Google OAuth integration
 - `multer` - File upload
@@ -168,6 +172,7 @@ This installs:
 - `xlsx` - Excel support
 - `nodemailer` - Email sending
 - `body-parser` - Request parsing
+- `express-validator` - Input validation and sanitization
 
 ### Step 3: Database Setup
 
@@ -230,7 +235,7 @@ Server will start on `http://localhost:3000`
 
 ---
 
-## ⚙️ Environment Configuration
+##  Environment Configuration
 
 ### Environment Variables Reference
 
@@ -280,11 +285,11 @@ The project includes multiple environment files:
 
 | File | Purpose | Commit to Git? |
 |------|---------|----------------|
-| `.env` | Active configuration | ❌ NO |
-| `.env.example` | Template for team | ✅ YES |
-| `.env.development` | Development preset | ✅ YES |
-| `.env.test` | Testing preset | ✅ YES |
-| `.env.production.example` | Production template | ✅ YES |
+| `.env` | Active configuration |  NO |
+| `.env.example` | Template for team |  YES |
+| `.env.development` | Development preset |  YES |
+| `.env.test` | Testing preset |  YES |
+| `.env.production.example` | Production template |  YES |
 
 ### Gmail App Password Setup
 
@@ -299,7 +304,7 @@ To enable email notifications:
 
 ---
 
-## 🗄️ Database Setup
+##  Database Setup
 
 ### Schema Version
 
@@ -379,7 +384,7 @@ audit_logs           # Audit trail (v2.0)
 
 | File | Purpose | Use Case |
 |------|---------|----------|
-| `database/spist_library_schema.sql` | Clean schema (⭐ RECOMMENDED) | New installations |
+| `database/spist_library_schema.sql` | Clean schema ( RECOMMENDED) | New installations |
 | `database/sample_data.sql` | Sample data | Development/Testing |
 | `spist_library.sql` | Full database export | Backup/Restore |
 | `spist_library_template.sql` | Database-agnostic | Multi-environment |
@@ -409,7 +414,7 @@ mysql -u root -p -e "DROP DATABASE spist_library;"
 
 ---
 
-## 🌍 Multi-Environment Setup
+##  Multi-Environment Setup
 
 ### Creating Different Environments
 
@@ -525,21 +530,21 @@ mysql -u root -p spist_library_dev < schema_only.sql
 ```
 
 ---
-- 📧 **Password Reset** - Email-based password recovery
+-  **Password Reset** - Email-based password recovery
 
 ### Student Features
 
-- 🎯 **Personalized Dashboard** - Your books and borrowing status
-- 🔍 **Smart Book Search** - Fast, indexed searches by title/category
-- 📖 **Real-Time Availability** - See "Available (2/5)" copy counts
-- 📅 **Borrowing Management** - Track due dates and history
-- 👤 **Profile Management** - Update personal information
-- 🔔 **Notifications** - Due date reminders
-- 📧 **Password Reset** - Self-service password recovery
+-  **Personalized Dashboard** - Your books and borrowing status
+-  **Smart Book Search** - Fast, indexed searches by title/category
+-  **Real-Time Availability** - See "Available (2/5)" copy counts
+-  **Borrowing Management** - Track due dates and history
+-  **Profile Management** - Update personal information
+-  **Notifications** - Due date reminders
+-  **Password Reset** - Self-service password recovery
 
 ---
 
-## 🆕 What's New in v2.0
+##  What's New in v2.0
 
 ### Major Improvements
 
@@ -556,24 +561,24 @@ mysql -u root -p spist_library_dev < schema_only.sql
 
 ### Database Enhancements
 
-- ✅ **10 new columns** for audit trails and tracking
-- ✅ **9 performance indexes** for faster queries
-- ✅ **4 CHECK constraints** for data integrity
-- ✅ **2 new foreign keys** for referential integrity
-- ✅ **New audit_logs table** for change tracking
-- ✅ **Enhanced ENUM types** for better validation
+-  **10 new columns** for audit trails and tracking
+-  **9 performance indexes** for faster queries
+-  **4 CHECK constraints** for data integrity
+-  **2 new foreign keys** for referential integrity
+-  **New audit_logs table** for change tracking
+-  **Enhanced ENUM types** for better validation
 
 ### Breaking Changes from v1.0
 
-- ⚠️ **Book status ENUM changed:** 'available'/'borrowed' → 'active'
-- ⚠️ **Student type now ENUM:** Only 'undergraduate', 'graduate', 'transferee' allowed
-- ✅ **Auto-migrated:** Migration script handles conversion automatically
+-  **Book status ENUM changed:** 'available'/'borrowed' → 'active'
+-  **Student type now ENUM:** Only 'undergraduate', 'graduate', 'transferee' allowed
+-  **Auto-migrated:** Migration script handles conversion automatically
 
 **See:** [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md) for detailed migration instructions
 
 ---
 
-## 💻 Technology Stack
+##  Technology Stack
 
 ### Backend
 - **Runtime:** Node.js v14+
@@ -599,7 +604,7 @@ mysql -u root -p spist_library_dev < schema_only.sql
 
 ---
 
-## 🔧 System Requirements
+##  System Requirements
 
 ### Software Prerequisites
 
@@ -625,7 +630,7 @@ mysql -u root -p spist_library_dev < schema_only.sql
 
 ---
 
-## ⚡ Quick Start (5 Steps)
+##  Quick Start (5 Steps)
 
 ### Step 1: Clone or Download Project
 ```bash
@@ -699,17 +704,17 @@ npm start
 # Server will start at http://localhost:3000
 ```
 
-**🎉 Done!** Visit `http://localhost:3000` to see the application.
+** Done!** Visit `http://localhost:3000` to see the application.
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 spist-library-management-system/
 │
-├── 📂 public/                        # Static assets & client-side files
-│   ├── 📂 css/                       # Stylesheets
+├──  public/                        # Static assets & client-side files
+│   ├──  css/                       # Stylesheets
 │   │   ├── common.css                # Shared styles (base, modals, alerts)
 │   │   ├── admin.css                 # Admin dashboard styles
 │   │   ├── student.css               # Student dashboard styles
@@ -717,23 +722,23 @@ spist-library-management-system/
 │   │   ├── books.css                 # Book display styles
 │   │   └── ...                       # Other page-specific styles
 │   │
-│   ├── 📂 dashboard/                 # Dashboard pages
-│   │   ├── 📂 admin/                 # Admin dashboard pages
+│   ├──  dashboard/                 # Dashboard pages
+│   │   ├──  admin/                 # Admin dashboard pages
 │   │   │   ├── admin-dashboard.html  # Admin main dashboard
 │   │   │   ├── admin-books.html      # Book management (add/edit/delete)
 │   │   │   ├── admin-users.html      # Student management
 │   │   │   └── admin-admins.html     # Admin management
 │   │   │
-│   │   └── 📂 student/               # Student dashboard pages
+│   │   └──  student/               # Student dashboard pages
 │   │       ├── student-dashboard.html # Student main dashboard
 │   │       ├── student-books.html     # Browse & search books
 │   │       └── student-borrowed.html  # Borrowing history
 │   │
-│   ├── 📂 img/                       # Image assets
+│   ├──  img/                       # Image assets
 │   │   ├── logo.png                  # Application logo
 │   │   └── ...                       # Other images
 │   │
-│   └── 📂 js/                        # JavaScript files
+│   └──  js/                        # JavaScript files
 │       ├── admin.js                  # Admin dashboard logic
 │       ├── books.js                  # Book management logic (v2 updated)
 │       ├── student-borrowed.js       # Borrowing management
@@ -743,11 +748,11 @@ spist-library-management-system/
 │       ├── navigation.js             # Navigation & routing
 │       └── script.js                 # Common utilities
 │
-├── 📂 src/                           # Source code
-│   ├── 📂 config/                    # Configuration
+├──  src/                           # Source code
+│   ├──  config/                    # Configuration
 │   │   └── database.js               # MySQL connection pool
 │   │
-│   ├── 📂 pages/                     # Main pages
+│   ├──  pages/                     # Main pages
 │   │   ├── home.html                 # Homepage
 │   │   ├── login.html                # Login page
 │   │   ├── signup.html               # Registration page (v2 updated)
@@ -756,17 +761,17 @@ spist-library-management-system/
 │   │   ├── contact.html              # Contact page
 │   │   └── vision.html               # Vision/mission page
 │   │
-│   ├── 📂 routes/                    # API routes
+│   ├──  routes/                    # API routes
 │   │   ├── auth.js                   # Authentication (login/signup/reset)
 │   │   ├── admin.js                  # Admin operations (v2 updated)
 │   │   ├── books.js                  # Book operations (v2 updated)
 │   │   ├── students.js               # Student operations
 │   │   └── book-borrowings.js        # Borrowing operations (v2 updated)
 │   │
-│   └── 📂 utils/                     # Utility functions
+│   └──  utils/                     # Utility functions
 │       └── update_admin_passwords.js # Password hash updater
 │
-├── 📂 Documentation/                 # Project documentation
+├──  Documentation/                 # Project documentation
 │   ├── README.md                     # Main documentation (this file)
 │   ├── UPGRADE_GUIDE.md              # v1 → v2 migration guide
 │   ├── SCHEMA_COMPARISON_REPORT.md   # Detailed schema comparison
@@ -774,14 +779,14 @@ spist-library-management-system/
 │   ├── MIGRATION_QUICK_REFERENCE.md  # Quick migration reference
 │   └── ROLLBACK_v2_to_v1.sql         # Emergency rollback script
 │
-├── 📄 server.js                      # Node.js server entry point
-├── 📄 package.json                   # NPM dependencies
-├── 📄 package-lock.json              # Dependency lock file
-├── 📄 .env                           # Environment variables (local only)
-├── 📄 .env.example                   # Environment template
-├── 📄 .gitignore                     # Git ignore rules
-├── 📄 spist_library.sql              # v1.0 database schema (reference)
-└── 📄 migration_v2.sql               # v2.0 migration script
+├──  server.js                      # Node.js server entry point
+├──  package.json                   # NPM dependencies
+├──  package-lock.json              # Dependency lock file
+├──  .env                           # Environment variables (local only)
+├──  .env.example                   # Environment template
+├──  .gitignore                     # Git ignore rules
+├──  spist_library.sql              # v1.0 database schema (reference)
+└──  migration_v2.sql               # v2.0 migration script
 ```
 
 ### Key Directories
@@ -812,7 +817,7 @@ spist-library-management-system/
 
 ---
 
-## 🗃️ Database Schema v2.0
+##  Database Schema v2.0
 
 The v2.0 schema includes enhanced tracking, audit trails, and performance optimizations.
 
@@ -825,8 +830,7 @@ CREATE TABLE admins (
   fullname VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
-  role ENUM('super_admin','system_admin') DEFAULT 'system_admin',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,              -- NEW in v2
+  role ENUM('super_admin','system_admin'),
   resetToken VARCHAR(255),
   resetTokenExpiry DATETIME,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1146,7 +1150,7 @@ http://localhost:3000
 
 ---
 
-## 🔐 Forgot Password Feature
+##  Forgot Password Feature
 
 ### Overview
 
@@ -1160,24 +1164,24 @@ A secure password reset system for both admins and students with email verificat
 4. **User clicks link** - reset page loads
 5. **User enters new password** (with show/hide toggle)
 6. **Password updated** - user redirected to login
-7. **Login with new password** ✅
+7. **Login with new password** 
 
 ### Features
 
-✅ **Secure Token Generation**
+ **Secure Token Generation**
 - Random 32-byte tokens
 - SHA256 hashing
 - 10-minute expiration
 - Single-use only
 
-✅ **User-Friendly UI**
+ **User-Friendly UI**
 - Modal form on login page
 - Professional reset page
 - Green & white theme
 - Show/hide password toggle
 - Real-time validation
 
-✅ **Email Integration**
+ **Email Integration**
 - Gmail SMTP via Nodemailer
 - HTML formatted emails
 - Reset link in email
@@ -1231,7 +1235,7 @@ npm install nodemailer dotenv
 
 ---
 
-## 📡 API Documentation
+##  API Documentation
 
 ### Authentication Routes (`/auth`)
 
@@ -1697,7 +1701,7 @@ curl -X POST http://localhost:3000/auth/reset-password \
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Database Issues
 
@@ -1903,7 +1907,7 @@ WHERE student_type IS NULL;
 
 ---
 
-## 🚀 Production Deployment
+##  Production Deployment
 
 ### Pre-Deployment Checklist
 
@@ -2154,7 +2158,7 @@ ORDER BY (data_length + index_length) DESC;
 
 ---
 
-## 📈 Performance Optimization
+##  Performance Optimization
 
 ### Database Optimization
 
@@ -2193,12 +2197,12 @@ app.use(express.static('public', {
 
 ---
 
-## 🎯 Version History
+##  Version History
 
 ### v2.0.0 (November 30, 2025) - Current Version
 **Major Update:** Quantity-based book management & audit trails
 
-✨ **New Features:**
+ **New Features:**
 - Multi-copy book tracking (`quantity` & `available_quantity`)
 - Complete audit trail (`added_by`, `approved_by`, `audit_logs`)
 - Enhanced data validation (4 CHECK constraints)
@@ -2206,30 +2210,30 @@ app.use(express.static('public', {
 - Student type ENUM validation
 - Expanded workflow statuses
 
-🔧 **Technical Improvements:**
+ **Technical Improvements:**
 - 40-100x faster queries on common operations
 - Foreign key referential integrity
 - Automatic timestamp tracking
 - Data integrity constraints
 
-⚠️ **Breaking Changes:**
+ **Breaking Changes:**
 - Book status ENUM changed: 'available'/'borrowed' → 'active'
 - Student type changed: VARCHAR → ENUM
 - Borrowing logic: Status-based → Quantity-based
 
-📝 **Database Changes:**
+ **Database Changes:**
 - 10 new columns across 4 tables
 - 1 new table (`audit_logs`)
 - 9 new performance indexes
 - 2 new foreign keys
 - 4 CHECK constraints
 
-🐛 **Bug Fixes:**
+ **Bug Fixes:**
 - Fixed concurrent borrowing race conditions
 - Improved error handling for invalid data
 - Enhanced email delivery reliability
 
-📚 **Documentation:**
+ **Documentation:**
 - New: UPGRADE_GUIDE.md
 - New: SCHEMA_COMPARISON_REPORT.md
 - New: MIGRATION_SAFETY_CHECKLIST.md
@@ -2241,7 +2245,7 @@ app.use(express.static('public', {
 ### v1.0.0 (November 19, 2025)
 **Initial Release**
 
-✨ **Features:**
+ **Features:**
 - Core library management functionality
 - Admin and student dashboards
 - Book borrowing system
@@ -2249,14 +2253,14 @@ app.use(express.static('public', {
 - Basic user authentication
 - Single-copy book management
 
-📝 **Database:**
+ **Database:**
 - 4 core tables (admins, students, books, book_borrowings)
 - Basic foreign keys
 - Simple ENUM types
 
 ---
 
-## 🔄 Migration from v1.0
+##  Migration from v1.0
 
 If you're upgrading an existing v1.0 installation to v2.0:
 
@@ -2296,21 +2300,21 @@ See **[UPGRADE_GUIDE.md](UPGRADE_GUIDE.md)** for:
 ### What Changed from v1 to v2
 
 **Database Schema:**
-- ✅ 10 new columns (audit tracking)
-- ✅ 9 new indexes (performance)
-- ✅ 4 CHECK constraints (data integrity)
-- ✅ 2 new foreign keys
-- ⚠️ Book status ENUM changed (auto-migrated)
-- ⚠️ Student type VARCHAR → ENUM (auto-migrated)
+-  10 new columns (audit tracking)
+-  9 new indexes (performance)
+-  4 CHECK constraints (data integrity)
+-  2 new foreign keys
+-  Book status ENUM changed (auto-migrated)
+-  Student type VARCHAR → ENUM (auto-migrated)
 
 **Code Changes:**
-- ✅ Updated 4 backend routes
-- ✅ Updated 3 frontend files
-- ✅ All changes already applied in this repo
+-  Updated 4 backend routes
+-  Updated 3 frontend files
+-  All changes already applied in this repo
 
 ---
 
-## 📊 Database Schema
+##  Database Schema
 
 ### Admins Table
 ```sql
@@ -2375,7 +2379,7 @@ CREATE TABLE book_borrowings (
 
 ---
 
-## 🔧 Configuration Files
+##  Configuration Files
 
 ### .env.example
 ```env
@@ -2400,7 +2404,7 @@ JWT_SECRET=your-super-secret-jwt-key-here
 PORT=3000
 ```
 
-## 📦 Dependencies
+##  Dependencies
 
 ### Production Dependencies
 
@@ -2438,7 +2442,7 @@ npm install --production
 
 ---
 
-## 📖 Additional Documentation
+##  Additional Documentation
 
 ### Core Documentation
 - **[README.md](README.md)** - Main documentation (this file)
@@ -2456,7 +2460,7 @@ npm install --production
 
 ---
 
-## 🤝 Contributing
+##  🤝 Contributing
 
 Contributions are welcome! Please follow these guidelines:
 
@@ -2519,7 +2523,7 @@ Type can be:
 
 ---
 
-## 🔒 Security
+##  Security
 
 ### Reporting Vulnerabilities
 
@@ -2563,19 +2567,19 @@ The system implements granular role-based access control for admin management wi
 #### Admin Roles
 
 **Super Admin (`super_admin`)**
-- ✅ Full system access
-- ✅ Can create, edit, and delete admin accounts
-- ✅ Can manage books, users, and all system features
-- ✅ Access to super admin dashboard with extended features
-- ✅ Can view audit logs and system settings
+-  Full system access
+-  Can create, edit, and delete admin accounts
+-  Can manage books, users, and all system features
+-  Access to super admin dashboard with extended features
+-  Can view audit logs and system settings
 
 **System Admin (`system_admin`)**  
-- ✅ Can manage books (add, edit, delete)
-- ✅ Can manage students/users
-- ✅ Can approve borrowing requests
-- ✅ Can view dashboard statistics
-- ❌ **Cannot** create, edit, or delete admin accounts (read-only access)
-- ❌ **Cannot** access super admin features
+-  Can manage books (add, edit, delete)
+-  Can manage students/users
+-  Can approve borrowing requests
+-  Can view dashboard statistics
+-  **Cannot** create, edit, or delete admin accounts (read-only access)
+-  **Cannot** access super admin features
 
 #### Backend Authorization
 
@@ -2608,15 +2612,15 @@ router.post("/", async (req, res) => {
 #### Frontend UI Controls
 
 **System Admin View:**
-- ❌ "Add Admin" button hidden
-- ❌ Edit/Delete buttons replaced with "Read-only" text
-- ✅ Informational notice: *"📖 Read-only access - Only Super Admins can manage admin accounts"*
-- ✅ Can view all admin accounts in the table
+-  "Add Admin" button hidden
+-  Edit/Delete buttons replaced with "Read-only" text
+-  Informational notice: *" Read-only access - Only Super Admins can manage admin accounts"*
+-  Can view all admin accounts in the table
 
 **Super Admin View:**
-- ✅ "Add Admin" button visible
-- ✅ Edit/Delete buttons visible and functional
-- ✅ Full administrative control
+-  "Add Admin" button visible
+-  Edit/Delete buttons visible and functional
+-  Full administrative control
 
 #### Files Modified
 
@@ -2666,10 +2670,10 @@ router.post("/", async (req, res) => {
 
 The system has been enhanced with enterprise-grade security features to protect against common vulnerabilities and improve session management.
 
-#### ✅ Implemented Security Features
+####  Implemented Security Features
 
 **1. MySQL Session Store**
-- **Status:** ✅ Production Ready
+- **Status:**  Production Ready
 - **Feature:** Sessions persist in database instead of memory
 - **Benefits:**
   - Sessions survive server restarts
@@ -2680,7 +2684,7 @@ The system has been enhanced with enterprise-grade security features to protect 
 - **Database Table:** `sessions` (auto-created)
 
 **2. Session Timeout & Auto-Logout**
-- **Status:** ✅ Production Ready
+- **Status:**  Production Ready
 - **Feature:** Automatic logout after inactivity
 - **Implementation:** `public/js/session-timeout.js`
 - **Behavior:**
@@ -2692,7 +2696,7 @@ The system has been enhanced with enterprise-grade security features to protect 
 - **Applied To:** All dashboard pages
 
 **3. Role-Based Middleware (Server-Side)**
-- **Status:** ✅ Production Ready
+- **Status:**  Production Ready
 - **File:** `src/middleware/auth.js`
 - **Functions:**
   - `requireAuth()` - Verify user is logged in
@@ -2707,7 +2711,7 @@ The system has been enhanced with enterprise-grade security features to protect 
 - **Security:** Prevents unauthorized API access even with direct requests
 
 **4. CSRF Protection**
-- **Status:** ✅ 85% Complete (Backend + Core Frontend)
+- **Status:**  85% Complete (Backend + Core Frontend)
 - **Package:** `csurf` (session-based tokens)
 - **Implementation:**
   - Backend: All POST/PUT/DELETE requests protected
@@ -2722,27 +2726,27 @@ The system has been enhanced with enterprise-grade security features to protect 
   - `/auth/login` - Login endpoint
   - `/auth/signup` - Registration endpoint
 - **Updated Files:**
-  - ✅ `public/js/login.js` - Uses `fetchWithCsrf()`
-  - ✅ `public/js/signup.js` - Uses `fetchWithCsrf()`
-  - ⚠️ `public/js/books.js` - Needs update (6 fetch calls)
-  - ⚠️ `public/js/admin.js` - Needs update
-  - ⚠️ `public/js/user.js` - Needs update
-  - ⚠️ `public/js/books-import-export.js` - Needs update
-  - ⚠️ `public/js/bulk-operations.js` - Needs update
+  -  `public/js/login.js` - Uses `fetchWithCsrf()`
+  -  `public/js/signup.js` - Uses `fetchWithCsrf()`
+  -  `public/js/books.js` - Needs update (6 fetch calls)
+  -  `public/js/admin.js` - Needs update
+  -  `public/js/user.js` - Needs update
+  -  `public/js/books-import-export.js` - Needs update
+  -  `public/js/bulk-operations.js` - Needs update
 
 **5. Enhanced HTML Pages**
-- **Status:** ✅ Complete
+- **Status:**  Complete
 - **Added Scripts:**
   - `csrf-helper.js` - CSRF token management
   - `session-timeout.js` - Auto-logout functionality
 - **Updated Pages:**
-  - ✅ Login/Signup pages
-  - ✅ Admin dashboard pages (7 pages)
-  - ✅ Super Admin dashboard
-  - ⚠️ Remaining super admin pages (4 pages)
-  - ⚠️ Student dashboard pages (3 pages)
+  -  Login/Signup pages
+  -  Admin dashboard pages (7 pages)
+  -  Super Admin dashboard
+  -  Remaining super admin pages (4 pages)
+  -  Student dashboard pages (3 pages)
 
-#### 🔧 Configuration
+####  Configuration
 
 **Session Settings** (`server.js`):
 ```javascript
@@ -2779,7 +2783,7 @@ router.post('/admins', requireSuperAdmin, async (req, res) => {
 });
 ```
 
-#### ⚠️ Remaining Tasks (15%)
+####  Remaining Tasks (15%)
 
 **Update JavaScript Files:**
 Replace `fetch()` with `fetchWithCsrf()` in:
@@ -2839,24 +2843,24 @@ curl -X POST http://localhost:3000/api/admin/books \
 # Should succeed
 ```
 
-#### 📊 Security Improvements Summary
+####  Security Improvements Summary
 
 | Feature | Before | After | Impact |
 |---------|--------|-------|--------|
-| Session Storage | In-Memory | MySQL Database | ✅ Survives restarts |
-| Session Timeout | Never | 30 minutes | ✅ Auto-logout inactive users |
-| Role Validation | Client-side only | Server middleware | ✅ Prevents unauthorized API access |
-| CSRF Protection | None | Token-based | ✅ Blocks cross-site attacks |
-| Session Security | Basic | Enhanced (httpOnly, sameSite, secure) | ✅ XSS/CSRF resistant |
+| Session Storage | In-Memory | MySQL Database |  Survives restarts |
+| Session Timeout | Never | 30 minutes |  Auto-logout inactive users |
+| Role Validation | Client-side only | Server middleware |  Prevents unauthorized API access |
+| CSRF Protection | None | Token-based |  Blocks cross-site attacks |
+| Session Security | Basic | Enhanced (httpOnly, sameSite, secure) |  XSS/CSRF resistant |
 
-#### 📁 New Files Created
+####  New Files Created
 
 - `src/middleware/auth.js` - Role-based authorization middleware
 - `public/js/csrf-helper.js` - CSRF token management utility
 - `public/js/session-timeout.js` - Auto-logout functionality
 - `SECURITY_IMPLEMENTATION_STATUS.md` - Detailed implementation guide
 
-#### 🚀 Deployment Checklist
+####  Deployment Checklist
 
 Before deploying to production:
 
@@ -2870,13 +2874,13 @@ Before deploying to production:
 - [ ] Monitor `sessions` table size and set up cleanup if needed
 - [ ] Review and update CORS policies if using separate frontend
 
-#### 📖 Documentation
+####  Documentation
 
 Detailed implementation guide available in: `SECURITY_IMPLEMENTATION_STATUS.md`
 
 ---
 
-## 📊 Testing
+##  Testing
 
 ### Manual Testing Checklist
 
@@ -2925,7 +2929,7 @@ npm test
 
 ---
 
-## 🎓 Learning Resources
+##  Learning Resources
 
 ### Node.js & Express
 - [Express.js Official Guide](https://expressjs.com/en/guide/routing.html)
@@ -2946,7 +2950,7 @@ npm test
 
 ---
 
-## 📞 Support & Contact
+##  Support & Contact
 
 ### For Issues or Questions
 
@@ -2966,7 +2970,7 @@ npm test
 
 ---
 
-## ❓ Frequently Asked Questions
+##  Frequently Asked Questions
 
 ### General Questions
 
@@ -3009,7 +3013,7 @@ A: Admins can see who added books and who approved borrowings. This appears in b
 
 ---
 
-## 📜 License
+##  License
 
 This project is developed for **Southern Philippines Institute of Science & Technology (SPIST)**.
 
@@ -3017,7 +3021,7 @@ This project is developed for **Southern Philippines Institute of Science & Tech
 
 ---
 
-## 👥 Credits & Acknowledgments
+##  Credits & Acknowledgments
 
 **Developer:** Jowel  
 **Institution:** SPIST (Southern Philippines Institute of Science & Technology)  
@@ -3031,7 +3035,7 @@ This project is developed for **Southern Philippines Institute of Science & Tech
 
 ---
 
-## 🚀 Quick Commands Reference
+##  Quick Commands Reference
 
 ```bash
 # Development
@@ -3066,17 +3070,17 @@ npm audit fix                  # Fix vulnerabilities
 
 ---
 
-## 📚 APPENDIX A: Complete Migration Guide Summary
+##  APPENDIX A: Complete Migration Guide Summary
 
 ### Migration Overview (v1.0 → v2.0)
 
 **Key Improvements:**
-- 📚 **Quantity-Based Management** - Track multiple book copies instead of single status
-- 🔍 **Audit Trail** - Track who added books (`added_by`) and approved borrowings (`approved_by`)
-- ⚡ **Performance** - 9 new indexes provide 40-100x faster queries
-- 🔒 **Data Integrity** - 4 CHECK constraints + 2 new foreign keys
-- ✅ **ENUM Validation** - Standardized student types and statuses
-- 🗃️ **Audit Logs** - New table tracks all database changes with JSON
+-  **Quantity-Based Management** - Track multiple book copies instead of single status
+-  **Audit Trail** - Track who added books (`added_by`) and approved borrowings (`approved_by`)
+-  **Performance** - 9 new indexes provide 40-100x faster queries
+-  **Data Integrity** - 4 CHECK constraints + 2 new foreign keys
+-  **ENUM Validation** - Standardized student types and statuses
+-  **Audit Logs** - New table tracks all database changes with JSON
 
 ### Schema Changes Summary
 
@@ -3121,10 +3125,10 @@ npm audit fix                  # Fix vulnerabilities
 ### Migration Safety Checklist
 
 **Pre-Migration:**
-- ✅ Database backup completed and tested
-- ✅ Application server stopped
-- ✅ Code changes documented
-- ✅ Git snapshot created
+-  Database backup completed and tested
+-  Application server stopped
+-  Code changes documented
+-  Git snapshot created
 
 **Post-Migration Verification:**
 ```sql
@@ -3163,7 +3167,7 @@ mysql -u root -p spist_library < ROLLBACK_v2_to_v1.sql
 
 ---
 
-## 📊 APPENDIX B: Database Schema Reference
+##  APPENDIX B: Database Schema Reference
 
 ### Tables Overview
 
@@ -3277,7 +3281,7 @@ WHERE status = 'borrowed' AND due_date < NOW();
 
 ---
 
-## 🌐 APPENDIX C: API Endpoints Quick Reference
+##  APPENDIX C: API Endpoints Quick Reference
 
 ### Authentication Endpoints
 
@@ -3403,7 +3407,7 @@ Response:
 
 ---
 
-## 🔍 APPENDIX D: Verification & Testing Queries
+##  APPENDIX D: Verification & Testing Queries
 
 ### Data Integrity Checks
 
@@ -3491,13 +3495,13 @@ SELECT
   b.available_quantity as system_available,
   (b.quantity - COUNT(bb.id)) as calculated_available,
   CASE 
-    WHEN b.available_quantity = (b.quantity - COUNT(bb.id)) THEN '✓ Match'
-    ELSE '✗ Mismatch'
+    WHEN b.available_quantity = (b.quantity - COUNT(bb.id)) THEN ' Match'
+    ELSE ' Mismatch'
   END as validation
 FROM books b
 LEFT JOIN book_borrowings bb ON b.id = bb.book_id AND bb.status = 'borrowed'
 GROUP BY b.id
-HAVING validation = '✗ Mismatch';
+HAVING validation = ' Mismatch';
 -- Expected: Empty result (all quantities match)
 ```
 
@@ -3527,7 +3531,7 @@ WHERE al.table_name = 'books'
 
 ---
 
-## 📖 APPENDIX E: Complete Documentation Index
+##  APPENDIX E: Complete Documentation Index
 
 ### Primary Documentation
 
@@ -3610,7 +3614,7 @@ WHERE al.table_name = 'books'
 
 ---
 
-## 📋 APPENDIX F: Production Deployment Checklist
+##  APPENDIX F: Production Deployment Checklist
 
 ### Pre-Deployment
 
@@ -3679,58 +3683,58 @@ WHERE al.table_name = 'books'
 
 ---
 
-## 📚 Documentation Navigation Guide
+##  Documentation Navigation Guide
 
 This README now contains **ALL documentation** in one place! Here's what you'll find:
 
-### 🎯 Getting Started (Pages 1-15)
+###  Getting Started (Pages 1-15)
 - [Quick Start](#-quick-start) - 5-minute setup
 - [Features](#-key-features-v20) - What's new in v2.0
 - [Requirements](#-system-requirements) - What you need
 - [Installation](#-installation-guide) - Step-by-step setup
 
-### ⚙️ Configuration (Pages 15-30)
-- [Environment Setup](#️-environment-configuration) - .env configuration
-- [Database Setup](#️-database-setup) - MySQL schema & import
+###  Configuration (Pages 15-30)
+- [Environment Setup](#-environment-configuration) - .env configuration
+- [Database Setup](#-database-setup) - MySQL schema & import
 - [Multi-Environment](#-multi-environment-setup) - Dev/Test/Prod setup
 
-### 📖 Usage & Development (Pages 30-80)
+###  Usage & Development (Pages 30-80)
 - [Features Guide](#-feature-documentation) - How to use each feature
 - [API Reference](#-api-reference) - Complete API documentation
 - [Security](#-security-best-practices) - Production checklist
 - [Troubleshooting](#-troubleshooting) - Common issues & fixes
 
-### 🗂️ Reference (Pages 80+)
+###  Reference (Pages 80+)
 - [Project Structure](#-project-structure) - File organization
 - [File Index](#-file-index) - Complete file listing
 
-### 📄 Additional Documentation Files
+###  Additional Documentation Files
 
 While this README is comprehensive, detailed reference documents are also available:
 
 | File | Purpose | When to Use |
 |------|---------|-------------|
-| `README.md` | 📘 **Main docs** (this file) | Primary reference |
-| `README_DETAILED.md` | 📗 Extended version | Deep dive |
-| `DOCUMENTATION.md` | 📕 Technical details | Advanced topics |
-| `DATABASE_SETUP.md` | 🗄️ Database guide | Multi-env setup |
-| `QUICK_REFERENCE.md` | ⚡ Quick commands | Fast lookup |
-| `INDEX.md` | 🗂️ File structure | Navigation |
-| `INTEGRATION_SUMMARY.md` | ✅ Status report | Verification |
+| `README.md` |  **Main docs** (this file) | Primary reference |
+| `README_DETAILED.md` |  Extended version | Deep dive |
+| `DOCUMENTATION.md` |  Technical details | Advanced topics |
+| `DATABASE_SETUP.md` |  Database guide | Multi-env setup |
+| `QUICK_REFERENCE.md` |  Quick commands | Fast lookup |
+| `INDEX.md` |  File structure | Navigation |
+| `INTEGRATION_SUMMARY.md` |  Status report | Verification |
 
 ---
 
-## 🎉 You're All Set!
+##  You're All Set!
 
-**System Status:** ✅ Ready to use  
+**System Status:**  Ready to use  
 **Database:** Connected to `spist_library` (development)  
 **Server:** Running on port 3000
 
 **Quick Links:**
-- 🚀 [Jump to Quick Start](#-quick-start)
-- 📖 [View Features](#-key-features-v20)
-- 🔧 [Troubleshooting](#-troubleshooting)
-- 🔌 [API Docs](#-api-reference)
+-  [Jump to Quick Start](#-quick-start)
+-  [View Features](#-key-features-v20)
+-  [Troubleshooting](#-troubleshooting)
+-  [API Docs](#-api-reference)
 
 **Need Help?**
 1. Check [Troubleshooting](#-troubleshooting) section
@@ -3741,16 +3745,16 @@ While this README is comprehensive, detailed reference documents are also availa
 
 **Last Updated:** December 15, 2025  
 **Version:** 2.0.0  
-**Status:** ✅ Production Ready  
+**Status:**  Production Ready  
 **Schema Version:** v2.0  
 **Documentation:** Complete & Consolidated
 
-**Happy managing! 📚✨**  
+**Happy managing! **  
 
 **Repository:** [github.com/axtro112/spist-library-management-system](https://github.com/axtro112/spist-library-management-system)  
 **Documentation:** Complete and unified in README.md
 
 ---
 
-*Made with ❤️ for SPIST - All documentation consolidated for easy reference*
+*Made with  for SPIST - All documentation consolidated for easy reference*
 

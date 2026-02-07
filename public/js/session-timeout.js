@@ -261,6 +261,9 @@
       clearInterval(checkInterval);
     }
 
+    // Set flag to indicate this is a timeout logout
+    sessionStorage.setItem('timeout-logout', 'true');
+    
     // Clear session storage
     sessionStorage.clear();
     

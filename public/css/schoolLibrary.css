@@ -1,10 +1,11 @@
 /* Main page styles */
 body {
-  background: url(/img/schoolppp.png) no-repeat center center;
+  background: url('/img/schoolppp.png') no-repeat center center;
   background-size: cover;
   background-attachment: fixed;
   color: #e6f0dc;
   animation: fadeIn 2s ease-in-out;
+  min-height: 100vh;
 }
 
 /* Override common.css logo style for home page */

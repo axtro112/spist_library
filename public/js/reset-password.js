@@ -1,4 +1,4 @@
-// Extract token from URL
+﻿// Extract token from URL
 function getTokenFromURL() {
   const params = new URLSearchParams(window.location.search);
   return params.get("token");
@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!token) {
     showMessage(
-      "❌ Invalid reset link. Please request a new password reset.",
+      " Invalid reset link. Please request a new password reset.",
       "danger"
     );
     document.getElementById("resetForm").style.display = "none";
@@ -144,13 +144,13 @@ document.getElementById("resetForm").addEventListener("submit", async (e) => {
 
   // Validate passwords match
   if (newPassword !== confirmPassword) {
-    showMessage("❌ Passwords do not match. Please try again.", "danger");
+    showMessage(" Passwords do not match. Please try again.", "danger");
     return;
   }
 
   // Validate password length
   if (newPassword.length < 6) {
-    showMessage("❌ Password must be at least 6 characters long.", "danger");
+    showMessage(" Password must be at least 6 characters long.", "danger");
     return;
   }
 
@@ -168,11 +168,19 @@ document.getElementById("resetForm").addEventListener("submit", async (e) => {
       }),
     });
 
-    const data = await response.json();
+    // Safely parse response
+    let data;
+    try {
+      data = await safeJsonParse(response);
+    } catch (error) {
+      console.error("Failed to parse response:", error);
+      showMessage(`Server error: ${error.message}. Please try again.`, "error");
+      return;
+    }
 
     if (response.ok) {
       showMessage(
-        "✅ Password reset successfully! Redirecting to login...",
+        " Password reset successfully! Redirecting to login...",
         "success"
       );
       document.getElementById("resetForm").style.display = "none";
@@ -183,14 +191,14 @@ document.getElementById("resetForm").addEventListener("submit", async (e) => {
       }, 2000);
     } else {
       showMessage(
-        `❌ ${data.error || "Failed to reset password. Please try again."}`,
+        ` ${data.error || "Failed to reset password. Please try again."}`,
         "danger"
       );
     }
   } catch (err) {
     console.error("Reset password error:", err);
     showMessage(
-      "❌ An error occurred. Please check your connection and try again.",
+      " An error occurred. Please check your connection and try again.",
       "danger"
     );
   } finally {

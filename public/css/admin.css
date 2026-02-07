@@ -168,6 +168,361 @@ body.modal-open {
   margin-bottom: 20px;
 }
 
+/* Admin Notification Container */
+.admin-notification-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  z-index: 1; /* Keep low, dropdown will portal to body */
+}
+
+.admin-notif-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.admin-notif-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.admin-notif-btn .material-symbols-outlined {
+  color: white;
+  font-size: 24px;
+}
+
+/* Notification Badge */
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e41e3f;
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(76, 175, 80, 0.95);
+  display: inline-block;
+}
+
+.admin-notif-btn .notif-badge {
+  top: 2px;
+  right: 2px;
+}
+
+/* ============================
+   SECTION: Notification Dropdown Panel (Portal Fix)
+   Description: Fixed-position dropdown that escapes parent stacking contexts
+   ============================ */
+
+/* CRITICAL: .student-notif-panel used in HTML but needs proper CSS */
+/* PORTAL FIX: position:fixed + z-index:999999 + appended to body via JS */
+/* Why: Parent containers with overflow, transform, filter, or position create 
+   stacking contexts that trap child z-index. Moving to body fixes this. */
+
+.student-notif-panel,
+.notif-panel {
+  position: fixed;
+  /* Note: top/left set dynamically via JS getBoundingClientRect() */
+  width: 420px;
+  max-width: 95vw;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  z-index: 999999; /* Maximum z-index - ensures dropdown is ALWAYS on top */
+  overflow: hidden;
+  /* No transform animations to avoid creating stacking context */
+  transition: opacity 0.15s ease-out;
+  opacity: 0; /* Hidden by default */
+  pointer-events: none; /* Disabled by default */
+}
+
+/* When visible, ensure full interactivity */
+.student-notif-panel.visible,
+.notif-panel.visible {
+  display: block;
+  opacity: 1;
+  pointer-events: auto; /* Ensure panel itself can receive events */
+}
+
+/* When positioned above bell (near bottom of viewport) */
+.student-notif-panel.positioned-above,
+.notif-panel.positioned-above {
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* Notification Header */
+.notif-header {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e4e6eb;
+  background: white;
+}
+
+.notif-header h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  color: #050505;
+}
+
+.notif-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.notif-action-btn {
+  background: #f0f2f5;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  color: #050505;
+  padding: 0;
+}
+
+.notif-action-btn:hover {
+  background: #e4e6eb;
+}
+
+.notif-action-btn .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* Notification Tabs */
+.notif-tabs {
+  display: flex;
+  border-bottom: 1px solid #e4e6eb;
+  background: #fff;
+}
+
+.notif-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #65676b;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.notif-tab:hover {
+  background: #f2f3f5;
+}
+
+.notif-tab.active {
+  color: #0866ff;
+}
+
+.notif-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #0866ff;
+  border-radius: 3px 3px 0 0;
+}
+
+.notif-tab .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Notification List */
+.notif-list {
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #f0f2f5;
+  pointer-events: auto; /* CRITICAL: Override parent's pointer-events: none */
+}
+
+.notif-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.notif-list::-webkit-scrollbar-track {
+  background: #f0f2f5;
+}
+
+.notif-list::-webkit-scrollbar-thumb {
+  background: #bcc0c4;
+  border-radius: 4px;
+}
+
+.notif-list::-webkit-scrollbar-thumb:hover {
+  background: #8a8d91;
+}
+
+.notif-loading,
+.notif-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #65676b;
+  font-size: 15px;
+}
+
+.notif-empty .material-symbols-outlined {
+  font-size: 48px;
+  color: #bcc0c4;
+  margin-bottom: 12px;
+}
+
+/* Notification Item */
+.notif-item {
+  padding: 12px 16px;
+  display: flex;
+  gap: 12px;
+  background: white;
+  border-bottom: 1px solid #e4e6eb;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  pointer-events: auto; /* CRITICAL: Ensure clicks reach notification items */
+}
+
+.notif-item:hover {
+  background: #f2f3f5;
+}
+
+.notif-item.unread {
+  background: #e7f3ff;
+}
+
+.notif-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #0866ff;
+}
+
+.notif-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e7f3ff;
+  flex-shrink: 0;
+}
+
+.notif-icon .material-symbols-outlined {
+  font-size: 20px;
+  color: #0866ff;
+}
+
+.notif-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-message {
+  font-size: 15px;
+  color: #050505;
+  margin: 0 0 4px 0;
+  line-height: 1.4;
+}
+
+.notif-time {
+  font-size: 13px;
+  color: #65676b;
+}
+
+/* Footer */
+.notif-footer {
+  padding: 12px;
+  text-align: center;
+  border-top: 1px solid #e4e6eb;
+  background: white;
+}
+
+.notif-see-more {
+  background: none;
+  border: none;
+  color: #0866ff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.notif-see-more:hover {
+  background: #e7f3ff;
+}
+
+/* ============================
+   END: Notification Dropdown Panel
+   ============================ */
+
+/* Notification Bell in Header */
+.admin-header .notification-bell {
+  position: relative;
+  margin: 0;
+  width: auto;
+}
+
+.admin-header .notification-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
+}
+
+.admin-header .notification-btn {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 10px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.admin-header .notification-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.admin-header .notification-btn .material-symbols-outlined {
+  color: white;
+  font-size: 24px;
+}
+
+.admin-header .notification-badge {
+  top: 2px;
+  right: 2px;
+}
+
 .admin-info {
   display: flex;
   align-items: center;
@@ -466,7 +821,155 @@ body.modal-open {
    Description: Table layouts, book lists, user tables
    ============================ */
 
-/* Search and Filter Section */
+/* Modern Filter Wrapper */
+.modern-filter-wrapper {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+/* Search Header with Result Count */
+.modern-filter-header {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modern-search-container {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.modern-search-container .search-icon {
+  position: absolute;
+  left: 16px;
+  color: #888;
+  font-size: 22px;
+  pointer-events: none;
+}
+
+.modern-search-input {
+  width: 100%;
+  padding: 14px 16px 14px 50px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  background-color: #fafafa;
+}
+
+.modern-search-input:focus {
+  outline: none;
+  border-color: #0e5e3f;
+  background-color: white;
+  box-shadow: 0 0 0 4px rgba(14, 94, 63, 0.08);
+}
+
+.modern-result-count {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+/* Filter Controls Row */
+.modern-filter-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Single Filter Control (for pages with only one filter) */
+.modern-filter-controls-single {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.modern-filter-select {
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 14px;
+  background-color: #fafafa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #374151;
+}
+
+.modern-filter-select:hover {
+  background-color: white;
+  border-color: #9ca3af;
+}
+
+.modern-filter-select:focus {
+  outline: none;
+  border-color: #0e5e3f;
+  background-color: white;
+  box-shadow: 0 0 0 4px rgba(14, 94, 63, 0.08);
+}
+
+.modern-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.15);
+}
+
+.modern-clear-btn:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.25);
+}
+
+.modern-clear-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .modern-filter-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .modern-clear-btn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .modern-filter-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .modern-result-count {
+    text-align: right;
+  }
+  
+  .modern-filter-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Legacy Search and Filter Section (keep for backward compatibility) */
 .search-filter-container {
   background: rgba(255, 255, 255, 0.95);
   padding: 20px;
@@ -485,7 +988,7 @@ body.modal-open {
   min-width: 300px;
 }
 
-.search-icon {
+.search-bar-wrapper .search-icon {
   position: absolute;
   left: 12px;
   top: 50%;
@@ -719,7 +1222,7 @@ body.modal-open {
 }
 
 .modal.show {
-  display: flex;
+  display: flex !important;
 }
 
 .modal-content {
@@ -1308,4 +1811,72 @@ canvas {
     margin-left: 0;
     width: 100%;
   }
+}
+
+/* ============================
+   Deep Linking Animation
+   ============================ */
+
+@keyframes highlightPulse {
+  0% {
+    background-color: #d4edda;
+    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+  }
+  20% {
+    background-color: #c3e6cb;
+    box-shadow: 0 0 0 8px rgba(40, 167, 69, 0);
+  }
+  40% {
+    background-color: #d4edda;
+  }
+  60% {
+    background-color: #c3e6cb;
+  }
+  80% {
+    background-color: #d4edda;
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+  }
+}
+
+/* Ensure modal and backdrop are properly layered */
+#editAdminModal {
+  z-index: 1055; /* Ensure modal is above other elements */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto; /* Ensure modal is interactive */
+}
+
+#editAdminModal .modal-content {
+  z-index: 1060; /* Ensure modal content is above the backdrop */
+  position: relative;
+  background: #fff;
+  border-radius: 8px;
+  max-width: 500px;
+  margin: 10% auto;
+  padding: 20px;
+  pointer-events: auto; /* Ensure modal content is interactive */
+}
+
+.modal-backdrop {
+  z-index: 1050; /* Ensure backdrop is below the modal */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none; /* Prevent interaction with the backdrop */
+}
+
+/* Ensure no hover effects on elements behind the modal */
+body.modal-open .admin-management {
+  pointer-events: none; /* Disable interaction with admin management section */
 }

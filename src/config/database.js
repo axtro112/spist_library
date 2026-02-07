@@ -1,4 +1,5 @@
 const mysql = require("mysql2");
+const util = require('util');
 require("dotenv").config();
 
 // Database configuration from environment variables
@@ -11,6 +12,9 @@ const dbConfig = {
 };
 
 const connection = mysql.createConnection(dbConfig);
+
+// Promisify the query method for async/await support
+connection.query = util.promisify(connection.query);
 
 connection.connect((err) => {
   if (err) {

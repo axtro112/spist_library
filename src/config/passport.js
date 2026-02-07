@@ -1,4 +1,4 @@
-const passport = require('passport');
+﻿const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('../config/database');
 require('dotenv').config();
@@ -60,10 +60,18 @@ passport.use(
             }
           } else {
             // New admin - create with system_admin role by default
-            // 🔧 CHANGE 'system_admin' TO 'super_admin' IF NEEDED
+            //  CHANGE 'system_admin' TO 'super_admin' IF NEEDED
+            // Validate fullname
+            if (!fullname || fullname.trim() === '') {
+              console.error('[GOOGLE AUTH] Fullname is missing for Google user:', email);
+              return done(new Error('Fullname is required for Google authentication'));
+            }
+
+            const trimmedFullname = fullname.trim();
+
             const result = await queryDB(
               'INSERT INTO admins (google_id, fullname, email, role, password, created_at) VALUES (?, ?, ?, ?, NULL, NOW())',
-              [googleId, fullname, email, 'system_admin']
+              [googleId, trimmedFullname, email, 'system_admin']
             );
             admin = {
               id: result.insertId,
@@ -99,7 +107,7 @@ passport.use(
             }
           } else {
             // New student - create with default values
-            // 🔧 CUSTOMIZE DEFAULT VALUES AS NEEDED
+            //  CUSTOMIZE DEFAULT VALUES AS NEEDED
             const studentId = `GOOGLE-${Date.now()}`; // Temporary ID format
             await queryDB(
               `INSERT INTO students (

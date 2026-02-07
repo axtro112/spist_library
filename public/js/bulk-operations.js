@@ -204,9 +204,11 @@ async function handleBulkDelete() {
     
     alert(`Successfully deleted ${result.deletedCount} book${result.deletedCount > 1 ? 's' : ''}`);
     
-    // Clear selection and reload table
+    // Clear selection and reload table with stats
     clearSelection();
-    if (typeof loadBooks === 'function') {
+    if (typeof reloadBooksAndStats === 'function') {
+      await reloadBooksAndStats();
+    } else if (typeof loadBooks === 'function') {
       await loadBooks();
     }
     
@@ -298,10 +300,12 @@ async function handleBulkEditSubmit(e) {
     
     alert(`Successfully updated ${result.updatedCount} book${result.updatedCount > 1 ? 's' : ''}`);
     
-    // Close modal, clear selection, and reload table
+    // Close modal, clear selection, and reload table with stats
     closeModal();
     clearSelection();
-    if (typeof loadBooks === 'function') {
+    if (typeof reloadBooksAndStats === 'function') {
+      await reloadBooksAndStats();
+    } else if (typeof loadBooks === 'function') {
       await loadBooks();
     }
     

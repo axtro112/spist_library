@@ -48,7 +48,7 @@
 
           <div id="errorMessage" class="error-message" style="display: none;"></div>
 
-          <form class="auth-form" onsubmit="handleSubmit(event)">
+          <form class="auth-form" id="loginForm">
             <div class="form-group">
               <label for="email">Email Address</label>
               <input
@@ -70,7 +70,7 @@
                   placeholder="Enter your password"
                   required
                 />
-                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('password')">
+                <button type="button" class="toggle-password" data-target="password">
                   <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -80,7 +80,7 @@
             </div>
 
             <div class="form-links" style="text-align: left; margin-bottom: 24px;">
-              <a href="#" onclick="openForgotPasswordModal(event)">Forgot Password?</a>
+              <a href="#" id="forgotPasswordLink">Forgot Password?</a>
             </div>
 
             <button type="submit" class="auth-button primary-button">Sign In</button>
@@ -90,7 +90,7 @@
             <span>OR</span>
           </div>
 
-          <button type="button" class="auth-button google-button" onclick="signInWithGoogle()">
+          <button type="button" class="auth-button google-button" id="googleSignInBtn">
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -111,7 +111,7 @@
 
     <!-- Forgot Password Modal -->
     <div id="forgotPasswordModal" class="forgot-password-modal" style="display: none;">
-      <div class="forgot-modal-overlay" onclick="closeForgotPasswordModal()"></div>
+      <div class="forgot-modal-overlay" id="modalOverlay"></div>
       <div class="forgot-modal-content">
         <button class="forgot-modal-close" onclick="closeForgotPasswordModal()" aria-label="Close modal">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -168,29 +168,9 @@
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          <a href="#" onclick="closeForgotPasswordModal(); return false;">Back to Login</a>
+          <a href="#" id="backToLoginLink">Back to Login</a>
         </div>
       </div>
     </div>
-
-    <script>
-      function signInWithGoogle() {
-        window.location.href = '/auth/google';
-      }
-
-      function togglePasswordVisibility(fieldId) {
-        const passwordField = document.getElementById(fieldId);
-        const button = passwordField.parentElement.querySelector('.toggle-password');
-        const eyeIcon = button.querySelector('.eye-icon');
-        
-        if (passwordField.type === 'password') {
-          passwordField.type = 'text';
-          eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
-        } else {
-          passwordField.type = 'password';
-          eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
-        }
-      }
-    </script>
   </body>
 </html>

@@ -1,39 +1,125 @@
-const express = require("express");
+﻿const express = require("express");
 const path = require("path");
 const bodyParser = require("body-parser");
 const session = require("express-session");
 const MySQLStore = require("express-mysql-session")(session);
 const csrf = require("csurf");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const cors = require("cors");
 const passport = require("./src/config/passport");
 const authRoutes = require("./src/routes/auth");
 const adminRoutes = require("./src/routes/admin");
 const studentRoutes = require("./src/routes/students");
 const bookBorrowingRoutes = require("./src/routes/book-borrowings");
+const bookReturnRoutes = require("./src/routes/book-return");
 const booksRoutes = require("./src/routes/books");
+const bookCopiesRoutes = require("./src/routes/book-copies");
+const notificationRoutes = require("./src/routes/notifications");
+const { startNotificationScheduler } = require("./src/utils/notificationScheduler");
 require("dotenv").config();
 
-// ✅ Validate critical environment variables on startup
+//  Validate critical environment variables on startup
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME', 'SESSION_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
+  console.error(' Missing required environment variables:', missingEnvVars.join(', '));
   console.error('Please check your .env file');
   process.exit(1);
 }
 
 // Optional warnings for feature-specific variables
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  console.warn('⚠️  Google OAuth not configured. Sign in with Google will not work.');
+  console.warn('  Google OAuth not configured. Sign in with Google will not work.');
 }
 
 if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  console.warn('⚠️  Email not configured. Password reset emails will not be sent.');
+  console.warn('  Email not configured. Password reset emails will not be sent.');
 }
 
 const PORT = process.env.PORT || 3000;
 
 const app = express();
+
+// ============================================
+// SECURITY MIDDLEWARE
+// ============================================
+
+// 1. Helmet - Secure HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],  // Allow inline event handlers (onclick, onsubmit, etc.)
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// 2. CORS - Cross-Origin Resource Sharing
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
+// 3. Rate Limiting - DDoS Protection
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === "production" ? 500 : 5000, // Increased limits
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for static files and SSE streams
+    if (req.url.includes('/stream') || req.url.includes('/notifications/')) {
+      return true; // Don't rate limit notification endpoints
+    }
+    if (process.env.NODE_ENV !== "production") {
+      return req.url.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
+    }
+    return false;
+  }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === "production" ? 10 : 100, // More attempts in dev
+  message: 'Too many login attempts, please try again after 15 minutes.',
+  skipSuccessfulRequests: true
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: process.env.NODE_ENV === "production" ? 300 : 1000, // Much higher limits
+  message: 'API rate limit exceeded, please slow down.',
+  skip: (req) => {
+    // Skip rate limiting for notification endpoints and SSE
+    return req.url.includes('/notifications/') || req.url.includes('/stream');
+  }
+});
+
+// Apply general rate limiting to all requests
+app.use(generalLimiter);
+
+// Apply stricter rate limiting to auth routes
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/signup', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+
+// Apply API rate limiting to API routes (but notifications are skipped)
+app.use('/api/', apiLimiter);
+
+// ============================================
+// BODY PARSING MIDDLEWARE
+// ============================================
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -86,11 +172,19 @@ app.use(passport.session());
 // CSRF Protection middleware
 const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
 
-// Apply CSRF to routes (except auth routes that handle it separately)
-app.use("/api/admin", csrfProtection);
-app.use("/api/students", csrfProtection);
-app.use("/api/book-borrowings", csrfProtection);
-app.use("/api/books", csrfProtection);
+// Serve static files FIRST (before routes)
+app.use(express.static("public"));
+app.use("/pages", express.static(path.join(__dirname, "src/pages")));
+
+// Mount routes BEFORE applying CSRF (so we can selectively protect endpoints)
+app.use("/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/students", studentRoutes);
+app.use("/api/book-borrowings", bookBorrowingRoutes);
+app.use("/api/book-borrowings", bookReturnRoutes);
+app.use("/api/books", booksRoutes);
+app.use("/api/book-copies", bookCopiesRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Middleware to make CSRF token available to all routes
 app.use((req, res, next) => {
@@ -98,12 +192,43 @@ app.use((req, res, next) => {
   next();
 });
 
+// Debug endpoint to check session
+app.get("/api/debug/session", (req, res) => {
+  res.json({
+    hasSession: !!req.session,
+    sessionData: req.session,
+    isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false
+  });
+});
+
 app.use("/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/book-borrowings", bookBorrowingRoutes);
+app.use("/api/book-borrowings", bookReturnRoutes);
 app.use("/api/books", booksRoutes);
+app.use("/api/book-copies", bookCopiesRoutes);
+app.use("/api/notifications", notificationRoutes);
 
+// CSRF Error Handler - must come before general error handler
+app.use("/api", (err, req, res, next) => {
+  if (err.code === 'EBADCSRFTOKEN') {
+    console.error("CSRF Token Error:", {
+      method: req.method,
+      path: req.path,
+      hasToken: !!req.headers['x-csrf-token'],
+      error: err.message
+    });
+    return res.status(403).json({
+      success: false,
+      message: "Invalid or missing CSRF token. Please refresh the page and try again.",
+      error: "CSRF_TOKEN_INVALID"
+    });
+  }
+  next(err);
+});
+
+// General API Error Handler
 app.use("/api", (err, req, res, next) => {
   console.error("API Error:", err);
   res.status(500).json({
@@ -112,9 +237,6 @@ app.use("/api", (err, req, res, next) => {
     error: err.message,
   });
 });
-
-app.use(express.static("public"));
-app.use("/pages", express.static(path.join(__dirname, "src/pages")));
 
 const authPages = {
   "/": "home.html",
@@ -202,4 +324,8 @@ app.get("*", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open http://localhost:${PORT} in your browser`);
+  
+  // Start notification scheduler
+  startNotificationScheduler();
+  console.log('Notification scheduler started');
 });

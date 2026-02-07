@@ -1,0 +1,336 @@
+/* Borrowing Details Modal - Green Theme (Matches Login/Signup) */
+
+.borrowing-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: borrowingFadeIn 0.2s ease;
+}
+
+@keyframes borrowingFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.borrowing-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(600px, 95vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: borrowingSlideUp 0.3s ease;
+}
+
+@keyframes borrowingSlideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.borrowing-modal-header {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: #ffffff;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.borrowing-modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.borrowing-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #ffffff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.borrowing-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.borrowing-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  background: #f8f9fa;
+}
+
+.borrowing-modal-footer {
+  padding: 16px 24px;
+  background: #ffffff;
+  border-top: 1px solid #e9ecef;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.borrowing-modal-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.borrowing-modal-btn-primary {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.borrowing-modal-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+}
+
+.borrowing-modal-btn-secondary {
+  background: #ffffff;
+  color: #28a745;
+  border: 1px solid #28a745;
+}
+
+.borrowing-modal-btn-secondary:hover {
+  background: #e7f5e9;
+}
+
+/* Loading State */
+.borrowing-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #28a745;
+}
+
+.borrowing-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e9ecef;
+  border-top-color: #28a745;
+  border-radius: 50%;
+  animation: borrowingSpin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes borrowingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.borrowing-loading p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Error State */
+.borrowing-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.borrowing-error h4 {
+  margin: 16px 0 8px;
+  color: #c62828;
+  font-size: 18px;
+}
+
+.borrowing-error p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Borrowing Details */
+.borrowing-details {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.borrowing-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.borrowing-status-badge .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.status-borrowed {
+  background: #d1ecf1;
+  color: #0c5460;
+  border: 2px solid #bee5eb;
+}
+
+.status-overdue {
+  background: #f8d7da;
+  color: #721c24;
+  border: 2px solid #f5c6cb;
+}
+
+.status-returned {
+  background: #d4edda;
+  color: #155724;
+  border: 2px solid #c3e6cb;
+}
+
+.days-overdue {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.borrowing-section {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 18px;
+  border: 1px solid #e9ecef;
+}
+
+.borrowing-section h4 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #28a745;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.borrowing-section h4 .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.borrowing-field {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.borrowing-field:last-child {
+  border-bottom: none;
+}
+
+.field-label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.field-value {
+  color: #212529;
+  font-size: 14px;
+  word-wrap: break-word;
+}
+
+.field-value em {
+  color: #6c757d;
+  font-style: italic;
+}
+
+.borrowing-notes {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+  color: #495057;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Row Highlighting */
+.user-table tbody tr.highlight-borrowing {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(32, 201, 151, 0.1));
+  animation: borrowingPulse 2s ease-in-out;
+  box-shadow: 0 0 0 2px #28a745;
+}
+
+@keyframes borrowingPulse {
+  0%, 100% {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(32, 201, 151, 0.1));
+  }
+  50% {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.25), rgba(32, 201, 151, 0.25));
+  }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .borrowing-modal {
+    border-radius: 12px 12px 0 0;
+    max-height: 95vh;
+  }
+
+  .borrowing-field {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .field-label {
+    font-size: 13px;
+    color: #6c757d;
+  }
+
+  .field-value {
+    font-size: 14px;
+  }
+
+  .borrowing-modal-body {
+    padding: 16px;
+  }
+
+  .borrowing-section {
+    padding: 14px;
+  }
+}

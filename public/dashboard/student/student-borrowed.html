@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/student.css" />
     <link rel="stylesheet" href="/css/backup.css" />
+    <link rel="stylesheet" href="/css/notifications.css" />
+    <link rel="stylesheet" href="/css/borrowing-details-modal.css" />
 
     <!-- Icons -->
     <link
@@ -23,15 +25,23 @@
     <!-- JavaScript -->
     <script src="/js/csrf-helper.js"></script>
     <script src="/js/session-timeout.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/notifications.js"></script>
     <script src="/js/user.js" defer></script>
     <script src="/js/student-borrowed.js" defer></script>
     <script>
-      // Authentication check - redirect if not logged in as student
+      // Authentication check - redirect if not logged in as student or admin
       document.addEventListener("DOMContentLoaded", function () {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
         const userRole = sessionStorage.getItem("userRole");
+        const adminRole = sessionStorage.getItem("adminRole");
 
-        if (!isLoggedIn || userRole !== "student") {
+        // Allow students and admins (super_admin/admin)
+        const isStudent = userRole === "student";
+        const isAdmin = adminRole === "super_admin" || adminRole === "admin";
+
+        if (!isLoggedIn || (!isStudent && !isAdmin)) {
           window.location.href = "/login";
           return;
         }
@@ -40,7 +50,7 @@
         const userNameElement = document.getElementById("userName");
         if (userNameElement) {
           userNameElement.textContent =
-            sessionStorage.getItem("userName") || "Student";
+            sessionStorage.getItem("userName") || (isAdmin ? "Admin" : "Student");
         }
 
         // Display user ID from session storage
@@ -140,8 +150,46 @@
       <div class="container">
         <div class="maincontent">
           <div class="welcome-banner">
-            <h2>Borrowed Books</h2>
-            <p>View and manage your borrowed books</p>
+            <div class="welcome-content">
+              <h2>Borrowed Books</h2>
+              <p>View and manage your borrowed books</p>
+            </div>
+            <div class="student-notification-container" id="studentNotificationContainer">
+              <button class="student-notif-btn" id="studentNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false" role="button">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="student-notif-badge" id="studentNotifBadge" style="display:none;">0</span>
+              </button>
+              <div class="notif-panel" id="studentNotifPanel" style="display:none;" role="menu">
+                <!-- Header -->
+                <div class="notif-header">
+                  <h3>Notifications</h3>
+                  <div class="notif-header-actions">
+                    <button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read">
+                      <span class="material-symbols-outlined">done_all</span>
+                    </button>
+                    <button class="notif-action-btn" id="notifSettingsBtn" title="Settings">
+                      <span class="material-symbols-outlined">settings</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Tabs -->
+                <div class="notif-tabs">
+                  <button class="notif-tab active" data-tab="all" id="tabAll">All</button>
+                  <button class="notif-tab" data-tab="unread" id="tabUnread">Unread</button>
+                </div>
+                
+                <!-- Notifications List -->
+                <div class="notif-list-container" id="notifListContainer">
+                  <div class="notif-loading">Loading notifications...</div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="notif-footer">
+                  <button class="notif-see-more" id="notifSeeMore">See previous notifications</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="spacecontainer">
@@ -161,6 +209,7 @@
                   <th>Book Title</th>
                   <th>Author</th>
                   <th>Borrowed Date</th>
+                  <th>Due Date</th>
                   <th>Returned Date</th>
                   <th>Duration</th>
                 </tr>
@@ -240,5 +289,7 @@
         </div>
       </div>
     </div>
+    <script src="/js/notification-deeplink.js"></script>
+    <script src="/js/notification-highlight.js"></script>
   </body>
 </html>

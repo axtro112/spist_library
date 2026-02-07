@@ -1,0 +1,452 @@
+/**
+ * Admin Management Module
+ * Handles Edit and Delete admin functionality for Super Admin
+ * Compatible with SPIST Library Management System
+ */
+
+class AdminManagement {
+  constructor() {
+    this.currentAdminRole = null;
+    this.currentAdminId = null;
+    this.admins = [];
+    this.init();
+  }
+
+  init() {
+    // Store current admin context
+    this.currentAdminRole = window.currentAdminRole || sessionStorage.getItem('adminRole');
+    this.currentAdminId = window.currentAdminId || sessionStorage.getItem('adminId');
+    
+    console.log('[AdminManagement] Initialized', {
+      role: this.currentAdminRole,
+      id: this.currentAdminId
+    });
+
+    // Setup event delegation for table buttons
+    this.setupEventDelegation();
+    
+    // Setup modal event listeners
+    this.setupModalListeners();
+  }
+
+  /**
+   * Setup event delegation for dynamically created table buttons
+   */
+  setupEventDelegation() {
+    const tbody = document.querySelector('.user-table tbody');
+    if (!tbody) return;
+
+    tbody.addEventListener('click', (e) => {
+      const button = e.target.closest('button');
+      if (!button) return;
+
+      const adminId = button.dataset.adminId;
+      if (!adminId) return;
+
+      if (button.classList.contains('edit-btn')) {
+        this.openEditModal(adminId);
+      } else if (button.classList.contains('delete-btn')) {
+        this.openDeleteModal(adminId);
+      }
+    });
+  }
+
+  /**
+   * Setup modal event listeners
+   */
+  setupModalListeners() {
+    // Edit modal save button
+    const editForm = document.getElementById('editAdminForm');
+    if (editForm) {
+      editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.saveEditAdmin();
+      });
+    }
+
+    // Edit modal cancel button
+    const editCancelBtn = document.querySelector('#modalEdit .cancel-btn');
+    if (editCancelBtn) {
+      editCancelBtn.addEventListener('click', () => this.closeEditModal());
+    }
+
+    // Delete modal confirm button
+    const deleteConfirmBtn = document.querySelector('#modalDelete .delete-confirm-btn');
+    if (deleteConfirmBtn) {
+      deleteConfirmBtn.addEventListener('click', () => this.confirmDeleteAdmin());
+    }
+
+    // Delete modal cancel button
+    const deleteCancelBtn = document.querySelector('#modalDelete .cancel-btn');
+    if (deleteCancelBtn) {
+      deleteCancelBtn.addEventListener('click', () => this.closeDeleteModal());
+    }
+
+    // Close modals when clicking outside
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal') && e.target.classList.contains('show')) {
+        if (e.target.id === 'modalEdit') this.closeEditModal();
+        if (e.target.id === 'modalDelete') this.closeDeleteModal();
+      }
+    });
+
+    // Close modals on ESC key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.closeEditModal();
+        this.closeDeleteModal();
+      }
+    });
+  }
+
+  /**
+   * Load all admins and render table
+   */
+  async loadAdmins() {
+    try {
+      console.log('[AdminManagement] Fetching admins from /api/admin');
+      const response = await fetchWithCsrf('/api/admin');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch admins');
+      }
+
+      const result = await response.json();
+      this.admins = result.data || [];
+      
+      console.log('[AdminManagement] Loaded admins:', this.admins.length);
+      this.renderAdminsTable();
+      
+      return this.admins;
+    } catch (error) {
+      console.error('[AdminManagement] Error loading admins:', error);
+      this.showErrorMessage('Failed to load admins. Please refresh the page.');
+      throw error;
+    }
+  }
+
+  /**
+   * Render admins table
+   */
+  renderAdminsTable() {
+    const tbody = document.querySelector('.user-table tbody');
+    if (!tbody) {
+      console.error('[AdminManagement] Table body not found');
+      return;
+    }
+
+    tbody.innerHTML = '';
+
+    if (this.admins.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No admins found</td></tr>';
+      return;
+    }
+
+    this.admins.forEach((admin) => {
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-admin-id', admin.id);
+      
+      // Convert role to display format
+      const roleDisplay = admin.role === 'super_admin' ? 'Super Admin' : 'System Admin';
+      
+      // Format date
+      const createdDate = new Date(admin.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+
+      tr.innerHTML = `
+        <td>${admin.id}</td>
+        <td>${this.escapeHtml(admin.fullname || 'N/A')}</td>
+        <td>${roleDisplay}</td>
+        <td>${this.escapeHtml(admin.email)}</td>
+        <td>${createdDate}</td>
+        <td>
+          ${this.renderActionButtons(admin)}
+        </td>
+      `;
+      
+      tbody.appendChild(tr);
+    });
+  }
+
+  /**
+   * Render action buttons based on user role
+   */
+  renderActionButtons(admin) {
+    // Only Super Admins can edit/delete
+    if (this.currentAdminRole !== 'super_admin') {
+      return '<span style="color:#888;">View Only</span>';
+    }
+
+    // Prevent deleting self
+    const isSelf = admin.id === parseInt(this.currentAdminId);
+    
+    return `
+      <button class="btn edit-btn" data-admin-id="${admin.id}">
+        <i class="fas fa-edit"></i> Edit
+      </button>
+      <button class="btn delete-btn" data-admin-id="${admin.id}" ${isSelf ? 'disabled title="Cannot delete yourself"' : ''}>
+        <i class="fas fa-trash"></i> Delete
+      </button>
+    `;
+  }
+
+  /**
+   * Open Edit Modal
+   */
+  async openEditModal(adminId) {
+    const admin = this.admins.find(a => a.id === parseInt(adminId));
+    if (!admin) {
+      console.error('[AdminManagement] Admin not found:', adminId);
+      return;
+    }
+
+    console.log('[AdminManagement] Opening edit modal for:', admin);
+
+    // Populate form fields
+    document.getElementById('editName').value = admin.fullname || '';
+    document.getElementById('editEmail').value = admin.email || '';
+    document.getElementById('editRole').value = admin.role || 'system_admin';
+
+    // Store admin ID in modal dataset
+    const modal = document.getElementById('modalEdit');
+    modal.dataset.adminId = adminId;
+
+    // Clear previous errors
+    this.clearModalError('editAdminError');
+
+    // Show modal
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+
+    // Focus first input
+    document.getElementById('editName').focus();
+  }
+
+  /**
+   * Close Edit Modal
+   */
+  closeEditModal() {
+    const modal = document.getElementById('modalEdit');
+    modal.classList.remove('show');
+    document.body.classList.remove('modal-open');
+    
+    // Reset form
+    document.getElementById('editAdminForm').reset();
+    this.clearModalError('editAdminError');
+  }
+
+  /**
+   * Save Edit Admin
+   */
+  async saveEditAdmin() {
+    const modal = document.getElementById('modalEdit');
+    const adminId = modal.dataset.adminId;
+    
+    const fullname = document.getElementById('editName').value.trim();
+    const email = document.getElementById('editEmail').value.trim();
+    const role = document.getElementById('editRole').value;
+
+    // Validation
+    if (!fullname) {
+      this.showModalError('editAdminError', 'Full name is required');
+      return;
+    }
+
+    if (!email) {
+      this.showModalError('editAdminError', 'Email is required');
+      return;
+    }
+
+    if (!this.isValidEmail(email)) {
+      this.showModalError('editAdminError', 'Please enter a valid email');
+      return;
+    }
+
+    // Disable save button during request
+    const submitBtn = document.querySelector('#editAdminForm button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+
+    try {
+      const response = await fetchWithCsrf(`/api/admin/${adminId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullname,
+          email,
+          role,
+          currentAdminId: this.currentAdminId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update admin');
+      }
+
+      console.log('[AdminManagement] Admin updated successfully');
+      
+      // Show success message
+      this.showSuccessMessage('Admin updated successfully');
+      
+      // Close modal
+      this.closeEditModal();
+      
+      // Reload admin list
+      await this.loadAdmins();
+      
+    } catch (error) {
+      console.error('[AdminManagement] Error updating admin:', error);
+      this.showModalError('editAdminError', error.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  }
+
+  /**
+   * Open Delete Modal
+   */
+  openDeleteModal(adminId) {
+    const admin = this.admins.find(a => a.id === parseInt(adminId));
+    if (!admin) {
+      console.error('[AdminManagement] Admin not found:', adminId);
+      return;
+    }
+
+    console.log('[AdminManagement] Opening delete modal for:', admin);
+
+    // Update modal content
+    const modalContent = document.querySelector('#modalDelete .modal-content p');
+    modalContent.innerHTML = `Are you sure you want to delete <strong>${this.escapeHtml(admin.fullname)}</strong> (${this.escapeHtml(admin.email)})?<br><br>This action cannot be undone.`;
+
+    // Store admin ID in modal dataset
+    const modal = document.getElementById('modalDelete');
+    modal.dataset.adminId = adminId;
+
+    // Show modal
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+  }
+
+  /**
+   * Close Delete Modal
+   */
+  closeDeleteModal() {
+    const modal = document.getElementById('modalDelete');
+    modal.classList.remove('show');
+    document.body.classList.remove('modal-open');
+  }
+
+  /**
+   * Confirm Delete Admin
+   */
+  async confirmDeleteAdmin() {
+    const modal = document.getElementById('modalDelete');
+    const adminId = modal.dataset.adminId;
+
+    // Disable delete button during request
+    const deleteBtn = document.querySelector('#modalDelete .delete-confirm-btn');
+    const originalText = deleteBtn.textContent;
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = 'Deleting...';
+
+    try {
+      const response = await fetchWithCsrf(`/api/admin/${adminId}?currentAdminId=${this.currentAdminId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete admin');
+      }
+
+      console.log('[AdminManagement] Admin deleted successfully');
+      
+      // Show success message
+      this.showSuccessMessage('Admin deleted successfully');
+      
+      // Close modal
+      this.closeDeleteModal();
+      
+      // Reload admin list
+      await this.loadAdmins();
+      
+    } catch (error) {
+      console.error('[AdminManagement] Error deleting admin:', error);
+      this.showErrorMessage(error.message);
+    } finally {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = originalText;
+    }
+  }
+
+  /**
+   * Helper: Escape HTML to prevent XSS
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * Helper: Validate email format
+   */
+  isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  /**
+   * Helper: Show modal error message
+   */
+  showModalError(errorElementId, message) {
+    const errorDiv = document.getElementById(errorElementId);
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  /**
+   * Helper: Clear modal error message
+   */
+  clearModalError(errorElementId) {
+    const errorDiv = document.getElementById(errorElementId);
+    if (errorDiv) {
+      errorDiv.textContent = '';
+      errorDiv.style.display = 'none';
+    }
+  }
+
+  /**
+   * Helper: Show success message (toast/notification)
+   */
+  showSuccessMessage(message) {
+    // Using simple alert for now - can be replaced with toast notification
+    alert(message);
+  }
+
+  /**
+   * Helper: Show error message (toast/notification)
+   */
+  showErrorMessage(message) {
+    // Using simple alert for now - can be replaced with toast notification
+    alert('Error: ' + message);
+  }
+}
+
+// Initialize on DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    window.adminManager = new AdminManagement();
+  });
+} else {
+  window.adminManager = new AdminManagement();
+}

@@ -1,5 +1,75 @@
-// Add console log to verify script is loaded
+﻿// Add console log to verify script is loaded
 console.log("login.js loaded successfully");
+
+// Initialize event listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Bind form submit
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleSubmit);
+  }
+
+  // Bind password toggle buttons
+  document.querySelectorAll('.toggle-password').forEach(button => {
+    button.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      togglePasswordVisibility(targetId);
+    });
+  });
+
+  // Bind forgot password link
+  const forgotLink = document.getElementById('forgotPasswordLink');
+  if (forgotLink) {
+    forgotLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openForgotPasswordModal(e);
+    });
+  }
+
+  // Bind Google sign in button
+  const googleBtn = document.getElementById('googleSignInBtn');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', signInWithGoogle);
+  }
+
+  // Bind modal overlay click
+  const modalOverlay = document.getElementById('modalOverlay');
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', closeForgotPasswordModal);
+  }
+
+  // Bind modal close button
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', closeForgotPasswordModal);
+  }
+
+  // Bind back to login link
+  const backToLoginLink = document.getElementById('backToLoginLink');
+  if (backToLoginLink) {
+    backToLoginLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      closeForgotPasswordModal();
+      return false;
+    });
+  }
+});
+
+function togglePasswordVisibility(fieldId) {
+  const passwordField = document.getElementById(fieldId);
+  if (!passwordField) return;
+  
+  const button = passwordField.parentElement.querySelector('.toggle-password');
+  const eyeIcon = button.querySelector('.eye-icon');
+  
+  if (passwordField.type === 'password') {
+    passwordField.type = 'text';
+    eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+  } else {
+    passwordField.type = 'password';
+    eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+  }
+}
 
 function login() {
   const body = document.body;
@@ -49,7 +119,29 @@ async function handleSubmit(event) {
       }),
     });
 
-    const data = await response.json();
+    // Check if response is OK before parsing JSON
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type");
+      let errorMessage = "Login failed";
+      
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          const errorData = await safeJsonParse(response);
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          console.error('[Login] Error parsing error response:', e);
+          errorMessage = `Server error (${response.status}): ${e.message}`;
+        }
+      } else {
+        // HTML error page returned
+        errorMessage = `Server error (${response.status}): Server returned HTML instead of JSON. Please refresh and try again.`;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    // Safely parse success response
+    const data = await safeJsonParse(response);
 
     if (data.success) {
       sessionStorage.setItem("isLoggedIn", "true");
@@ -166,7 +258,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Handle forgot password form submission
   const forgotPasswordForm = document.getElementById("forgotPasswordForm");
   if (forgotPasswordForm) {
-    console.log("Forgot password form found, attaching event listener"); // Debug log
     forgotPasswordForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       console.log("Forgot password form submitted"); // Debug log
@@ -181,7 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (messageDiv) {
           messageDiv.style.display = "block";
           messageDiv.className = "forgot-message error";
-          messageDiv.textContent = "⚠️ Please enter your email address.";
+          messageDiv.textContent = " Please enter your email address.";
         }
         return;
       }
@@ -218,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (response.ok) {
           if (messageDiv) {
             messageDiv.className = "forgot-message success";
-            messageDiv.textContent = "✅ Reset link sent! Check your email for instructions.";
+            messageDiv.textContent = " Reset link sent! Check your email for instructions.";
           }
           forgotPasswordForm.reset();
 
@@ -234,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           if (messageDiv) {
             messageDiv.className = "forgot-message error";
-            messageDiv.textContent = `❌ ${data.error || "Failed to send reset link. Please try again."}`;
+            messageDiv.textContent = ` ${data.error || "Failed to send reset link. Please try again."}`;
           }
         }
       } catch (error) {
@@ -242,7 +333,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (messageDiv) {
           messageDiv.style.display = "block";
           messageDiv.className = "forgot-message error";
-          messageDiv.textContent = "❌ An error occurred. Please check your connection and try again.";
+          messageDiv.textContent = " An error occurred. Please check your connection and try again.";
         }
       } finally {
         if (submitBtn) {
@@ -257,12 +348,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
-  } else {
-    console.error("Forgot password form not found in DOM");
   }
 });
 
-// ✅ Google OAuth Sign In
+//  Google OAuth Sign In
 function signInWithGoogle() {
   window.location.href = '/auth/google';
 }

@@ -1,9 +1,11 @@
-const express = require("express");
+﻿const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const db = require("../config/database");
+const db = require("../utils/db");
+const response = require("../utils/response");
+const logger = require("../utils/logger");
 const passport = require("../config/passport");
 const csrf = require("csurf");
 require("dotenv").config();
@@ -11,17 +13,8 @@ require("dotenv").config();
 // CSRF protection for auth routes
 const csrfProtection = csrf({ cookie: false });
 
-const queryDB = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) reject(err);
-      else resolve(results);
-    });
-  });
-};
-
 const authenticateAdmin = async (email, password) => {
-  const adminResults = await queryDB("SELECT * FROM admins WHERE email = ?", [
+  const adminResults = await db.query("SELECT * FROM admins WHERE email = ?", [
     email,
   ]);
 
@@ -31,7 +24,7 @@ const authenticateAdmin = async (email, password) => {
   
   // Check if password exists in database
   if (!admin.password) {
-    console.log(`[AUTH] Admin ${admin.email} has no password set`);
+    logger.warn('Admin login attempt with no password set', { email: admin.email });
     return null;
   }
   
@@ -41,7 +34,7 @@ const authenticateAdmin = async (email, password) => {
 };
 
 const authenticateStudent = async (email, password) => {
-  const studentResults = await queryDB(
+  const studentResults = await db.query(
     "SELECT * FROM students WHERE email = ?",
     [email]
   );
@@ -52,7 +45,7 @@ const authenticateStudent = async (email, password) => {
   
   // Check if password exists in database
   if (!student.password) {
-    console.log(`[AUTH] Student ${student.email} has no password set`);
+    logger.warn('Student login attempt with no password set', { email: student.email });
     return null;
   }
   
@@ -65,10 +58,16 @@ router.post("/login", csrfProtection, async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
     const admin = await authenticateAdmin(email, password);
     if (admin) {
-      // ✅ LOGIN: Return admin role exactly as stored in database
-      console.log(`[AUTH] Admin login successful: ${admin.email} with role '${admin.role}'`);
+      logger.info('Admin login successful', { email: admin.email, role: admin.role });
       
       // Set session
       req.session.user = {
@@ -88,6 +87,7 @@ router.post("/login", csrfProtection, async (req, res) => {
 
     const student = await authenticateStudent(email, password);
     if (student) {
+      logger.info('Student login successful', { email: student.email, studentId: student.student_id });
       // Set session
       req.session.user = {
         id: student.id,
@@ -103,21 +103,24 @@ router.post("/login", csrfProtection, async (req, res) => {
       });
     }
 
+    logger.warn('Failed login attempt', { email });
     return res.status(401).json({
       success: false,
-      message: "Invalid credentials",
+      message: 'Invalid credentials'
     });
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({
+    console.error('Login error:', err);
+    logger.error('Login error', { error: err.message, stack: err.stack });
+    return res.status(500).json({
       success: false,
-      message: "An error occurred during login",
+      message: 'An error occurred during login',
+      error: process.env.NODE_ENV !== 'production' ? err.message : undefined
     });
   }
 });
 
 const checkExistingStudent = async (email, studentId) => {
-  const existingUser = await queryDB(
+  const existingUser = await db.query(
     "SELECT * FROM students WHERE email = ? OR student_id = ?",
     [email, studentId]
   );
@@ -135,7 +138,7 @@ const checkExistingStudent = async (email, studentId) => {
 
 router.post("/signup", csrfProtection, async (req, res) => {
   try {
-    console.log("Received signup request with body:", req.body); // Add logging
+    logger.debug('Signup request received', { body: req.body });
     
     const {
       student_id,
@@ -151,22 +154,14 @@ router.post("/signup", csrfProtection, async (req, res) => {
 
     // Validate required fields
     if (!student_id || !fullname || !email || !password || !department || !year_level || !student_type || !contact_number) {
-      console.log("Missing required fields");
-      return res.status(400).json({
-        success: false,
-        message: 'All fields are required',
-      });
+      logger.warn('Signup attempt with missing fields');
+      return response.validationError(res, 'All fields are required');
     }
-
-    // Note: student_type validation removed to support free-text input (Student, Faculty, Staff, etc.)
 
     const existingCheck = await checkExistingStudent(email, student_id);
     if (existingCheck.exists) {
-      console.log("User already exists:", existingCheck.message);
-      return res.status(400).json({
-        success: false,
-        message: existingCheck.message,
-      });
+      logger.warn('Signup attempt with existing user', { email, student_id });
+      return response.validationError(res, existingCheck.message);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -178,11 +173,9 @@ router.post("/signup", csrfProtection, async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    console.log("Attempting to insert student with data:", {
-      student_id, fullname, email, department, year_level, student_type, contact_number, status
-    });
+    logger.debug('Creating new student account', { student_id, email, department });
 
-    await queryDB(insertQuery, [
+    await db.query(insertQuery, [
       student_id,
       fullname,
       email,
@@ -194,24 +187,18 @@ router.post("/signup", csrfProtection, async (req, res) => {
       status || 'active',
     ]);
 
-    console.log("Student created successfully");
-    res.json({
-      success: true,
-      message: "Account created successfully",
-    });
+    logger.info('Student account created successfully', { student_id, email });
+    response.success(res, null, 'Account created successfully', 201);
   } catch (err) {
-    console.error("Signup error details:", err);
-    res.status(500).json({
-      success: false,
-      message: "Error creating account: " + err.message,
-    });
+    logger.error('Signup error', { error: err.message });
+    response.error(res, 'Error creating account: ' + err.message, err);
   }
 });
 
 // Forgot Password Route - for both Admins and Students
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body || {};
-  if (!email) return res.status(400).json({ error: "Email is required" });
+  if (!email) return response.validationError(res, 'Email is required');
 
   const rawToken = crypto.randomBytes(32).toString("hex");
   const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
@@ -219,26 +206,29 @@ router.post("/forgot-password", async (req, res) => {
 
   try {
     // Check if email exists in admins table
-    const adminResults = await queryDB("SELECT id FROM admins WHERE email = ?", [email]);
+    const adminResults = await db.query("SELECT id FROM admins WHERE email = ?", [email]);
 
     if (adminResults.length > 0) {
-      await queryDB(
+      await db.query(
         "UPDATE admins SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
         [hashedToken, expiry, email]
       );
+      logger.info('Password reset requested for admin', { email });
     } else {
       // Check if email exists in students table
-      const studentResults = await queryDB(
+      const studentResults = await db.query(
         "SELECT id FROM students WHERE email = ?",
         [email]
       );
 
       if (studentResults.length > 0) {
-        await queryDB(
+        await db.query(
           "UPDATE students SET resetToken = ?, resetTokenExpiry = ? WHERE email = ?",
           [hashedToken, expiry, email]
         );
+        logger.info('Password reset requested for student', { email });
       } else {
+        logger.warn('Password reset requested for non-existent email', { email });
         // Do not leak existence - return generic message
         return res.json({ message: "If this email exists, a reset link was sent." });
       }
@@ -276,8 +266,8 @@ router.post("/forgot-password", async (req, res) => {
 
     return res.json({ message: "If this email exists, a reset link was sent." });
   } catch (err) {
-    console.error("Forgot password error:", err);
-    return res.status(500).json({ error: "Server error" });
+    logger.error('Forgot password error', { error: err.message });
+    response.error(res, 'Server error', err);
   }
 });
 
@@ -285,48 +275,51 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   const { token, newPassword } = req.body || {};
 
-  if (!token) return res.status(400).json({ error: "Token is required" });
+  if (!token) return response.validationError(res, 'Token is required');
   if (!newPassword || newPassword.length < 6)
-    return res.status(400).json({ error: "Password must be at least 6 characters" });
+    return response.validationError(res, 'Password must be at least 6 characters');
 
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
   try {
     // Check admin table first
-    const adminResults = await queryDB(
+    const adminResults = await db.query(
       "SELECT id, email FROM admins WHERE resetToken = ? AND resetTokenExpiry > NOW()",
       [hashedToken]
     );
 
     if (adminResults.length > 0) {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await queryDB(
+      await db.query(
         "UPDATE admins SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?",
         [hashedPassword, adminResults[0].id]
       );
+      logger.info('Admin password reset successfully', { email: adminResults[0].email });
       return res.json({ message: "Password reset successfully" });
     }
 
     // Check student table
-    const studentResults = await queryDB(
+    const studentResults = await db.query(
       "SELECT id, email FROM students WHERE resetToken = ? AND resetTokenExpiry > NOW()",
       [hashedToken]
     );
 
     if (studentResults.length > 0) {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await queryDB(
+      await db.query(
         "UPDATE students SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?",
         [hashedPassword, studentResults[0].id]
       );
+      logger.info('Student password reset successfully', { email: studentResults[0].email });
       return res.json({ message: "Password reset successfully" });
     }
 
     // Token not found or expired
-    return res.status(400).json({ error: "Invalid or expired reset token" });
+    logger.warn('Invalid or expired reset token used');
+    return response.validationError(res, 'Invalid or expired reset token');
   } catch (err) {
-    console.error("Reset password error:", err);
-    return res.status(500).json({ error: "Server error" });
+    logger.error('Reset password error', { error: err.message });
+    response.error(res, 'Server error', err);
   }
 });
 
@@ -367,10 +360,28 @@ router.get(
 );
 
 // GET /auth/csrf-token - Get CSRF token for client-side requests
-router.get("/csrf-token", csrfProtection, (req, res) => {
-  res.json({
-    success: true,
-    csrfToken: req.csrfToken(),
+// Note: This endpoint should NOT have CSRF protection itself to avoid circular dependency
+router.get("/csrf-token", (req, res) => {
+  logger.info("CSRF token requested");
+  
+  // Use the same CSRF middleware instance to generate a token
+  // but only apply it to generate the token, not to verify one
+  csrfProtection(req, res, (err) => {
+    if (err) {
+      logger.error('CSRF token generation failed', { error: err.message });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate CSRF token'
+      });
+    }
+    
+    const token = req.csrfToken();
+    logger.debug('Generated CSRF token:', { token });
+
+    res.json({
+      success: true,
+      csrfToken: token,
+    });
   });
 });
 

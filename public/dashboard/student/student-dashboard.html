@@ -6,6 +6,7 @@
     <link rel="icon" type="image/png" href="/public/img/small.png" />
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/student.css" />
+    <link rel="stylesheet" href="/css/notifications.css" />
 
     <!-- Icons -->
     <link
@@ -23,6 +24,9 @@
     <!-- JavaScript -->
     <script src="/js/csrf-helper.js"></script>
     <script src="/js/session-timeout.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/notifications.js"></script>
     <script src="/js/user.js" defer></script>
     <script>
       // Authentication check - redirect if not logged in as student
@@ -85,6 +89,12 @@
           document.getElementById("userNameHeading").textContent = defaultName;
           document.getElementById("userID").textContent = defaultId;
         }
+        
+        // Auto-refresh dashboard stats every 60 seconds
+        setInterval(async () => {
+          await updateDashboardStats();
+          await updateBorrowedBooks();
+        }, 60000);
       });
 
       /* ========================================
@@ -197,10 +207,11 @@
             );
           }
 
-          const data = await response.json();
+          const result = await response.json();
+          const data = result.data || result; // Extract data from response wrapper
           const tableBody = document.getElementById("borrowedBooksTableBody");
 
-          if (data.books.length === 0) {
+          if (!data.books || data.books.length === 0) {
             tableBody.innerHTML = `
               <tr>
                 <td colspan="5" class="text-center">No books currently borrowed</td>
@@ -258,7 +269,8 @@
             );
           }
 
-          const books = await response.json();
+          const result = await response.json();
+          const books = result.data || []; // Extract data from response wrapper
           console.log("Received recommendations:", books); // Debug log
 
           const tableBody = document.getElementById(
@@ -449,8 +461,47 @@
       <div class="container">
         <div class="maincontent">
           <div class="welcome-banner">
-            <h2>Welcome, <span id="userNameHeading">Maria Garcia</span>!</h2>
-            <p>Here's your library overview</p>
+            <div class="welcome-content">
+              <h2>Welcome, <span id="userNameHeading">Maria Garcia</span>!</h2>
+              <p>Here's your library overview</p>
+            </div>
+            <!-- Student Notification Bell -->
+            <div class="student-notification-container" id="studentNotificationContainer">
+              <button class="student-notif-btn" id="studentNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false" role="button">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="student-notif-badge" id="studentNotifBadge" style="display: none;">0</span>
+              </button>
+              <div class="notif-panel" id="studentNotifPanel" style="display: none;" role="menu">
+                <!-- Header -->
+                <div class="notif-header">
+                  <h3>Notifications</h3>
+                  <div class="notif-header-actions">
+                    <button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read">
+                      <span class="material-symbols-outlined">done_all</span>
+                    </button>
+                    <button class="notif-action-btn" id="notifSettingsBtn" title="Settings">
+                      <span class="material-symbols-outlined">settings</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Tabs -->
+                <div class="notif-tabs">
+                  <button class="notif-tab active" data-tab="all" id="tabAll">All</button>
+                  <button class="notif-tab" data-tab="unread" id="tabUnread">Unread</button>
+                </div>
+                
+                <!-- Notifications List -->
+                <div class="notif-list-container" id="notifListContainer">
+                  <div class="notif-loading">Loading notifications...</div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="notif-footer">
+                  <button class="notif-see-more" id="notifSeeMore">See previous notifications</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="spacecontainer">
@@ -576,5 +627,7 @@
         </div>
       </div>
     </div>
+    <script src="/js/notification-deeplink.js"></script>
+    <script src="/js/notification-highlight.js"></script>
   </body>
 </html>

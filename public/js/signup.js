@@ -1,3 +1,59 @@
+﻿// ================================================================
+// INITIALIZATION - Add Event Listeners when DOM is ready
+// ================================================================
+document.addEventListener('DOMContentLoaded', function() {
+  // Bind step navigation buttons
+  const goToStep2Btn = document.getElementById('goToStep2Btn');
+  if (goToStep2Btn) goToStep2Btn.addEventListener('click', goToStep2);
+
+  const goToStep3Btn = document.getElementById('goToStep3Btn');
+  if (goToStep3Btn) goToStep3Btn.addEventListener('click', goToStep3);
+
+  const goBackToStep1Btn = document.getElementById('goBackToStep1Btn');
+  if (goBackToStep1Btn) goBackToStep1Btn.addEventListener('click', goBackToStep1);
+
+  const goBackToStep2Btn = document.getElementById('goBackToStep2Btn');
+  if (goBackToStep2Btn) goBackToStep2Btn.addEventListener('click', goBackToStep2);
+
+  // Bind password toggle buttons
+  document.querySelectorAll('.toggle-password').forEach(button => {
+    button.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      togglePasswordVisibility(targetId);
+    });
+  });
+
+  // Bind Google sign up button
+  const googleSignUpBtn = document.getElementById('googleSignUpBtn');
+  if (googleSignUpBtn) googleSignUpBtn.addEventListener('click', signUpWithGoogle);
+});
+
+// ================================================================
+// PASSWORD VISIBILITY TOGGLE
+// ================================================================
+function togglePasswordVisibility(fieldId) {
+  const passwordField = document.getElementById(fieldId);
+  if (!passwordField) return;
+  
+  const button = passwordField.parentElement.querySelector('.toggle-password');
+  const eyeIcon = button.querySelector('.eye-icon');
+  
+  if (passwordField.type === 'password') {
+    passwordField.type = 'text';
+    eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+  } else {
+    passwordField.type = 'password';
+    eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+  }
+}
+
+// ================================================================
+// GOOGLE OAUTH
+// ================================================================
+function signUpWithGoogle() {
+  window.location.href = '/auth/google';
+}
+
 // ================================================================
 // STEP NAVIGATION FUNCTIONS - 3-Step Signup Wizard
 // ================================================================
@@ -206,9 +262,16 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(formData),
       });
 
-      // Get response data regardless of status
-      const data = await response.json();
-      console.log("Server response:", data);
+      // Safely parse response data
+      let data;
+      try {
+        data = await safeJsonParse(response);
+        console.log("Server response:", data);
+      } catch (error) {
+        console.error("Failed to parse server response:", error);
+        alert(`Server error: ${error.message}. Please refresh the page and try again.`);
+        throw error;
+      }
 
       if (!response.ok) {
         // Show the actual error message from the server
@@ -233,7 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ✅ Google OAuth Sign Up
+//  Google OAuth Sign Up
 function signUpWithGoogle() {
   window.location.href = '/auth/google';
 }

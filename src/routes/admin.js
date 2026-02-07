@@ -1,6 +1,8 @@
-const express = require("express");
+﻿const express = require("express");
 const router = express.Router();
-const db = require("../config/database");
+const db = require("../utils/db");
+const response = require("../utils/response");
+const logger = require("../utils/logger");
 const bcrypt = require("bcrypt");
 const upload = require("../middleware/upload");
 const { requireAdmin, requireSuperAdmin: requireSuperAdminMiddleware } = require("../middleware/auth");
@@ -12,29 +14,66 @@ const {
   exportBooksToExcel,
   cleanupFile,
 } = require("../utils/csvParser");
+const { body, validationResult } = require('express-validator');
 
-// Helper functions
-const queryDB = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) reject(err);
-      else resolve(results);
-    });
-  });
-};
+// =============================
+// Add Admin (Super Admin Only)
+// =============================
+router.post(
+  '/admins',
+  requireSuperAdmin,
+  [
+    body('fullname').trim().notEmpty().withMessage('Full name is required'),
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('role').optional().isIn(['system_admin', 'super_admin']).withMessage('Role must be system_admin or super_admin'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
 
-const handleError = (res, message, err) => {
-  console.error(err);
-  res.status(500).json({
-    success: false,
-    message: message,
-    error: err.message,
-  });
-};
+    const { fullname, email, password, role } = req.body;
+    const adminRole = role && ['system_admin', 'super_admin'].includes(role) ? role : 'system_admin';
+    // Validate fullname
+    if (!fullname || fullname.trim() === '') {
+      return response.validationError(res, 'Fullname is required');
+    }
+
+    const trimmedFullname = fullname.trim();
+
+    const existingAdmin = await db.query(
+      "SELECT id FROM admins WHERE email = ?",
+      [email]
+    );
+
+    if (existingAdmin.length > 0) {
+      return res.status(409).json({ success: false, message: 'Email already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await db.query(
+      'INSERT INTO admins (fullname, email, password, role, created_at) VALUES (?, ?, ?, ?, NOW())',
+      [trimmedFullname, email, hashedPassword, adminRole]
+    );
+
+    const newAdmin = {
+      id: result.insertId,
+      fullname,
+      email,
+      role: adminRole,
+      created_at: new Date().toISOString(),
+    };
+    return res.status(201).json({ success: true, data: newAdmin });
+  }
+);
+
 
 // Middleware to log all admin API requests
 router.use((req, res, next) => {
-  console.log("Admin API Request:", {
+  logger.debug('Admin API Request', {
     method: req.method,
     path: req.path,
     query: req.query,
@@ -49,38 +88,26 @@ async function requireSuperAdmin(req, res, next) {
     const { currentAdminId } = req.body;
     
     if (!currentAdminId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
+      return response.unauthorized(res, 'Authentication required');
     }
 
-    const results = await queryDB(
+    const results = await db.query(
       "SELECT role FROM admins WHERE id = ?",
       [currentAdminId]
     );
 
     if (results.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: "Admin not found"
-      });
+      return response.unauthorized(res, 'Admin not found');
     }
 
     if (results[0].role !== 'super_admin') {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. Only Super Admins can manage admin accounts."
-      });
+      return response.forbidden(res, 'Access denied. Only Super Admins can manage admin accounts.');
     }
 
     next();
   } catch (err) {
-    console.error("Authorization error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Authorization check failed"
-    });
+    logger.error('Authorization check failed', { error: err.message });
+    response.error(res, 'Authorization check failed', err);
   }
 }
 
@@ -98,10 +125,12 @@ router.get("/students", async (req, res) => {
   `;
 
   try {
-    const results = await queryDB(query);
-    res.json(results);
+    const results = await db.query(query);
+    logger.info('Active students fetched', { count: results.length });
+    response.success(res, results);
   } catch (err) {
-    handleError(res, "Failed to fetch students", err);
+    logger.error('Failed to fetch students', { error: err.message });
+    response.error(res, 'Failed to fetch students', err);
   }
 });
 
@@ -178,51 +207,42 @@ router.get("/books", async (req, res) => {
   `;
 
   try {
-    const results = await queryDB(query, queryParams);
-    console.log("[ADMIN BOOKS API] Query executed - returned", results.length, "books with filters:", { search, category, status });
-    console.log("[ADMIN BOOKS API] Query parameters:", queryParams);
-    console.log("[ADMIN BOOKS API] WHERE clause:", whereClause);
+    const results = await db.query(query, queryParams);
+    logger.info('Books fetched with filters', { count: results.length, search, category, status });
+    logger.debug('Books query details', { queryParams, whereClause });
+    
     if (results.length > 0 && process.env.NODE_ENV !== 'production') {
-      console.log("[ADMIN BOOKS API] First 3 books:", results.slice(0, 3).map(b => ({
+      logger.debug('Sample books', { books: results.slice(0, 3).map(b => ({
         id: b.id,
         title: b.title,
         status: b.status,
         available_quantity: b.available_quantity
-      })));
+      }))});
     }
     
-    // Log first 3 book categories for debugging
-    if (results.length > 0) {
-      console.log("[BACKEND] Sample book categories:", results.slice(0, 3).map(b => ({ id: b.id, title: b.title, category: b.category })));
-    }
-    
-    res.json(results);
+    response.success(res, results);
   } catch (err) {
-    handleError(res, "Database error", err);
+    logger.error('Database error fetching books', { error: err.message });
+    response.error(res, 'Database error', err);
   }
 });
 
 router.post("/books", async (req, res) => {
   const { title, author, category, isbn, quantity, adminId } = req.body;
-  console.log("Adding new book:", { title, author, category, isbn, quantity, adminId });
+  logger.debug('Adding new book', { title, author, category, isbn, quantity, adminId });
 
   if (!title || !author || !category || !isbn) {
-    return res.status(400).json({
-      success: false,
-      message: "All fields are required",
-    });
+    return response.validationError(res, 'All fields are required');
   }
 
   try {
     // Check for duplicate ISBN
-    const existingBook = await queryDB("SELECT id FROM books WHERE isbn = ?", [
+    const existingBook = await db.query("SELECT id FROM books WHERE isbn = ?", [
       isbn,
     ]);
     if (existingBook.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "A book with this ISBN already exists",
-      });
+      logger.warn('Book creation failed - duplicate ISBN', { isbn });
+      return response.validationError(res, 'A book with this ISBN already exists');
     }
 
     const bookQuantity = quantity || 1;
@@ -231,14 +251,14 @@ router.post("/books", async (req, res) => {
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'active', ?, ?, ?)
     `;
 
-    const result = await queryDB(query, [title, author, isbn, category, bookQuantity, bookQuantity, adminId || null]);
-    res.status(201).json({
-      success: true,
+    const result = await db.query(query, [title, author, isbn, category, bookQuantity, bookQuantity, adminId || null]);
+    logger.info('Book created successfully', { bookId: result.insertId, title, isbn });
+    response.success(res, {
       message: "Book added successfully",
       bookId: result.insertId,
-    });
+    }, 'Book added successfully', 201);
   } catch (err) {
-    handleError(res, "Error adding book", err);
+    logger.error('Error adding book', { error: err.message, title, isbn });
   }
 });
 
@@ -246,113 +266,130 @@ router.put("/books/:id", async (req, res) => {
   const bookId = req.params.id;
   const { title, author, category, isbn, status, student_id, quantity } = req.body;
 
-  console.log("PUT /books/:id received data:", { title, author, category, isbn, status, student_id, quantity });
-  console.log("Quantity type:", typeof quantity, "Value:", quantity);
+  logger.debug('Book update request', { bookId, title, author, category, isbn, status, student_id, quantity });
 
   if (!title || !author || !category || !isbn) {
-    return res.status(400).json({
-      success: false,
-      message: "All fields are required",
-    });
+    return response.validationError(res, 'All fields are required');
   }
 
   try {
     // Start transaction
-    await new Promise((resolve, reject) => {
-      db.beginTransaction(async (err) => {
-        if (err) reject(err);
+    await db.beginTransaction();
+    try {
+      // Verify book exists
+      const book = await db.query(
+        "SELECT id, status, quantity, available_quantity FROM books WHERE id = ?",
+        [bookId]
+      );
+      if (book.length === 0) {
+        throw new Error("Book not found");
+      }
 
-        try {
-          // Verify book exists
-          const book = await queryDB(
-            "SELECT id, status FROM books WHERE id = ?",
-            [bookId]
-          );
-          if (book.length === 0) {
-            throw new Error("Book not found");
-          }
+      // Ensure quantity and available_quantity are set properly
+      const bookQuantity = parseInt(quantity) || 1;
+      
+      // Calculate available quantity based on ACTUAL borrowings
+      const [borrowingCount] = await db.query(
+        `SELECT COUNT(*) as count 
+         FROM book_borrowings 
+         WHERE book_id = ? AND return_date IS NULL AND status IN ('borrowed', 'overdue')`,
+        [bookId]
+      );
+      const activeBorrowings = borrowingCount.count || 0;
+      const newAvailableQty = Math.max(0, bookQuantity - activeBorrowings);
 
-          // Update book details with quantity
-          const bookQuantity = quantity || 1;
-          await queryDB(
-            "UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ? WHERE id = ?",
-            [title, author, category, isbn, status, bookQuantity, bookId]
-          );
+      // Map frontend status to v2.0 status values (active, maintenance, retired)
+      let dbStatus = 'active';
+      if (status === 'maintenance') {
+        dbStatus = 'maintenance';
+      } else if (status === 'retired') {
+        dbStatus = 'retired';
+      } else if (status === 'borrowed' || status === 'available' || status === 'All Borrowed' || status === 'Available') {
+        // For borrowed/available status, keep as 'active' but manage via available_quantity
+        dbStatus = 'active';
+      } else {
+        // Default to active for any other status
+        dbStatus = 'active';
+      }
 
-          // Handle borrowing status
-          if (status === "borrowed") {
-            if (!student_id) {
-              throw new Error("Student ID is required when status is borrowed");
-            }
+      // Update book details with quantity and available_quantity
+      await db.query(
+        `UPDATE books 
+         SET title = ?, author = ?, category = ?, isbn = ?, 
+             status = ?, quantity = ?, available_quantity = ?,
+             updated_at = NOW()
+         WHERE id = ?`,
+        [title, author, category, isbn, dbStatus, bookQuantity, newAvailableQty, bookId]
+      );
 
-            // Check if book is already borrowed
-            const currentBorrowing = await queryDB(
-              `SELECT bb.id, bb.student_id 
-               FROM book_borrowings bb 
-               WHERE bb.book_id = ? 
-               AND bb.status IN ('borrowed', 'overdue') 
-               AND bb.return_date IS NULL`,
-              [bookId]
-            );
+      logger.info('Book updated', { bookId, dbStatus, bookQuantity, newAvailableQty });
 
-            if (currentBorrowing.length > 0) {
-              // If current borrower is different from new borrower
-              if (currentBorrowing[0].student_id !== student_id) {
-                // Return the current borrowing
-                await queryDB(
-                  `UPDATE book_borrowings 
-                   SET status = 'returned', return_date = CURRENT_TIMESTAMP 
-                   WHERE id = ?`,
-                  [currentBorrowing[0].id]
-                );
+      // Handle borrowing status
+      if (status === "borrowed") {
+        if (!student_id) {
+          throw new Error("Student ID is required when status is borrowed");
+        }
 
-                // Create new borrowing record
-                await queryDB(
-                  `INSERT INTO book_borrowings 
-                   (book_id, student_id, borrow_date, due_date, status) 
-                   VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
-                  [bookId, student_id]
-                );
-              }
-              // If same borrower, do nothing
-            } else {
-              // No current borrowing, create new one
-              await queryDB(
-                `INSERT INTO book_borrowings 
-                 (book_id, student_id, borrow_date, due_date, status) 
-                 VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
-                [bookId, student_id]
-              );
-            }
-          } else if (status === "available") {
-            // Mark any existing borrowings as returned
-            await queryDB(
+        // Check if book is already borrowed
+        const currentBorrowing = await db.query(
+          `SELECT bb.id, bb.student_id 
+           FROM book_borrowings bb 
+           WHERE bb.book_id = ? 
+           AND bb.status IN ('borrowed', 'overdue') 
+           AND bb.return_date IS NULL`,
+          [bookId]
+        );
+
+        if (currentBorrowing.length > 0) {
+          // If current borrower is different from new borrower
+          if (currentBorrowing[0].student_id !== student_id) {
+            // Return the current borrowing
+            await db.query(
               `UPDATE book_borrowings 
                SET status = 'returned', return_date = CURRENT_TIMESTAMP 
-               WHERE book_id = ? 
-               AND status IN ('borrowed', 'overdue') 
-               AND return_date IS NULL`,
-              [bookId]
+               WHERE id = ?`,
+              [currentBorrowing[0].id]
+            );
+
+            // Create new borrowing record
+            await db.query(
+              `INSERT INTO book_borrowings 
+               (book_id, student_id, borrow_date, due_date, status) 
+               VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
+              [bookId, student_id]
             );
           }
-
-          db.commit((err) => {
-            if (err) reject(err);
-            resolve();
-          });
-        } catch (err) {
-          db.rollback(() => reject(err));
-          throw err;
+          // If same borrower, do nothing
+        } else {
+          // No current borrowing, create new one
+          await db.query(
+            `INSERT INTO book_borrowings 
+             (book_id, student_id, borrow_date, due_date, status) 
+             VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
+            [bookId, student_id]
+          );
         }
-      });
-    });
+      } else if (status === "available") {
+        // Mark any existing borrowings as returned
+        await db.query(
+          `UPDATE book_borrowings 
+           SET status = 'returned', return_date = CURRENT_TIMESTAMP 
+           WHERE book_id = ? 
+           AND status IN ('borrowed', 'overdue') 
+           AND return_date IS NULL`,
+          [bookId]
+        );
+      }
 
-    res.json({
-      success: true,
-      message: "Book updated successfully",
-    });
+      await db.commit();
+      response.success(res, null, 'Book updated successfully');
+    } catch (transactionError) {
+      await db.rollback();
+      throw transactionError;
+    }
   } catch (err) {
-    handleError(res, "Error updating book", err);
+    logger.error('Error updating book', { bookId, error: err.message });
+    response.error(res, 'Error updating book', err);
   }
 });
 
@@ -361,62 +398,50 @@ router.delete("/books/:id", async (req, res) => {
 
   try {
     // Verify book exists
-    const book = await queryDB("SELECT id FROM books WHERE id = ?", [bookId]);
+    const book = await db.query("SELECT id FROM books WHERE id = ?", [bookId]);
     if (book.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Book not found",
-      });
+      logger.warn('Book delete attempt - not found', { bookId });
+      return response.notFound(res, 'Book not found');
     }
 
     // Check if book is borrowed
-    const borrowStatus = await queryDB(
+    const borrowStatus = await db.query(
       "SELECT status FROM book_borrowings WHERE book_id = ? AND status = 'active'",
       [bookId]
     );
     if (borrowStatus.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot delete book that is currently borrowed",
-      });
+      logger.warn('Book delete attempt - currently borrowed', { bookId });
+      return response.validationError(res, 'Cannot delete book that is currently borrowed');
     }
 
     // Delete book and its borrowing records in a transaction
-    await new Promise((resolve, reject) => {
-      db.beginTransaction(async (err) => {
-        if (err) reject(err);
+    await db.beginTransaction();
+    try {
+      await db.query("DELETE FROM book_borrowings WHERE book_id = ?", [
+        bookId,
+      ]);
+      await db.query("DELETE FROM books WHERE id = ?", [bookId]);
 
-        try {
-          await queryDB("DELETE FROM book_borrowings WHERE book_id = ?", [
-            bookId,
-          ]);
-          await queryDB("DELETE FROM books WHERE id = ?", [bookId]);
-
-          db.commit((err) => {
-            if (err) reject(err);
-            resolve();
-          });
-        } catch (err) {
-          db.rollback(() => reject(err));
-        }
-      });
-    });
-
-    res.json({
-      success: true,
-      message: "Book deleted successfully",
-    });
+      await db.commit();
+      logger.info('Book deleted successfully', { bookId });
+      response.success(res, null, 'Book deleted successfully');
+    } catch (transactionError) {
+      await db.rollback();
+      throw transactionError;
+    }
   } catch (err) {
-    handleError(res, "Error deleting book", err);
+    logger.error('Error deleting book', { bookId, error: err.message });
+    response.error(res, 'Error deleting book', err);
   }
 });
 
 // Dashboard Statistics Route
 router.get("/dashboard/stats", async (req, res) => {
   const queries = {
-    totalBooks: "SELECT COUNT(*) as count FROM books WHERE status IN ('active', 'maintenance', 'retired')",
-    totalCopies: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('active', 'maintenance', 'retired')",
-    availableBooks: "SELECT COALESCE(SUM(available_quantity), 0) as count FROM books WHERE status = 'active'",
+    totalBooks: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
+    totalCopies: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
+    availableBooks: "SELECT COALESCE(SUM(available_quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
+    borrowedBooks: "SELECT COALESCE(SUM(quantity - available_quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
     activeBorrowings: `
       SELECT COUNT(*) as count 
       FROM book_borrowings 
@@ -498,9 +523,9 @@ router.get("/dashboard/stats", async (req, res) => {
   try {
     const results = await Promise.allSettled(
       Object.entries(queries).map(async ([key, query]) => {
-        console.log(`[DASHBOARD STATS] Executing query for ${key}...`);
-        const result = await queryDB(query);
-        console.log(`[DASHBOARD STATS] Results for ${key}:`, Array.isArray(result) ? (result[0]?.count || result.length) : result);
+        logger.debug('Executing dashboard stats query', { key, query });
+        const result = await db.query(query);
+        logger.debug('Dashboard stats result', { key, rawResult: result, count: Array.isArray(result) ? (result[0]?.count || result.length) : result });
         return { key, result };
       })
     );
@@ -517,30 +542,36 @@ router.get("/dashboard/stats", async (req, res) => {
         } else {
           stats[value.key] = value.result[0]?.count || 0;
         }
-        console.log(`Processed ${value.key}:`, stats[value.key]);
+        logger.debug('Processed dashboard stat', { key: value.key, rawValue: value.result[0], finalValue: stats[value.key] });
       } else {
-        console.error(
-          `Error executing query for ${value?.key}:`,
-          value?.reason
-        );
+        logger.error('Error executing dashboard query', { key: value?.key, reason: value?.reason });
         stats[value?.key] = [];
       }
     });
 
-    console.log("[DASHBOARD STATS] Final response:", {
-      totalBooks: stats.totalBooks,
+    // Set total_books as a number (SUM of quantity for active books)
+    stats.total_books = stats.totalBooks || 0;
+
+    // Log final computed stats for debugging with detailed breakdown
+    logger.info('Dashboard stats computed - DETAILED', {
+      totalBooks_raw: stats.totalBooks,
+      total_books_final: stats.total_books,
       totalCopies: stats.totalCopies,
       availableBooks: stats.availableBooks,
+      borrowedBooks: stats.borrowedBooks,
       activeBorrowings: stats.activeBorrowings,
-      registeredStudents: stats.registeredStudents
+      allStats: stats
     });
-    res.json(stats);
+
+    response.success(res, stats);
   } catch (err) {
-    handleError(res, "Error fetching dashboard statistics", err);
+    logger.error('Error fetching dashboard statistics', { error: err.message });
+    response.error(res, 'Error fetching dashboard statistics', err);
   }
 });
 
-router.get("/", async (req, res) => {
+// GET /api/admin - List all admins (requires admin authentication)
+router.get("/", requireAdmin, async (req, res) => {
   try {
     // Extract search and filter parameters
     const { search, role } = req.query;
@@ -567,32 +598,45 @@ router.get("/", async (req, res) => {
       : "";
     
     const query = `SELECT id, fullname, email, role, created_at FROM admins ${whereClause}`;
-    console.log("[BACKEND] Admins query with filters:", { search, role });
+    logger.debug('Admins query with filters', { search, role });
     
-    const admins = await queryDB(query, queryParams);
-    res.json(admins);
+    const admins = await db.query(query, queryParams);
+    logger.info('Admins fetched', { count: admins.length, filters: { search, role } });
+    response.success(res, admins);
   } catch (err) {
-    handleError(res, "Failed to fetch admins", err);
+    logger.error('Failed to fetch admins', { error: err.message });
+    response.error(res, 'Failed to fetch admins', err);
   }
 });
 
-router.get("/:id", async (req, res) => {
+// GET /api/admin/:id - Get single admin (requires admin authentication)
+router.get("/:id", requireAdmin, async (req, res) => {
   try {
-    const admin = await queryDB(
+    const admin = await db.query(
       "SELECT id, fullname, email, role FROM admins WHERE id = ?",
       [req.params.id]
     );
 
+    // Debug log to inspect the query and parameters
+    logger.debug('Executing query to fetch admin', {
+      query: "SELECT id, fullname, email, role FROM admins WHERE id = ?",
+      params: [req.params.id]
+    });
+
     if (admin.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Admin not found",
-      });
+      logger.warn('Admin not found', { adminId: req.params.id });
+      return response.notFound(res, 'Admin not found');
     }
 
-    res.json(admin[0]);
+    logger.info('Admin fetched', { adminId: req.params.id });
+    response.success(res, admin[0]);
   } catch (err) {
-    handleError(res, "Failed to fetch admin", err);
+    logger.error('Failed to fetch admin', {
+      adminId: req.params.id,
+      error: err.message,
+      stack: err.stack
+    });
+    response.error(res, 'Failed to fetch admin', err);
   }
 });
 
@@ -600,75 +644,58 @@ router.post("/", async (req, res) => {
   try {
     const { fullname, email, password, role, currentAdminId } = req.body;
 
-    // ✅ AUTHORIZATION: Only super_admin can create admins
+    //  AUTHORIZATION: Only super_admin can create admins
     if (currentAdminId) {
-      const currentAdmin = await queryDB(
+      const currentAdmin = await db.query(
         "SELECT role FROM admins WHERE id = ?",
         [currentAdminId]
       );
       
       if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
-        console.log(`[ADMIN CREATE] Access denied: User ${currentAdminId} is not super_admin`);
-        return res.status(403).json({
-          success: false,
-          message: "Access denied. Only Super Admins can create admin accounts.",
-        });
+        logger.warn('Admin create attempt - not super_admin', { currentAdminId });
+        return response.forbidden(res, 'Access denied. Only Super Admins can create admin accounts.');
       }
     }
 
-    // ✅ VALIDATION: Ensure all required fields are present
+    //  VALIDATION: Ensure all required fields are present
     if (!fullname || !email || !password || !role) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields are required",
-      });
+      return response.validationError(res, 'All fields are required');
     }
 
-    // ✅ ROLE VALIDATION: Ensure role is valid enum value
+    //  ROLE VALIDATION: Ensure role is valid enum value
     // Only accept: 'super_admin' or 'system_admin'
     if (role !== 'super_admin' && role !== 'system_admin') {
-      console.error(`[ADMIN CREATE] Invalid role received: '${role}'`);
-      return res.status(400).json({
-        success: false,
-        message: `Invalid role. Must be 'super_admin' or 'system_admin'`,
-      });
+      logger.error('Invalid role in admin create', { role });
+      return response.validationError(res, `Invalid role. Must be 'super_admin' or 'system_admin'`);
     }
 
-    console.log(`[ADMIN CREATE] Creating admin with role: '${role}'`); // Debug log
+    logger.debug('Creating admin', { role, email });
 
-    const existingAdmin = await queryDB(
+    const existingAdmin = await db.query(
       "SELECT id FROM admins WHERE email = ?",
       [email]
     );
 
     if (existingAdmin.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Email already exists",
-      });
+      logger.warn('Admin create failed - email exists', { email });
+      return response.validationError(res, 'Email already exists');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await queryDB(
+    const result = await db.query(
       "INSERT INTO admins (fullname, email, password, role) VALUES (?, ?, ?, ?)",
       [fullname, email, hashedPassword, role]
     );
 
-    console.log(`[ADMIN CREATE] Admin created successfully with ID ${result.insertId} and role '${role}'`);
+    logger.info('Admin created successfully', { adminId: result.insertId, role, email });
 
-    res.status(201).json({
-      success: true,
+    response.success(res, {
       message: "Admin created successfully",
       adminId: result.insertId,
-    });
+    }, 'Admin created successfully', 201);
   } catch (err) {
-    console.error('[ADMIN CREATE] Error creating admin:', err);
-    console.error('[ADMIN CREATE] Error details:', {
-      message: err.message,
-      code: err.code,
-      sqlMessage: err.sqlMessage
-    });
-    handleError(res, "Failed to create admin", err);
+    logger.error('Failed to create admin', { error: err.message, code: err.code, sqlMessage: err.sqlMessage });
+    response.error(res, 'Failed to create admin', err);
   }
 });
 
@@ -677,56 +704,46 @@ router.put("/:id", async (req, res) => {
     const { fullname, email, password, role, currentAdminId } = req.body;
     const adminId = req.params.id;
 
-    // ✅ AUTHORIZATION: Only super_admin can update admins
+    //  AUTHORIZATION: Only super_admin can update admins
     if (currentAdminId) {
-      const currentAdmin = await queryDB(
+      const currentAdmin = await db.query(
         "SELECT role FROM admins WHERE id = ?",
         [currentAdminId]
       );
       
       if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
-        console.log(`[ADMIN UPDATE] Access denied: User ${currentAdminId} is not super_admin`);
-        return res.status(403).json({
-          success: false,
-          message: "Access denied. Only Super Admins can update admin accounts.",
-        });
+        logger.warn('Admin update attempt - not super_admin', { currentAdminId, targetAdminId: adminId });
+        return response.forbidden(res, 'Access denied. Only Super Admins can update admin accounts.');
       }
     }
 
-    // ✅ ROLE VALIDATION: If role is being updated, validate it
+    //  ROLE VALIDATION: If role is being updated, validate it
     if (role && role !== 'super_admin' && role !== 'system_admin') {
-      console.error(`[ADMIN UPDATE] Invalid role received: '${role}'`);
-      return res.status(400).json({
-        success: false,
-        message: `Invalid role. Must be 'super_admin' or 'system_admin'`,
-      });
+      logger.error('Invalid role in admin update', { role, adminId });
+      return response.validationError(res, `Invalid role. Must be 'super_admin' or 'system_admin'`);
     }
 
     if (role) {
-      console.log(`[ADMIN UPDATE] Updating admin ${adminId} role to '${role}'`);
+      logger.debug('Updating admin role', { adminId, newRole: role });
     }
 
-    const admin = await queryDB("SELECT id FROM admins WHERE id = ?", [
+    const admin = await db.query("SELECT id FROM admins WHERE id = ?", [
       adminId,
     ]);
     if (admin.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Admin not found",
-      });
+      logger.warn('Admin update failed - not found', { adminId });
+      return response.notFound(res, 'Admin not found');
     }
 
     if (email) {
-      const existingAdmin = await queryDB(
+      const existingAdmin = await db.query(
         "SELECT id FROM admins WHERE email = ? AND id != ?",
         [email, adminId]
       );
 
       if (existingAdmin.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Email already exists",
-        });
+        logger.warn('Admin update failed - email exists', { email, adminId });
+        return response.validationError(res, 'Email already exists');
       }
     }
 
@@ -751,26 +768,21 @@ router.put("/:id", async (req, res) => {
     }
 
     if (updates.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No fields to update",
-      });
+      return response.validationError(res, 'No fields to update');
     }
 
     params.push(adminId);
-    await queryDB(
+    await db.query(
       `UPDATE admins SET ${updates.join(", ")} WHERE id = ?`,
       params
     );
 
-    console.log(`[ADMIN UPDATE] Admin ${adminId} updated successfully${role ? ` with role '${role}'` : ''}`);
+    logger.info('Admin updated successfully', { adminId, role: role || 'unchanged' });
 
-    res.json({
-      success: true,
-      message: "Admin updated successfully",
-    });
+    response.success(res, null, 'Admin updated successfully');
   } catch (err) {
-    handleError(res, "Failed to update admin", err);
+    logger.error('Failed to update admin', { adminId: req.params.id, error: err.message });
+    response.error(res, 'Failed to update admin', err);
   }
 });
 
@@ -778,39 +790,33 @@ router.delete("/:id", async (req, res) => {
   try {
     const currentAdminId = req.query.currentAdminId || req.body.currentAdminId;
 
-    // ✅ AUTHORIZATION: Only super_admin can delete admins
+    //  AUTHORIZATION: Only super_admin can delete admins
     if (currentAdminId) {
-      const currentAdmin = await queryDB(
+      const currentAdmin = await db.query(
         "SELECT role FROM admins WHERE id = ?",
         [currentAdminId]
       );
       
       if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
-        console.log(`[ADMIN DELETE] Access denied: User ${currentAdminId} is not super_admin`);
-        return res.status(403).json({
-          success: false,
-          message: "Access denied. Only Super Admins can delete admin accounts.",
-        });
+        logger.warn('Admin delete attempt - not super_admin', { currentAdminId, targetAdminId: req.params.id });
+        return response.forbidden(res, 'Access denied. Only Super Admins can delete admin accounts.');
       }
     }
 
-    const result = await queryDB("DELETE FROM admins WHERE id = ?", [
+    const result = await db.query("DELETE FROM admins WHERE id = ?", [
       req.params.id,
     ]);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Admin not found",
-      });
+      logger.warn('Admin delete failed - not found', { adminId: req.params.id });
+      return response.notFound(res, 'Admin not found');
     }
 
-    res.json({
-      success: true,
-      message: "Admin deleted successfully",
-    });
+    logger.info('Admin deleted successfully', { adminId: req.params.id });
+    response.success(res, null, 'Admin deleted successfully');
   } catch (err) {
-    handleError(res, "Failed to delete admin", err);
+    logger.error('Failed to delete admin', { adminId: req.params.id, error: err.message });
+    response.error(res, 'Failed to delete admin', err);
   }
 });
 
@@ -935,7 +941,7 @@ router.get("/books/export", async (req, res) => {
 
     // TEMPLATE MODE: Return header-only CSV
     if (mode === "template") {
-      console.log("Generating CSV template...");
+      logger.info('Generating CSV template');
 
       const templateCSV = "title,author,isbn,category,quantity\n";
 
@@ -946,12 +952,12 @@ router.get("/books/export", async (req, res) => {
       );
 
       res.send(templateCSV);
-      console.log("CSV template sent successfully");
+      logger.info('CSV template sent successfully');
       return;
     }
 
     // FULL EXPORT MODE: Return all books with data
-    console.log("Exporting books to CSV...");
+    logger.info('Exporting books to CSV');
 
     const csvData = await exportBooksToCSV();
 
@@ -970,10 +976,10 @@ router.get("/books/export", async (req, res) => {
     );
 
     res.send(csvData);
-    console.log("CSV export successful");
+    logger.info('CSV export successful', { filename: `books_export_${timestamp}.csv` });
   } catch (err) {
-    console.error("Export error:", err);
-    handleError(res, "Failed to export books", err);
+    logger.error('CSV export failed', { error: err.message });
+    response.error(res, "Failed to export books", err);
   }
 });
 
@@ -1026,7 +1032,7 @@ router.get("/books/export", async (req, res) => {
  */
 router.get("/books/export-excel", async (req, res) => {
   try {
-    console.log("Exporting books to Excel...");
+    logger.info('Exporting books to Excel');
 
     const excelBuffer = await exportBooksToExcel();
 
@@ -1039,10 +1045,10 @@ router.get("/books/export-excel", async (req, res) => {
     );
 
     res.send(excelBuffer);
-    console.log("Excel export successful");
+    logger.info('Excel export successful', { filename: `books_export_${timestamp}.xlsx` });
   } catch (err) {
-    console.error("Excel export error:", err);
-    handleError(res, "Failed to export books to Excel", err);
+    logger.error('Excel export failed', { error: err.message });
+    response.error(res, "Failed to export books to Excel", err);
   }
 });
 
@@ -1140,15 +1146,15 @@ router.post("/books/import", upload.single("file"), async (req, res) => {
     filePath = req.file.path;
     const fileExtension = req.file.originalname.toLowerCase().split('.').pop();
     
-    console.log("Processing file:", req.file.originalname, "Type:", fileExtension);
+    logger.info('Processing import file', { filename: req.file.originalname, type: fileExtension });
 
     // Detect file type and parse accordingly
     let books;
     if (fileExtension === 'csv') {
-      console.log("Parsing as CSV...");
+      logger.debug('Parsing as CSV');
       books = await parseCSV(filePath);
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-      console.log("Parsing as Excel...");
+      logger.debug('Parsing as Excel');
       books = await parseExcel(filePath);
     } else {
       cleanupFile(filePath);
@@ -1166,7 +1172,7 @@ router.post("/books/import", upload.single("file"), async (req, res) => {
       });
     }
 
-    console.log(`Parsed ${books.length} rows from ${fileExtension.toUpperCase()} file`);
+    logger.info('File parsed successfully', { rowCount: books.length, fileType: fileExtension.toUpperCase() });
 
     // Import books with validation (same logic for both CSV and Excel)
     const summary = await importBooks(books);
@@ -1183,16 +1189,19 @@ router.post("/books/import", upload.single("file"), async (req, res) => {
       summary: summary,
     });
 
-    console.log("Import summary:", summary);
+    logger.info('Import completed', { 
+      imported: summary.successfully_imported, 
+      skipped: summary.skipped_missing_fields.length + summary.skipped_duplicate_isbns.length 
+    });
   } catch (err) {
-    console.error("Import error:", err);
+    logger.error('Import failed', { error: err.message });
     
     // Clean up file on error
     if (filePath) {
       cleanupFile(filePath);
     }
 
-    handleError(res, "Failed to import books", err);
+    response.error(res, "Failed to import books", err);
   }
 });
 
@@ -1214,13 +1223,10 @@ router.post("/books/bulk-delete", async (req, res) => {
     const { ids } = req.body;
     
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No book IDs provided"
-      });
+      return response.validationError(res, "No book IDs provided");
     }
     
-    console.log(`[BULK DELETE] Processing ${ids.length} book(s)...`);
+    logger.info('Bulk delete initiated', { bookCount: ids.length, bookIds: ids });
     
     let deletedCount = 0;
     const errors = [];
@@ -1229,57 +1235,56 @@ router.post("/books/bulk-delete", async (req, res) => {
     for (const bookId of ids) {
       try {
         // Check if book exists
-        const book = await queryDB("SELECT id, title FROM books WHERE id = ?", [bookId]);
+        const book = await db.query("SELECT id, title FROM books WHERE id = ?", [bookId]);
         if (book.length === 0) {
           errors.push(`Book ID ${bookId} not found`);
+          logger.warn('Book not found in bulk delete', { bookId });
           continue;
         }
         
         // Check if book is currently borrowed
-        const borrowStatus = await queryDB(
+        const borrowStatus = await db.query(
           "SELECT COUNT(*) as count FROM book_borrowings WHERE book_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL",
           [bookId]
         );
         
         if (borrowStatus[0].count > 0) {
           errors.push(`Cannot delete "${book[0].title}" (ID: ${bookId}) - currently borrowed`);
+          logger.warn('Cannot delete borrowed book', { bookId, title: book[0].title, activeLoans: borrowStatus[0].count });
           continue;
         }
         
         // Delete book's borrowing history
-        await queryDB("DELETE FROM book_borrowings WHERE book_id = ?", [bookId]);
+        await db.query("DELETE FROM book_borrowings WHERE book_id = ?", [bookId]);
         
         // Delete book
-        await queryDB("DELETE FROM books WHERE id = ?", [bookId]);
+        await db.query("DELETE FROM books WHERE id = ?", [bookId]);
         
         deletedCount++;
-        console.log(`[BULK DELETE] Deleted book ID ${bookId}: ${book[0].title}`);
+        logger.info('Book deleted in bulk operation', { bookId, title: book[0].title });
         
       } catch (err) {
-        console.error(`[BULK DELETE] Error deleting book ID ${bookId}:`, err);
+        logger.error('Error deleting book in bulk operation', { bookId, error: err.message });
         errors.push(`Error deleting book ID ${bookId}: ${err.message}`);
       }
     }
     
-    const response = {
-      success: true,
+    const responseData = {
       deletedCount: deletedCount,
-      requested: ids.length
+      requested: ids.length,
+      errors: errors.length > 0 ? errors : undefined
     };
     
-    if (errors.length > 0) {
-      response.errors = errors;
-      response.message = `Deleted ${deletedCount} out of ${ids.length} books. ${errors.length} error(s) occurred.`;
-    } else {
-      response.message = `Successfully deleted ${deletedCount} book(s)`;
-    }
+    const message = errors.length > 0
+      ? `Deleted ${deletedCount} out of ${ids.length} books. ${errors.length} error(s) occurred.`
+      : `Successfully deleted ${deletedCount} book(s)`;
     
-    console.log(`[BULK DELETE] Completed: ${deletedCount}/${ids.length} deleted`);
-    res.json(response);
+    logger.info('Bulk delete completed', { deletedCount, requested: ids.length, errorCount: errors.length });
+    response.success(res, responseData, message);
     
   } catch (err) {
-    console.error("[BULK DELETE] Error:", err);
-    handleError(res, "Failed to delete books", err);
+    logger.error('Bulk delete failed', { error: err.message });
+    response.error(res, "Failed to delete books", err);
   }
 });
 
@@ -1302,20 +1307,14 @@ router.patch("/books/bulk-update", async (req, res) => {
     const { ids, update } = req.body;
     
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No book IDs provided"
-      });
+      return response.validationError(res, "No book IDs provided");
     }
     
     if (!update || Object.keys(update).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No update fields provided"
-      });
+      return response.validationError(res, "No update fields provided");
     }
     
-    console.log(`[BULK UPDATE] Processing ${ids.length} book(s) with updates:`, update);
+    logger.info('Bulk update requested', { bookCount: ids.length, updates: update });
     
     // Build dynamic UPDATE query based on provided fields
     const updates = [];
@@ -1345,10 +1344,7 @@ router.patch("/books/bulk-update", async (req, res) => {
     }
     
     if (updates.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No valid update fields provided"
-      });
+      return response.validationError(res, "No valid update fields provided");
     }
     
     updates.push("updated_at = NOW()");
@@ -1356,13 +1352,16 @@ router.patch("/books/bulk-update", async (req, res) => {
     let updatedCount = 0;
     const errors = [];
     
+    logger.info('Bulk update initiated', { bookCount: ids.length, bookIds: ids, fields: updateData });
+    
     // Update each book
     for (const bookId of ids) {
       try {
         // Check if book exists
-        const book = await queryDB("SELECT id, title FROM books WHERE id = ?", [bookId]);
+        const book = await db.query("SELECT id, title FROM books WHERE id = ?", [bookId]);
         if (book.length === 0) {
           errors.push(`Book ID ${bookId} not found`);
+          logger.warn('Book not found in bulk update', { bookId });
           continue;
         }
         
@@ -1370,36 +1369,33 @@ router.patch("/books/bulk-update", async (req, res) => {
         const query = `UPDATE books SET ${updates.join(", ")} WHERE id = ?`;
         const queryParams = [...params, bookId];
         
-        await queryDB(query, queryParams);
+        await db.query(query, queryParams);
         updatedCount++;
         
-        console.log(`[BULK UPDATE] Updated book ID ${bookId}: ${book[0].title}`);
+        logger.info('Book updated in bulk operation', { bookId, title: book[0].title });
         
       } catch (err) {
-        console.error(`[BULK UPDATE] Error updating book ID ${bookId}:`, err);
+        logger.error('Error updating book in bulk operation', { bookId, error: err.message });
         errors.push(`Error updating book ID ${bookId}: ${err.message}`);
       }
     }
     
-    const response = {
-      success: true,
+    const responseData = {
       updatedCount: updatedCount,
-      requested: ids.length
+      requested: ids.length,
+      errors: errors.length > 0 ? errors : undefined
     };
     
-    if (errors.length > 0) {
-      response.errors = errors;
-      response.message = `Updated ${updatedCount} out of ${ids.length} books. ${errors.length} error(s) occurred.`;
-    } else {
-      response.message = `Successfully updated ${updatedCount} book(s)`;
-    }
+    const message = errors.length > 0
+      ? `Updated ${updatedCount} out of ${ids.length} books. ${errors.length} error(s) occurred.`
+      : `Successfully updated ${updatedCount} book(s)`;
     
-    console.log(`[BULK UPDATE] Completed: ${updatedCount}/${ids.length} updated`);
-    res.json(response);
+    logger.info('Bulk update completed', { updatedCount, requested: ids.length, errorCount: errors.length });
+    response.success(res, responseData, message);
     
   } catch (err) {
-    console.error("[BULK UPDATE] Error:", err);
-    handleError(res, "Failed to update books", err);
+    logger.error('Bulk update failed', { error: err.message });
+    response.error(res, "Failed to update books", err);
   }
 });
 

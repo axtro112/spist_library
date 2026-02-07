@@ -1,0 +1,474 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Management - SPIST Library (Super Admin)</title>
+    <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/backup.css" />
+    <link rel="stylesheet" href="/css/notifications.css" />
+
+    <!-- Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+
+    <!-- Symbols -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+
+    <!-- JavaScript -->
+    <script src="/js/csrf-helper.js?v=4"></script>
+    <script src="/js/session-timeout.js?v=4"></script>
+    <script src="/js/api.js?v=4"></script>
+    <script src="/js/ui.js?v=4"></script>
+    <script src="/js/notifications.js?v=4"></script>
+    <script src="/js/admin.js?v=4" defer></script>
+    <script src="/js/super-admin-guard.js?v=4" defer></script>
+    <script>
+      // Admin Management Page - Simplified
+      document.addEventListener("DOMContentLoaded", async function () {
+        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+        const userRole = sessionStorage.getItem("userRole");
+        const adminRole = sessionStorage.getItem("adminRole");
+        const adminId = sessionStorage.getItem("adminId");
+
+        // Store for authorization checks
+        window.currentAdminRole = adminRole;
+        window.currentAdminId = adminId;
+
+        // Super Admin access control - redirect non-super admins
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
+          window.location.href = "/login";
+          return;
+        }
+
+        console.log("Session Storage Values:", {
+          isLoggedIn,
+          userRole,
+          adminRole,
+          adminId
+        });
+
+        try {
+          // Fetch current admin info
+          const adminResponse = await fetchWithCsrf(`/api/admin/${adminId}`);
+          if (!adminResponse.ok) {
+            throw new Error("Failed to fetch admin information");
+          }
+          const result = await adminResponse.json();
+          const adminData = result.data || result;
+
+          document.getElementById("adminName").textContent = adminData.fullname;
+          document.getElementById("adminEmail").textContent = adminData.email;
+          document.getElementById("adminRole").textContent = "Super Admin";
+          document.getElementById("adminInitial").textContent =
+            adminData.fullname.charAt(0).toUpperCase();
+
+          // Fetch all admins
+          await loadAdmins();
+        } catch (error) {
+          console.error("Error:", error);
+        }
+      });
+
+      async function loadAdmins() {
+        try {
+          console.log("[loadAdmins] Fetching admins from /api/admin");
+          const adminsResponse = await fetchWithCsrf("/api/admin");
+          console.log("[loadAdmins] Response status:", adminsResponse.status, adminsResponse.ok);
+          
+          if (!adminsResponse.ok) {
+            throw new Error("Failed to fetch admins");
+          }
+          const result = await adminsResponse.json();
+          console.log("[loadAdmins] Result:", result);
+          
+          const admins = result.data || []; // Extract data from response wrapper
+          console.log("[loadAdmins] Admins count:", admins.length);
+
+          const tbody = document.querySelector(".user-table tbody");
+          if (!tbody) {
+            console.error("[loadAdmins] ERROR: tbody not found in DOM!");
+            return;
+          }
+          
+          tbody.innerHTML = "";
+
+          admins.forEach((admin) => {
+            const tr = document.createElement("tr");
+            tr.setAttribute('data-admin-id', admin.id);
+            //  ROLE DISPLAY FIX: Convert database enum to user-friendly text
+            // Database stores: 'super_admin' or 'system_admin'
+            // Display shows: 'Super Admin' or 'System Admin'
+            const roleDisplay = admin.role === 'super_admin' ? 'Super Admin' : 'System Admin';
+            
+            tr.innerHTML = `
+              <td>${admin.id}</td>
+              <td>${admin.fullname}</td>
+              <td>${roleDisplay}</td>
+              <td>${admin.email}</td>
+              <td>${new Date(admin.created_at).toLocaleDateString()}</td>
+              <td>
+                <button class="btn edit-btn" onclick="showModalEdit(${
+                  admin.id
+                })">Edit</button>
+                <button class="btn delete-btn" onclick="modalDelete(${
+                  admin.id
+                })">Delete</button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+          
+          console.log("[loadAdmins] Successfully loaded", admins.length, "admins");
+        } catch (error) {
+          console.error("Error loading admins:", error);
+          alert("Failed to load admins");
+        }
+      }
+
+      /* ========================================
+         MODAL FUNCTIONS
+         ======================================== */
+
+      // IMPORTANT:
+      // Modals must ONLY open when user explicitly clicks a button.
+      // Do NOT call these functions from DOMContentLoaded or any automatic triggers.
+
+
+      // Add Admin modal logic removed
+
+      // Override the closeModal from admin.js to handle modalEdit specifically
+      window.closeModal = function() {
+        console.log("[Super Admin] closeModal called");
+
+        // Close modalEdit specifically (super admin edit modal)
+        const modalEdit = document.getElementById('modalEdit');
+        if (modalEdit && modalEdit.classList.contains('show')) {
+          console.log("[Super Admin] Closing modalEdit");
+          modalEdit.classList.remove('show');
+        }
+
+        // Also close other common modals
+        ['adminModal', 'adminEdit', 'modalDelete', 'logoutModal'].forEach((id) => {
+          const modal = document.getElementById(id);
+          if (modal && modal.classList.contains('show')) {
+            console.log("[Super Admin] Closing", id);
+            modal.classList.remove('show');
+          }
+        });
+
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        console.log("[Super Admin] Modal closed successfully");
+      };
+
+      // Fix for showModalEdit null error
+      async function showModalEdit(adminId) {
+        // Debug log to confirm function call
+        console.log("showModalEdit function called with adminId:", adminId);
+
+        const modalEdit = document.getElementById("modalEdit");
+        if (modalEdit) {
+          console.log("modalEdit element found in the DOM.");
+          modalEdit.classList.add("show");
+          document.body.classList.add("modal-open");
+          modalEdit.dataset.adminId = adminId;
+          console.log("Edit modal displayed successfully.");
+        } else {
+          console.error("modalEdit element not found in the DOM.");
+        }
+
+        // Force modal visibility for debugging
+        modalEdit.style.display = "flex";
+        modalEdit.style.visibility = "visible";
+        modalEdit.style.zIndex = "1000";
+
+        const editButton = modalEdit.querySelector(".edit-confirm-btn");
+        if (editButton) {
+          console.log("Edit button found.");
+          editButton.addEventListener("click", async function () {
+            const adminId = modalEdit.dataset.adminId;
+            const fullname = modalEdit.querySelector("#editName").value.trim();
+            const email = modalEdit.querySelector("#editEmail").value.trim();
+            const role = modalEdit.querySelector("#editRole").value;
+            const resetPassword = modalEdit.querySelector("#resetPasswordCheckbox").checked;
+            const password = modalEdit.querySelector("#editPassword").value;
+            const confirmPassword = modalEdit.querySelector("#editConfirmPassword").value;
+            const errorDiv = document.getElementById("editAdminError");
+
+            // Clear previous errors
+            errorDiv.style.display = "none";
+            errorDiv.textContent = "";
+
+            // Validation
+            if (!fullname || !email || !role) {
+              errorDiv.textContent = "All fields are required.";
+              errorDiv.style.display = "block";
+              return;
+            }
+            if (resetPassword && password !== confirmPassword) {
+              errorDiv.textContent = "Passwords do not match.";
+              errorDiv.style.display = "block";
+              return;
+            }
+
+            // Build payload
+            const payload = { fullname, email, role };
+            if (resetPassword) {
+              payload.password = password;
+            }
+
+            // Disable Save button to prevent double-submit
+            editAdminSaveBtn.disabled = true;
+
+            try {
+              const updateResponse = await fetch(`/api/super-admin/admins/${adminId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+
+              const data = await updateResponse.json();
+              if (!updateResponse.ok) {
+                throw new Error(data.message || "Failed to update admin.");
+              }
+
+              // Close modal and refresh admin list
+              closeEditAdminModal();
+              await loadAdmins();
+              alert("Admin updated successfully!");
+            } catch (error) {
+              console.error("Error updating admin:", error);
+              errorDiv.textContent = error.message;
+              errorDiv.style.display = "block";
+            } finally {
+              // Re-enable Save button
+              editAdminSaveBtn.disabled = false;
+            }
+          });
+        } else {
+          console.error("Edit button not found inside modalEdit.");
+        }
+      }
+
+      async function modalDelete(adminId) {
+        const modalDelete = document.getElementById("modalDelete");
+        if (modalDelete) {
+          console.log("modalDelete element found.");
+          modalDelete.classList.add("show");
+          document.body.classList.add("modal-open");
+          modalDelete.dataset.adminId = adminId;
+        } else {
+          console.error("modalDelete element not found in the DOM.");
+          return;
+        }
+
+        // Remove old event listeners by cloning the button
+        const deleteBtn = modalDelete.querySelector(".delete-confirm-btn");
+        if (deleteBtn) {
+          const newDeleteBtn = deleteBtn.cloneNode(true);
+          deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
+          
+          newDeleteBtn.addEventListener("click", async function () {
+            try {
+              const deleteResponse = await fetchWithCsrf(`/api/admin/${adminId}?currentAdminId=${window.currentAdminId}`, {
+                method: "DELETE",
+              });
+
+              const data = await deleteResponse.json();
+              if (!deleteResponse.ok) {
+                throw new Error(data.message || "Failed to delete admin");
+              }
+
+              await loadAdmins();
+              closeModal();
+              alert("Admin deleted successfully");
+            } catch (error) {
+              console.error("Error:", error);
+              alert(error.message);
+            }
+          });
+        }
+      }
+
+      function closeLogoutModal() {
+        document.getElementById("logoutModal").style.display = "none";
+      }
+
+      // logout and showLogoutModal are provided by admin.js
+    </script>
+
+    <title>Admin Management - SPIST Library (Super Admin)</title>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="logo">
+          <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+          <h3>SPIST Library</h3>
+        </div>
+
+        <nav class="nav">
+          <ul>
+            <li>
+              <a href="/super-admin-dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+              </a>
+            </li>
+            <li class="active">
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books">
+                <span class="material-symbols-outlined">book</span>
+                Books
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-users">
+                <span class="material-symbols-outlined">group</span>
+                Users
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">history</span>
+                Audit Logs
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
+              </a>
+            </li>
+            <li>
+              <a href="#" onclick="showLogoutModal()">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="container">
+        <div class="admin-header">
+          <div class="admin-info">
+            <div class="admin-avatar">
+              <span id="adminInitial">A</span>
+            </div>
+            <div class="admin-details">
+              <h3 id="adminName">Admin User</h3>
+              <p id="adminEmail">admin@spist.edu</p>
+              <p id="adminRole">Super Admin</p>
+            </div>
+          </div>
+          <div class="admin-notification-container" id="superAdminNotificationContainer"><button class="admin-notif-btn" id="superAdminNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false" role="button"><span class="material-symbols-outlined">notifications</span><span class="notif-badge" id="superAdminNotifBadge" style="display: none;">0</span></button><div class="student-notif-panel" id="superAdminNotifPanel" style="display: none;"><div class="notif-header"><h3>Notifications</h3><div class="notif-actions"><button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read"><span class="material-symbols-outlined">done_all</span></button><button class="notif-action-btn" id="notifSettingsBtn" title="Notification settings"><span class="material-symbols-outlined">settings</span></button></div></div><div class="notif-tabs"><button class="notif-tab active" id="tabAll" data-tab="all"><span class="material-symbols-outlined">list</span>All</button><button class="notif-tab" id="tabUnread" data-tab="unread"><span class="material-symbols-outlined">mark_as_unread</span>Unread</button></div><div class="notif-list" id="notifList"><div class="notif-loading">Loading notifications...</div></div><div class="notif-footer"><button class="notif-see-more" id="notifSeeMore">See previous notifications</button></div></div></div>
+        </div>
+
+        <div class="maincontent">
+          <div class="user-info">
+            <h2>Admin Management</h2>
+            <!-- Add Admin button removed -->
+          </div>
+
+          <div class="spacecontainer">
+            <div class="spacerdiv"></div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="user-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Email</th>
+                  <th>Created At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Table body will be populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Admin Modal removed -->
+
+    <!-- Edit Admin Modal -->
+    <div id="modalEdit" class="modal">
+      <div class="modal-content">
+        <h2>Edit Admin</h2>
+        <form id="editAdminForm">
+          <div class="form-group">
+            <label for="editName">Full Name</label>
+            <input type="text" id="editName" required />
+          </div>
+          <div class="form-group">
+            <label for="editEmail">Email</label>
+            <input type="email" id="editEmail" required />
+          </div>
+          <div class="form-group">
+            <label for="editRole">Role</label>
+            <select id="editRole" required>
+              <option value="system_admin">System Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+          <div id="editAdminError" style="color:#b71c1c; margin-bottom:10px; display:none;"></div>
+          <div class="form-actions">
+            <button type="submit" class="edit-confirm-btn">Save Changes</button>
+            <button type="button" class="cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="modalDelete" class="modal">
+      <div class="modal-content">
+        <h2>Confirm Deletion</h2>
+        <p>Are you sure you want to delete this admin user?</p>
+        <div class="form-actions">
+          <button class="delete-confirm-btn">Delete</button>
+          <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal">
+      <div class="modal-content">
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to log out?</p>
+        <div class="form-actions">
+          <button class="logout-confirm-btn" onclick="logout()">Logout</button>
+          <button class="cancel-btn" onclick="closeLogoutModal()">
+            Cancel
+          </button>
+        </div>
+      </div>?v=3"></script>
+    <script src="/js/notification-highlight.js?v=3
+    <script src="/js/notification-deeplink.js?v=4"></script>
+    <script src="/js/notification-highlight.js?v=4"></script>
+  </body>
+</html>

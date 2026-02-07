@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -18,40 +18,71 @@
     />
 
     <link rel="stylesheet" href="/css/backup.css" />
+    <link rel="stylesheet" href="/css/notifications.css" />
+    <link rel="stylesheet" href="/css/notification-user-modal.css" />
+    <link rel="stylesheet" href="/css/user-violations-modal.css" />
+    <link rel="stylesheet" href="/css/user-details-modal.css" />
 
     <script src="/js/csrf-helper.js"></script>
     <script src="/js/session-timeout.js"></script>
+    <script src="/js/system-admin-guard.js" defer></script>
+    <script src="/js/auth-helper.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/notifications.js"></script>
+    <script src="/js/notification-user-modal.js"></script>
+    <script src="/js/user-violations-modal.js"></script>
+    <script src="/js/user-details-modal.js"></script>
     <script src="/js/admin.js" defer></script>
     <script src="/js/user.js" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", async function () {
-        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
-        const userRole = sessionStorage.getItem("userRole");
-        const adminId = sessionStorage.getItem("adminId");
+        console.log('[System Admin Users] Page loaded, checking AuthHelper...');
+        
+        // Verify AuthHelper is available
+        if (!window.AuthHelper) {
+          console.error('[System Admin Users] CRITICAL: AuthHelper not loaded!');
+          alert('System error: Authentication module not loaded. Please refresh the page.');
+          return;
+        }
+        
+        console.log('[System Admin Users] AuthHelper loaded successfully');
+        
+        const session = window.AuthHelper.getSession();
+        console.log('[System Admin Users] Session data:', {
+          isLoggedIn: session.isLoggedIn,
+          userRole: session.userRole,
+          adminRole: session.adminRole,
+          adminId: session.adminId
+        });
 
-        if (isLoggedIn !== "true" || userRole !== "admin") {
+        if (!session.isLoggedIn || session.userRole !== "admin") {
+          console.warn('[System Admin Users] Not authenticated as admin, redirecting...');
           alert("Please log in with admin credentials to access this page.");
           window.location.href = "/login";
+          return;
         }
 
         try {
-          const adminResponse = await fetch(`/api/admin/${adminId}`);
-          if (!adminResponse.ok) {
-            throw new Error("Failed to fetch admin information");
-          }
-          const adminData = await adminResponse.json();
+          console.log('[System Admin Users] Fetching admin data for ID:', session.adminId);
+          
+          // Fetch and validate current admin data using AuthHelper
+          const adminData = await window.AuthHelper.fetchCurrentAdmin();
+          
+          console.log('[System Admin Users] Received admin data:', {
+            id: adminData.id,
+            fullname: adminData.fullname,
+            email: adminData.email,
+            role: adminData.role
+          });
+          
+          // Update header with validated data
+          window.AuthHelper.updateAdminHeader(adminData);
 
-          document.getElementById("adminName").textContent = adminData.fullname;
-          document.getElementById("adminEmail").textContent = adminData.email;
-          
-          // ✅ FIX: Format role display properly
-          const roleDisplay = adminData.role === 'super_admin' ? 'Super Admin' : 'System Admin';
-          document.getElementById("adminRole").textContent = roleDisplay;
-          
-          document.getElementById("adminInitial").textContent =
-            adminData.fullname.charAt(0).toUpperCase();
+          console.log('[System Admin Users] ✅ Header updated successfully for:', adminData.email, '- Role:', adminData.role);
         } catch (error) {
-          console.error("Error fetching admin data:", error);
+          console.error("[System Admin Users] ❌ Error fetching/updating admin data:", error);
+          alert('Failed to load admin information. Please try logging in again.');
         }
 
         async function fetchStudentsData() {
@@ -83,8 +114,14 @@
                 `Failed to fetch students data: ${response.statusText}`
               );
             }
-            const students = await response.json();
+            const result = await response.json();
+            const students = result.data || []; // Extract data from response wrapper
             console.log("Fetched students:", students);
+            
+            // Store total count on first load (no filters)
+            if (!params.toString() && !window.totalStudentsCount) {
+              window.totalStudentsCount = students.length;
+            }
 
             const studentsWithBooks = await Promise.all(
               students.map(async (student) => {
@@ -103,7 +140,8 @@
                       date_to_return: "No active rentals",
                     };
                   }
-                  const borrowings = await borrowingsResponse.json();
+                  const borrowingsResult = await borrowingsResponse.json();
+                  const borrowings = borrowingsResult.data || borrowingsResult; // Extract data from wrapper
                   console.log(
                     `Borrowings for student ${student.student_id}:`,
                     borrowings
@@ -111,12 +149,12 @@
 
                   return {
                     ...student,
-                    rented_books: borrowings.total_borrowed,
-                    books_title: borrowings.books
-                      .map((b) => b.title)
-                      .join(", "),
+                    rented_books: borrowings.total_borrowed || 0,
+                    books_title: (borrowings.books && borrowings.books.length > 0)
+                      ? borrowings.books.map((b) => b.title).join(", ")
+                      : "",
                     date_to_return:
-                      borrowings.total_borrowed > 0
+                      (borrowings.total_borrowed && borrowings.total_borrowed > 0 && borrowings.books)
                         ? new Date(
                             Math.min(
                               ...borrowings.books.map(
@@ -160,10 +198,39 @@
         function updateTable(students) {
           const tbody = document.querySelector(".user-table tbody");
           tbody.innerHTML = "";
+          
+          // Update results count
+          const countEl = document.getElementById('usersResultCount');
+          if (countEl) {
+            // Store total for comparison (on first load)
+            if (!window.totalStudentsCount) {
+              window.totalStudentsCount = students.length;
+            }
+            countEl.textContent = `Showing ${students.length} of ${window.totalStudentsCount} users`;
+          }
+          
+          // Show no results message if empty
+          if (students.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 40px 20px;">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; color: #666;">
+                    <span class="material-symbols-outlined" style="font-size: 48px; color: #ccc;">search_off</span>
+                    <h3 style="margin: 0; color: #333;">No users found</h3>
+                    <p style="margin: 0;">Try adjusting your search or filters</p>
+                  </div>
+                </td>
+              </tr>
+            `;
+            return;
+          }
 
           students.forEach((student) => {
             const row = document.createElement("tr");
+            row.dataset.studentId = student.student_id;
+            row.setAttribute('data-user-id', student.student_id);
             row.innerHTML = `
+              <td><input type="checkbox" class="row-select" data-student-id="${student.student_id}"></td>
               <td>${student.fullname}</td>
               <td>${student.student_id}</td>
               <td>${student.department}</td>
@@ -171,13 +238,47 @@
               <td>${student.rented_books}</td>
               <td>${student.books_title || ""}</td>
               <td>${student.date_to_return}</td>
+              <td>
+                <!-- Quick Borrow moved to Student side -->
+              </td>
             `;
             tbody.appendChild(row);
           });
 
           const firstRow = tbody.querySelector("tr");
-          if (firstRow) {
-            firstRow.click();
+          // Removed auto-click - modal should only open when user clicks a row
+          // if (firstRow) {
+          //   firstRow.click();
+          // }
+          
+          // Reinitialize bulk selection after table update
+          initBulkSelection();
+          
+          // Handle deep linking: Check for ?highlight=student_id in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const highlightStudentId = urlParams.get('highlight');
+          if (highlightStudentId) {
+            // Find the row with this student ID
+            const targetRow = tbody.querySelector(`tr[data-student-id="${highlightStudentId}"]`);
+            if (targetRow) {
+              // Scroll to the row
+              targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              
+              // Highlight with animation
+              targetRow.classList.add('selected-row');
+              targetRow.style.animation = 'highlightPulse 2s ease-out';
+              
+              // Click the row to show details
+              setTimeout(() => {
+                targetRow.click();
+              }, 500);
+              
+              // Clear URL parameter after highlighting
+              setTimeout(() => {
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+              }, 3000);
+            }
           }
         }
 
@@ -217,6 +318,9 @@
 
         const userTable = document.querySelector(".user-table tbody");
         userTable.addEventListener("click", async function (e) {
+          // Don't trigger row selection if clicking on checkbox
+          if (e.target.type === 'checkbox') return;
+          
           const row = e.target.closest("tr");
           if (!row) return;
 
@@ -225,8 +329,15 @@
           row.classList.add("selected-row");
 
           const cells = row.cells;
-          const studentId = cells[1].textContent;
+          const studentId = cells[2].textContent; // Changed from cells[1] to cells[2] due to checkbox column
 
+          // Use User Details Modal if available
+          if (window.openUserModal) {
+            openUserModal(studentId);
+            return;
+          }
+
+          // Fallback to old behavior if modal not loaded
           try {
             const studentResponse = await fetch(`/api/students/${studentId}`);
             if (!studentResponse.ok) {
@@ -238,15 +349,15 @@
             console.log("Fetched student details:", studentData);
 
             const userData = {
-              name: cells[0].textContent,
-              studentId: cells[1].textContent,
-              department: cells[2].textContent,
-              yearLevel: cells[3].textContent,
+              name: cells[1].textContent,
+              studentId: cells[2].textContent,
+              department: cells[3].textContent,
+              yearLevel: cells[4].textContent,
               email: studentData.email,
               contactNumber: studentData.contact_number,
-              rentedBooksCount: cells[4].textContent,
-              bookTitles: cells[5].textContent,
-              returnDate: cells[6].textContent,
+              rentedBooksCount: cells[5].textContent,
+              bookTitles: cells[6].textContent,
+              returnDate: cells[7].textContent,
             };
 
             await updateUserInfoCard(userData);
@@ -285,9 +396,10 @@
             if (!borrowingsResponse.ok) {
               throw new Error("Failed to fetch borrowings");
             }
-            const borrowingsData = await borrowingsResponse.json();
+            const borrowingsResult = await borrowingsResponse.json();
+            const borrowingsData = borrowingsResult.data || borrowingsResult; // Extract data from wrapper
 
-            if (borrowingsData.total_borrowed === 0) {
+            if (borrowingsData.total_borrowed === 0 || !borrowingsData.books || borrowingsData.books.length === 0) {
               bookList.innerHTML =
                 '<div class="book-placeholder">No books currently rented</div>';
             } else {
@@ -311,7 +423,7 @@
             }
 
             const visitInfo = document.querySelector(".visit-info");
-            if (borrowingsData.total_borrowed > 0) {
+            if (borrowingsData.total_borrowed > 0 && borrowingsData.books && borrowingsData.books.length > 0) {
               const nextDueDate = new Date(
                 Math.min(
                   ...borrowingsData.books.map((b) => new Date(b.due_date))
@@ -372,9 +484,280 @@
             background: rgba(244, 67, 54, 0.2);
             color: #f44336;
           }
+          
+          /* Bulk Actions Styles */
+          .bulk-actions-bar {
+            background: linear-gradient(135deg, #4f8a42 0%, #3a6b31 100%);
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+          .bulk-actions-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+          }
+          .selected-count {
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+          }
+          .bulk-actions-buttons {
+            display: flex;
+            gap: 10px;
+          }
+          .bulk-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .bulk-action-btn .material-symbols-outlined {
+            font-size: 18px;
+          }
+          .bulk-delete-btn {
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+          }
+          .bulk-delete-btn:hover {
+            background: rgba(244, 67, 54, 1);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+          }
+          
+          /* Users Result Count */
+          .users-result-count {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+            padding: 8px 0;
+            text-align: right;
+          }
+          
+          .user-table th input[type="checkbox"],
+          .user-table td input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+          }
+
+          /* Action Buttons */
+          .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 4px;
+          }
+
+          .action-btn .material-symbols-outlined {
+            font-size: 20px;
+          }
+
+          .borrow-btn {
+            background-color: #4CAF50;
+            color: white;
+          }
+
+          .borrow-btn:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+          }
+
+          .bulk-borrow-btn {
+            background-color: #2196F3;
+            color: white;
+          }
+
+          .bulk-borrow-btn:hover {
+            background-color: #0b7dda;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+          }
         `;
         document.head.appendChild(style);
+
+        // ====== BULK SELECTION FUNCTIONALITY ======
+        let selectedStudentIds = new Set();
+
+        function initBulkSelection() {
+          selectedStudentIds.clear();
+          updateBulkActionsBar();
+
+          // Select all checkbox
+          const selectAllCheckbox = document.getElementById('selectAllUsers');
+          if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.addEventListener('change', handleSelectAll);
+          }
+
+          // Individual row checkboxes
+          const rowCheckboxes = document.querySelectorAll('.row-select');
+          rowCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', handleRowSelect);
+          });
+
+          // Bulk delete button
+          const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+          if (bulkDeleteBtn) {
+            bulkDeleteBtn.addEventListener('click', handleBulkDelete);
+          }
+        }
+
+        function handleSelectAll(e) {
+          const isChecked = e.target.checked;
+          const rowCheckboxes = document.querySelectorAll('.row-select');
+          
+          rowCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            const studentId = checkbox.dataset.studentId;
+            if (isChecked) {
+              selectedStudentIds.add(studentId);
+            } else {
+              selectedStudentIds.delete(studentId);
+            }
+          });
+
+          updateBulkActionsBar();
+        }
+
+        function handleRowSelect(e) {
+          const checkbox = e.target;
+          const studentId = checkbox.dataset.studentId;
+
+          if (checkbox.checked) {
+            selectedStudentIds.add(studentId);
+          } else {
+            selectedStudentIds.delete(studentId);
+          }
+
+          // Update "select all" checkbox state
+          const selectAllCheckbox = document.getElementById('selectAllUsers');
+          const allCheckboxes = document.querySelectorAll('.row-select');
+          const checkedCheckboxes = document.querySelectorAll('.row-select:checked');
+          
+          if (selectAllCheckbox) {
+            selectAllCheckbox.checked = allCheckboxes.length === checkedCheckboxes.length && allCheckboxes.length > 0;
+          }
+
+          updateBulkActionsBar();
+        }
+
+        function updateBulkActionsBar() {
+          const bulkActionsBar = document.getElementById('bulkActionsBar');
+          const selectedCount = document.getElementById('selectedCount');
+          const count = selectedStudentIds.size;
+
+          if (count > 0) {
+            bulkActionsBar.style.display = 'flex';
+            selectedCount.textContent = `Selected: ${count}`;
+          } else {
+            bulkActionsBar.style.display = 'none';
+          }
+        }
+
+        async function handleBulkDelete() {
+          if (selectedStudentIds.size === 0) {
+            alert('No students selected');
+            return;
+          }
+
+          const confirmed = confirm(`Are you sure you want to delete ${selectedStudentIds.size} student(s)?\n\nNote: Students with active book borrowings cannot be deleted.`);
+          if (!confirmed) return;
+
+          try {
+            const response = await fetchWithCsrf('/api/students/bulk', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ studentIds: Array.from(selectedStudentIds) })
+            });
+
+            const result = await response.json();
+            
+            if (!response.ok) {
+              throw new Error(result.message || 'Failed to delete students');
+            }
+
+            const data = result.data || result;
+            
+            // Show results
+            let message = `Successfully deleted ${data.successCount} student(s)`;
+            if (data.failureCount > 0) {
+              message += `\n\nFailed to delete ${data.failureCount} student(s):`;
+              data.failedDeletes.forEach(fail => {
+                message += `\n- ${fail.studentId}: ${fail.reason}`;
+              });
+            }
+            alert(message);
+
+            // Clear selection and reload data
+            selectedStudentIds.clear();
+            const selectAllCheckbox = document.getElementById('selectAllUsers');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            
+            await fetchStudentsData();
+            updateBulkActionsBar();
+
+          } catch (error) {
+            console.error('Bulk delete error:', error);
+            alert('Failed to delete students: ' + error.message);
+          }
+        }
+
+        // Initialize bulk selection on page load
+        initBulkSelection();
+
+        // Deep-link handler: Opens modal only if valid query param exists
+        initDeepLinkFromURL();
+
+        function initDeepLinkFromURL() {
+          const urlParams = new URLSearchParams(window.location.search);
+          const openUserId = urlParams.get('openUser');
+          const openViolationsId = urlParams.get('openViolations');
+
+          // Validate params: must exist, not be "undefined", not empty
+          const isValidParam = (param) => param && param !== 'undefined' && param !== 'null' && param.trim() !== '';
+
+          if (isValidParam(openViolationsId)) {
+            console.log('[Deep Link] Opening violations modal for:', openViolationsId, '(from URL)');
+            // Clean URL BEFORE opening to prevent refresh re-trigger
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setTimeout(() => {
+              if (window.userViolationsModal) {
+                window.userViolationsModal.open(openViolationsId);
+              }
+            }, 500);
+          } else if (isValidParam(openUserId) && window.openUserModal) {
+            console.log('[Deep Link] Opening user modal for:', openUserId, '(from URL)');
+            // Clean URL BEFORE opening to prevent refresh re-trigger
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setTimeout(() => {
+              openUserModal(openUserId);
+            }, 500);
+          } else {
+            console.log('[Deep Link] No valid deep-link params detected - modal stays closed');
+          }
+        }
       });
+
+      // Quick Borrow feature has been moved to Student side. Admins should use the Books page to manage borrowings.
     </script>
 
     <title>User Management - SPIST Library</title>
@@ -438,6 +821,33 @@
               <p id="adminRole">Super Admin</p>
             </div>
           </div>
+          
+          <!-- Admin Notification Bell -->
+          <div class="admin-notification-container" id="adminNotificationContainer">
+            <button class="admin-notif-btn" id="adminNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false" role="button">
+              <span class="material-symbols-outlined">notifications</span>
+              <span class="notif-badge" id="adminNotifBadge" style="display: none;">0</span>
+            </button>
+            <div class="student-notif-panel" id="adminNotifPanel" style="display: none;">
+              <div class="notif-header">
+                <h3>Notifications</h3>
+                <div class="notif-actions">
+                  <button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read" aria-label="Mark all as read">
+                    <span class="material-symbols-outlined">done_all</span>
+                  </button>
+                  <button class="notif-action-btn" id="notifSettingsBtn" title="Notification settings" aria-label="Notification settings">
+                    <span class="material-symbols-outlined">settings</span>
+                  </button>
+                </div>
+              </div>
+              <div class="notif-tabs">
+                <button class="notif-tab active" id="tabAll" data-tab="all"><span class="material-symbols-outlined">list</span>All</button>
+                <button class="notif-tab" id="tabUnread" data-tab="unread"><span class="material-symbols-outlined">mark_as_unread</span>Unread</button>
+              </div>
+              <div class="notif-list" id="notifList"><div class="notif-loading">Loading notifications...</div></div>
+              <div class="notif-footer"><button class="notif-see-more" id="notifSeeMore">See previous notifications</button></div>
+            </div>
+          </div>
         </div>
 
         <div class="maincontent">
@@ -482,18 +892,26 @@
           </div>
 
           <!-- Search and Filter Section for Students -->
-          <div class="search-filter-container">
-            <div class="search-bar-wrapper">
-              <span class="material-symbols-outlined search-icon">search</span>
-              <input 
-                type="text" 
-                id="searchStudentInput" 
-                class="search-input" 
-                placeholder="Search by name, student ID, email, or department..."
-              />
+          <div class="modern-filter-wrapper">
+            <!-- Search Bar with Result Count -->
+            <div class="modern-filter-header">
+              <div class="modern-search-container">
+                <span class="material-symbols-outlined search-icon">search</span>
+                <input 
+                  type="text" 
+                  id="searchStudentInput" 
+                  class="modern-search-input" 
+                  placeholder="Search by name, student ID, email, or department..."
+                />
+              </div>
+              <div id="usersResultCount" class="modern-result-count">
+                Showing 0 of 0 users
+              </div>
             </div>
-            <div class="filter-controls">
-              <select id="departmentFilter" class="filter-select">
+
+            <!-- Filter Dropdowns -->
+            <div class="modern-filter-controls">
+              <select id="departmentFilter" class="modern-filter-select">
                 <option value="">All Departments</option>
                 <option value="BSIT">BSIT</option>
                 <option value="BSCS">BSCS</option>
@@ -501,7 +919,7 @@
                 <option value="BSHM">BSHM</option>
                 <option value="BSED">BSED</option>
               </select>
-              <select id="yearLevelFilter" class="filter-select">
+              <select id="yearLevelFilter" class="modern-filter-select">
                 <option value="">All Year Levels</option>
                 <option value="1">1st Year</option>
                 <option value="2">2nd Year</option>
@@ -509,12 +927,12 @@
                 <option value="4">4th Year</option>
                 <option value="5">5th Year</option>
               </select>
-              <select id="statusFilterStudent" class="filter-select">
+              <select id="statusFilterStudent" class="modern-filter-select">
                 <option value="">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
-              <button id="clearStudentFilters" class="clear-filters-btn" title="Clear all filters">
+              <button id="clearStudentFilters" class="modern-clear-btn" title="Clear all filters">
                 <span class="material-symbols-outlined">filter_alt_off</span>
                 Clear
               </button>
@@ -522,9 +940,25 @@
           </div>
 
           <div class="table-wrapper">
+            <!-- Bulk Actions Bar (hidden by default) -->
+            <div id="bulkActionsBar" class="bulk-actions-bar" style="display: none;">
+              <div class="bulk-actions-content">
+                <span id="selectedCount" class="selected-count">Selected: 0</span>
+                <div class="bulk-actions-buttons">
+                  <button id="bulkDeleteBtn" class="bulk-action-btn bulk-delete-btn">
+                    <span class="material-symbols-outlined">delete</span>
+                    Delete Selected
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <table class="user-table">
               <thead>
                 <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" id="selectAllUsers" title="Select all">
+                  </th>
                   <th>Name</th>
                   <th>Student ID</th>
                   <th>Course</th>
@@ -532,6 +966,7 @@
                   <th>Rented Books</th>
                   <th>Books Title</th>
                   <th>Date to Return</th>
+                  <th style="width: 180px;">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -659,5 +1094,7 @@
         </div>
       </div>
     </div>
+    <script src="/js/notification-deeplink.js"></script>
+    <script src="/js/notification-highlight.js"></script>
   </body>
 </html>

@@ -1,12 +1,14 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Management - SPIST Library (Super Admin)</title>
     <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/admin.css" />
     <link rel="stylesheet" href="/css/backup.css" />
+    <link rel="stylesheet" href="/css/notifications.css" />
+    <link rel="stylesheet" href="/css/auth-layout.css" />
 
     <!-- Icons -->
     <link
@@ -23,9 +25,14 @@
     <!-- JavaScript -->
     <script src="/js/csrf-helper.js"></script>
     <script src="/js/session-timeout.js"></script>
-    <script src="/js/admin.js" defer></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/notifications.js"></script>
     <script src="/js/super-admin-guard.js" defer></script>
+    <script src="/js/admin-management.js" defer></script>
+    
     <script>
+      // Page initialization
       document.addEventListener("DOMContentLoaded", async function () {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
         const userRole = sessionStorage.getItem("userRole");
@@ -36,289 +43,60 @@
         window.currentAdminRole = adminRole;
         window.currentAdminId = adminId;
 
-        // Super Admin access control - redirect non-super admins
+        // Super Admin access control
         if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
           alert("Access denied. Super Admin privileges required.");
           window.location.href = "/login";
           return;
         }
 
-        try {
-          // Fetch current admin info
-          const adminResponse = await fetchWithCsrf(`/api/admin/${adminId}`);
-          if (!adminResponse.ok) {
-            throw new Error("Failed to fetch admin information");
-          }
-          const adminData = await adminResponse.json();
+        console.log("[Super Admin Admins] Session:", {
+          isLoggedIn,
+          userRole,
+          adminRole,
+          adminId
+        });
 
-          document.getElementById("adminName").textContent = adminData.fullname;
+        try {
+          // Fetch current admin info for header
+          const response = await fetchWithCsrf(`/api/admin/${adminId}`);
+          if (!response.ok) throw new Error("Failed to fetch admin information");
+          
+          const result = await response.json();
+          const adminData = result.data || result;
+
+          // Update header
+          document.getElementById("adminName").textContent = adminData.fullname || 'Admin';
           document.getElementById("adminEmail").textContent = adminData.email;
           document.getElementById("adminRole").textContent = "Super Admin";
-          document.getElementById("adminInitial").textContent =
-            adminData.fullname.charAt(0).toUpperCase();
+          document.getElementById("adminInitial").textContent = 
+            (adminData.fullname || 'A').charAt(0).toUpperCase();
 
-          // Fetch all admins
-          await loadAdmins();
+          // Load admins table (handled by admin-management.js)
+          if (window.adminManager) {
+            await window.adminManager.loadAdmins();
+          }
         } catch (error) {
-          console.error("Error:", error);
+          console.error("[Super Admin Admins] Error:", error);
+          alert("Failed to load page. Please try again.");
         }
       });
 
-      async function loadAdmins() {
-        try {
-          const response = await fetchWithCsrf("/api/admin");
-          if (!response.ok) {
-            throw new Error("Failed to fetch admins");
-          }
-          const admins = await response.json();
-
-          const tbody = document.querySelector(".user-table tbody");
-          tbody.innerHTML = "";
-
-          admins.forEach((admin) => {
-            const tr = document.createElement("tr");
-            // ✅ ROLE DISPLAY FIX: Convert database enum to user-friendly text
-            // Database stores: 'super_admin' or 'system_admin'
-            // Display shows: 'Super Admin' or 'System Admin'
-            const roleDisplay = admin.role === 'super_admin' ? 'Super Admin' : 'System Admin';
-            
-            tr.innerHTML = `
-              <td>${admin.id}</td>
-              <td>${admin.fullname}</td>
-              <td>${roleDisplay}</td>
-              <td>${admin.email}</td>
-              <td>${new Date(admin.created_at).toLocaleDateString()}</td>
-              <td>
-                <button class="btn edit-btn" onclick="showModalEdit(${
-                  admin.id
-                })">Edit</button>
-                <button class="btn delete-btn" onclick="modalDelete(${
-                  admin.id
-                })">Delete</button>
-              </td>
-            `;
-            tbody.appendChild(tr);
-          });
-        } catch (error) {
-          console.error("Error loading admins:", error);
-          alert("Failed to load admins");
+      // Logout modal functions
+      function showLogoutModal() {
+        const modal = document.getElementById("logoutModal");
+        if (modal) {
+          modal.classList.add("show");
+          document.body.classList.add("modal-open");
         }
       }
-
-      /* ========================================
-         MODAL FUNCTIONS
-         ======================================== */
-
-      // IMPORTANT:
-      // Modals must ONLY open when user explicitly clicks a button.
-      // Do NOT call these functions from DOMContentLoaded or any automatic triggers.
-
-      // Show add admin modal - ONLY call from "Add Admin" button click
-      function showModal() {
-        document.getElementById("adminModal").style.display = "flex";
-      }
-
-      function closeModal() {
-        document.getElementById("adminModal").style.display = "none";
-        document.getElementById("adminEdit").style.display = "none";
-        document.getElementById("modalDelete").style.display = "none";
-      }
-
-      async function showModalEdit(adminId) {
-        try {
-          const response = await fetchWithCsrf(`/api/admin/${adminId}`);
-          if (!response.ok) {
-            throw new Error("Failed to fetch admin details");
-          }
-          const admin = await response.json();
-
-          document.getElementById("adminEdit").dataset.adminId = adminId;
-          document.getElementById("nameEdit").value = admin.fullname;
-          document.getElementById("emailEdit").value = admin.email;
-          
-          // ✅ ROLE MAPPING: Database → Form Select Value
-          // Database: 'super_admin' → Select: 'super'
-          // Database: 'system_admin' → Select: 'system'
-          document.getElementById("adminRoleEdit").value =
-            admin.role === "super_admin" ? "super" : "system";
-
-          document.getElementById("adminEdit").style.display = "flex";
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Failed to load admin details");
-        }
-      }
-
-      function modalDelete(adminId) {
-        const modal = document.getElementById("modalDelete");
-        modal.dataset.adminId = adminId;
-        modal.style.display = "flex";
-      }
-
-      // Add new admin
-      document.addEventListener("DOMContentLoaded", function () {
-        document
-          .querySelector("#adminModal form")
-          .addEventListener("submit", async function (e) {
-            e.preventDefault();
-
-            const password = document.getElementById("password").value;
-            const confirmPassword = document.getElementById("Cpassword").value;
-
-            if (password !== confirmPassword) {
-              alert("Passwords do not match");
-              return;
-            }
-
-            try {
-              // ✅ ROLE MAPPING: Form Select Value → Database Enum
-              // Form select value 'super' → Database: 'super_admin'
-              // Form select value 'system' → Database: 'system_admin'
-              const selectedRole = document.getElementById("adminRole").value;
-              const dbRole = selectedRole === "super" ? "super_admin" : "system_admin";
-              
-              console.log("Creating admin with role:", dbRole); // Debug log
-              
-              const response = await fetchWithCsrf("/api/admin", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  fullname: document.getElementById("name").value,
-                  email: document.getElementById("email").value,
-                  password: password,
-                  role: dbRole,
-                  currentAdminId: window.currentAdminId, // ✅ Pass current admin ID for authorization
-                }),
-              });
-
-              const data = await response.json();
-              if (!response.ok) {
-                throw new Error(data.message || "Failed to create admin");
-              }
-
-              await loadAdmins();
-              closeModal();
-              this.reset();
-              alert("Admin created successfully");
-            } catch (error) {
-              console.error("Error:", error);
-              alert(error.message);
-            }
-          });
-
-        // Update admin
-        document
-          .querySelector("#adminEdit form")
-          .addEventListener("submit", async function (e) {
-            e.preventDefault();
-
-            const adminId =
-              document.getElementById("adminEdit").dataset.adminId;
-            const password = document.getElementById("passwordEdit").value;
-            const confirmPassword =
-              document.getElementById("CpasswordEdit").value;
-
-            if (password && password !== confirmPassword) {
-              alert("Passwords do not match");
-              return;
-            }
-
-            try {
-              // ✅ ROLE MAPPING: Form Select Value → Database Enum
-              // Form select value 'super' → Database: 'super_admin'
-              // Form select value 'system' → Database: 'system_admin'
-              const selectedRole = document.getElementById("adminRoleEdit").value;
-              const dbRole = selectedRole === "super" ? "super_admin" : "system_admin";
-              
-              console.log("Updating admin role to:", dbRole); // Debug log
-              
-              const data = {
-                fullname: document.getElementById("nameEdit").value,
-                email: document.getElementById("emailEdit").value,
-                role: dbRole,
-                currentAdminId: window.currentAdminId, // ✅ Pass current admin ID for authorization
-              };
-
-              if (password) {
-                data.password = password;
-              }
-
-              const response = await fetchWithCsrf(`/api/admin/${adminId}`, {
-                method: "PUT",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(data),
-              });
-
-              const responseData = await response.json();
-              if (!response.ok) {
-                throw new Error(
-                  responseData.message || "Failed to update admin"
-                );
-              }
-
-              await loadAdmins();
-              closeModal();
-              alert("Admin updated successfully");
-            } catch (error) {
-              console.error("Error:", error);
-              alert(error.message);
-            }
-          });
-
-        // Delete admin
-        document
-          .querySelector("#modalDelete .delete-confirm-btn")
-          .addEventListener("click", async function () {
-            const adminId =
-              document.getElementById("modalDelete").dataset.adminId;
-
-            try {
-              const response = await fetchWithCsrf(`/api/admin/${adminId}?currentAdminId=${window.currentAdminId}`, {
-                method: "DELETE",
-              });
-
-              const data = await response.json();
-              if (!response.ok) {
-                throw new Error(data.message || "Failed to delete admin");
-              }
-
-              await loadAdmins();
-              closeModal();
-              alert("Admin deleted successfully");
-            } catch (error) {
-              console.error("Error:", error);
-              alert(error.message);
-            }
-          });
-
-        // Show/hide password functionality
-        document
-          .getElementById("showPassword")
-          .addEventListener("change", function () {
-            const password = document.getElementById("password");
-            const confirmPassword = document.getElementById("Cpassword");
-            const type = this.checked ? "text" : "password";
-            password.type = type;
-            confirmPassword.type = type;
-          });
-
-        document
-          .getElementById("showPasswordEdit")
-          .addEventListener("change", function () {
-            const password = document.getElementById("passwordEdit");
-            const confirmPassword = document.getElementById("CpasswordEdit");
-            const type = this.checked ? "text" : "password";
-            password.type = type;
-            confirmPassword.type = type;
-          });
-      });
 
       function closeLogoutModal() {
-        document.getElementById("logoutModal").style.display = "none";
+        const modal = document.getElementById("logoutModal");
+        if (modal) {
+          modal.classList.remove("show");
+          document.body.classList.remove("modal-open");
+        }
       }
 
       function logout() {
@@ -327,7 +105,179 @@
       }
     </script>
 
-    <title>Admin Management - SPIST Library (Super Admin)</title>
+    <style>
+      /* Modal styling matching auth-layout theme */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.show {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        animation: slideIn 0.3s ease-out;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .modal-content h2 {
+        color: #2e7d32;
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #333;
+        font-weight: 500;
+      }
+
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.3s;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: #4caf50;
+      }
+
+      .modal-error {
+        background: #ffebee;
+        color: #c62828;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: none;
+        font-size: 0.9rem;
+      }
+
+      .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+
+      .form-actions button {
+        flex: 1;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .form-actions button[type="submit"],
+      .form-actions .delete-confirm-btn,
+      .form-actions .logout-confirm-btn {
+        background: #4caf50;
+        color: white;
+      }
+
+      .form-actions button[type="submit"]:hover,
+      .form-actions .delete-confirm-btn:hover,
+      .form-actions .logout-confirm-btn:hover {
+        background: #388e3c;
+      }
+
+      .form-actions .delete-confirm-btn {
+        background: #f44336;
+      }
+
+      .form-actions .delete-confirm-btn:hover {
+        background: #d32f2f;
+      }
+
+      .form-actions .cancel-btn {
+        background: #f5f5f5;
+        color: #666;
+      }
+
+      .form-actions .cancel-btn:hover {
+        background: #e0e0e0;
+      }
+
+      .form-actions button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      /* Table button styling */
+      .user-table .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: all 0.3s;
+        margin-right: 0.5rem;
+      }
+
+      .user-table .edit-btn {
+        background: #4caf50;
+        color: white;
+      }
+
+      .user-table .edit-btn:hover {
+        background: #388e3c;
+      }
+
+      .user-table .delete-btn {
+        background: #f44336;
+        color: white;
+      }
+
+      .user-table .delete-btn:hover {
+        background: #d32f2f;
+      }
+
+      .user-table .btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .user-table .btn i {
+        margin-right: 0.25rem;
+      }
+    </style>
   </head>
 
   <body>
@@ -400,14 +350,25 @@
               <p id="adminRole">Super Admin</p>
             </div>
           </div>
+          <div class="admin-notification-container" id="superAdminNotificationContainer">
+            <button class="admin-notif-btn" id="superAdminNotifBell" title="Notifications">
+              <span class="material-symbols-outlined">notifications</span>
+              <span class="notif-badge" id="superAdminNotifBadge" style="display: none;">0</span>
+            </button>
+            <div class="student-notif-panel" id="superAdminNotifPanel" style="display: none;">
+              <div class="notif-header">
+                <h3>Notifications</h3>
+              </div>
+              <div class="notif-list" id="notifList">
+                <div class="notif-loading">Loading notifications...</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="maincontent">
           <div class="user-info">
             <h2>Admin Management</h2>
-            <button class="add-admin" onclick="showModal()">
-              <span class="material-symbols-outlined">add</span>Add Admin
-            </button>
           </div>
 
           <div class="spacecontainer">
@@ -427,7 +388,10 @@
                 </tr>
               </thead>
               <tbody>
-                <!-- Table body will be populated dynamically -->
+                <!-- Table will be populated by admin-management.js -->
+                <tr>
+                  <td colspan="6" style="text-align:center;">Loading admins...</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -435,89 +399,46 @@
       </div>
     </div>
 
-    <!-- Add Admin Modal -->
-    <div id="adminModal" class="modal">
-      <div class="modal-content">
-        <h2>Add New Admin</h2>
-        <form id="addAdminForm">
-          <div class="form-group">
-            <label for="name">Name</label>
-            <input type="text" id="name" required />
-          </div>
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" required />
-          </div>
-          <div class="form-group">
-            <label for="adminRole">Admin Role</label>
-            <select id="adminRole" class="form-control" required>
-              <option value="">Select a role</option>
-              <option value="super">Super Admin</option>
-              <option value="system">System Admin</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" required />
-          </div>
-          <div class="form-group">
-            <label for="Cpassword">Confirm Password</label>
-            <input type="password" id="Cpassword" required />
-          </div>
-          <div class="form-group">
-            <input type="checkbox" id="showPassword" />
-            <label for="showPassword">Show Password</label>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="submit-btn">Add Admin</button>
-            <button type="button" class="cancel-btn" onclick="closeModal()">
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
     <!-- Edit Admin Modal -->
-    <div id="adminEdit" class="modal">
+    <div id="modalEdit" class="modal">
       <div class="modal-content">
         <h2>Edit Admin</h2>
         <form id="editAdminForm">
+          <div id="editAdminError" class="modal-error"></div>
+          
           <div class="form-group">
-            <label for="nameEdit">Name</label>
-            <input type="text" id="nameEdit" required />
+            <label for="editName">Full Name *</label>
+            <input 
+              type="text" 
+              id="editName" 
+              name="fullname" 
+              required 
+              placeholder="Enter full name"
+            />
           </div>
+
           <div class="form-group">
-            <label for="emailEdit">Email</label>
-            <input type="email" id="emailEdit" required />
+            <label for="editEmail">Email Address *</label>
+            <input 
+              type="email" 
+              id="editEmail" 
+              name="email" 
+              required 
+              placeholder="Enter email address"
+            />
           </div>
+
           <div class="form-group">
-            <label for="adminRoleEdit">Admin Role</label>
-            <select id="adminRoleEdit" class="form-control" required>
-              <option value="">Select a role</option>
-              <option value="super">Super Admin</option>
-              <option value="system">System Admin</option>
+            <label for="editRole">Role *</label>
+            <select id="editRole" name="role" required>
+              <option value="system_admin">System Admin</option>
+              <option value="super_admin">Super Admin</option>
             </select>
           </div>
-          <div class="form-group">
-            <label for="passwordEdit"
-              >New Password (leave blank to keep current)</label
-            >
-            <input type="password" id="passwordEdit" />
-          </div>
-          <div class="form-group">
-            <label for="CpasswordEdit">Confirm New Password</label>
-            <input type="password" id="CpasswordEdit" />
-          </div>
-          <div class="form-group">
-            <input type="checkbox" id="showPasswordEdit" />
-            <label for="showPasswordEdit">Show Password</label>
-          </div>
+
           <div class="form-actions">
-            <button type="submit" class="submit-btn">Update Admin</button>
-            <button type="button" class="cancel-btn" onclick="closeModal()">
-              Cancel
-            </button>
+            <button type="submit">Save Changes</button>
+            <button type="button" class="cancel-btn">Cancel</button>
           </div>
         </form>
       </div>
@@ -527,10 +448,10 @@
     <div id="modalDelete" class="modal">
       <div class="modal-content">
         <h2>Confirm Deletion</h2>
-        <p>Are you sure you want to delete this admin user?</p>
+        <p>Are you sure you want to delete this admin?</p>
         <div class="form-actions">
-          <button class="delete-confirm-btn">Delete</button>
-          <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+          <button class="delete-confirm-btn">Delete Admin</button>
+          <button class="cancel-btn">Cancel</button>
         </div>
       </div>
     </div>
@@ -542,11 +463,13 @@
         <p>Are you sure you want to log out?</p>
         <div class="form-actions">
           <button class="logout-confirm-btn" onclick="logout()">Logout</button>
-          <button class="cancel-btn" onclick="closeLogoutModal()">
-            Cancel
-          </button>
+          <button class="cancel-btn" onclick="closeLogoutModal()">Cancel</button>
         </div>
       </div>
     </div>
+
+    <!-- Notification Scripts -->
+    <script src="/js/notification-deeplink.js"></script>
+    <script src="/js/notification-highlight.js"></script>
   </body>
 </html>

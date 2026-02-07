@@ -7,6 +7,13 @@
  * Check if user is authenticated (logged in)
  */
 function requireAuth(req, res, next) {
+  console.log('[Auth] Checking authentication:', {
+    isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : null,
+    hasSession: !!req.session,
+    hasUser: !!req.session?.user,
+    user: req.session?.user
+  });
+
   if (req.isAuthenticated && req.isAuthenticated()) {
     return next();
   }
@@ -25,6 +32,14 @@ function requireAuth(req, res, next) {
  * Check if user is an admin (admin or super_admin)
  */
 function requireAdmin(req, res, next) {
+  console.log('[Auth] requireAdmin check:', {
+    hasSession: !!req.session,
+    hasUser: !!req.session?.user,
+    userRole: req.session?.user?.userRole,
+    role: req.session?.user?.role,
+    fullUser: req.session?.user
+  });
+  
   if (!req.session || !req.session.user) {
     return res.status(401).json({
       success: false,
@@ -32,12 +47,15 @@ function requireAdmin(req, res, next) {
     });
   }
 
-  const userRole = req.session.user.role;
+  const userRole = req.session.user.userRole; // Check userRole first
   
-  if (userRole === "admin" || userRole === "super_admin") {
+  // Allow admin userRole (covers system_admin, super_admin)
+  if (userRole === "admin") {
+    console.log('[Auth] Admin access granted for userRole:', userRole);
     return next();
   }
 
+  console.log('[Auth] Admin access DENIED for userRole:', userRole);
   return res.status(403).json({
     success: false,
     message: "Access denied. Admin privileges required.",
@@ -48,6 +66,14 @@ function requireAdmin(req, res, next) {
  * Check if user is a super admin
  */
 function requireSuperAdmin(req, res, next) {
+  console.log('[Auth] requireSuperAdmin check:', {
+    hasSession: !!req.session,
+    hasUser: !!req.session?.user,
+    userRole: req.session?.user?.userRole,
+    role: req.session?.user?.role,
+    fullUser: req.session?.user
+  });
+  
   if (!req.session || !req.session.user) {
     return res.status(401).json({
       success: false,
@@ -55,12 +81,16 @@ function requireSuperAdmin(req, res, next) {
     });
   }
 
-  const userRole = req.session.user.role;
+  // For super admin, check the role field (not userRole)
+  // because admins have both userRole="admin" and role="super_admin" or "system_admin"
+  const role = req.session.user.role;
   
-  if (userRole === "super_admin") {
+  if (role === "super_admin") {
+    console.log('[Auth] Super admin access granted');
     return next();
   }
 
+  console.log('[Auth] Super admin access DENIED for role:', role);
   return res.status(403).json({
     success: false,
     message: "Access denied. Super admin privileges required.",
@@ -71,6 +101,13 @@ function requireSuperAdmin(req, res, next) {
  * Check if user is a student
  */
 function requireStudent(req, res, next) {
+  console.log('[Auth] requireStudent check:', {
+    hasSession: !!req.session,
+    hasUser: !!req.session?.user,
+    userRole: req.session?.user?.userRole,
+    fullUser: req.session?.user
+  });
+  
   if (!req.session || !req.session.user) {
     return res.status(401).json({
       success: false,
@@ -78,12 +115,14 @@ function requireStudent(req, res, next) {
     });
   }
 
-  const userRole = req.session.user.role;
+  const userRole = req.session.user.userRole; // Changed from .role to .userRole
   
   if (userRole === "student") {
+    console.log('[Auth] Student access granted');
     return next();
   }
 
+  console.log('[Auth] Student access DENIED for role:', userRole);
   return res.status(403).json({
     success: false,
     message: "Access denied. Student account required.",

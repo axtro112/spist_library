@@ -1,4 +1,4 @@
-// ========== CSV IMPORT/EXPORT FUNCTIONS ==========
+﻿// ========== CSV IMPORT/EXPORT FUNCTIONS ==========
 
 /**
  * Toggle export dropdown menu
@@ -294,7 +294,7 @@ function resetImportForm() {
  *  ✓ Successfully imported: X
  *  ✗ Skipped (missing fields): Y
  *  ✗ Skipped (duplicate ISBN): Z
- *  ⚠ Zero quantity entries: W"
+ *   Zero quantity entries: W"
  * 
  * Post-Import Actions:
  * - Calls loadBooks() to refresh table
@@ -377,10 +377,13 @@ async function handleImportSubmit(e) {
       `✓ Successfully imported: ${result.summary.successfully_imported}\n` +
       `✗ Skipped (missing fields): ${result.summary.skipped_missing_fields.length}\n` +
       `✗ Skipped (duplicate ISBN): ${result.summary.skipped_duplicate_isbns.length}\n` +
-      `⚠ Zero quantity entries: ${result.summary.zero_quantity_entries.length}`
+      ` Zero quantity entries: ${result.summary.zero_quantity_entries.length}`
     );
 
-    if (typeof loadBooks === 'function') {
+    // Reload books and stats to reflect imported data
+    if (typeof reloadBooksAndStats === 'function') {
+      await reloadBooksAndStats();
+    } else if (typeof loadBooks === 'function') {
       await loadBooks();
     }
 
@@ -477,7 +480,7 @@ function displayImportResults(summary) {
       ✓ Successfully Imported: ${summary.successfully_imported}<br>
       ✗ Skipped (Missing Fields): ${summary.skipped_missing_fields.length}<br>
       ✗ Skipped (Duplicate ISBN): ${summary.skipped_duplicate_isbns.length}<br>
-      ⚠ Zero Quantity Entries: ${summary.zero_quantity_entries.length}
+       Zero Quantity Entries: ${summary.zero_quantity_entries.length}
     </div>
   `;
 

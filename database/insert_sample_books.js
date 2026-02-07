@@ -1,4 +1,4 @@
-const mysql = require('mysql2/promise');
+﻿const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function insertSampleBooks() {
@@ -65,7 +65,7 @@ async function insertSampleBooks() {
       }
     }
 
-    console.log(`\n📚 Successfully inserted ${inserted} books out of ${books.length}`);
+    console.log(`\n Successfully inserted ${inserted} books out of ${books.length}`);
     await connection.end();
   } catch (err) {
     console.error('Database connection error:', err);

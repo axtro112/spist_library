@@ -66,7 +66,8 @@ async function loadCategories() {
     const response = await fetchWithCsrf('/api/admin/books');
     if (!response.ok) return;
     
-    const books = await response.json();
+    const result = await response.json();
+    const books = result.data || []; // Extract books from response wrapper
     const categories = [...new Set(books.map(b => b.category).filter(c => c && c.trim()))];
     categories.sort();
     
@@ -133,7 +134,7 @@ function getFilterParams() {
 async function loadBooks() {
   try {
     const filterParams = getFilterParams();
-    const url = `/api/admin/books${filterParams ? '?' + filterParams : ''}`;
+    const url = `/api/books${filterParams ? '?' + filterParams : ''}`;
     
     console.log("[FRONTEND] Fetching books from:", url);
     const response = await fetchWithCsrf(url);
@@ -144,12 +145,23 @@ async function loadBooks() {
       console.error("[FRONTEND] API error:", data);
       throw new Error(data.message || "Failed to fetch books");
     }
-    const books = await response.json();
+    const result = await response.json();
+    const books = result.data || []; // Extract books from response wrapper
     console.log("[FRONTEND] Books data received:", books.length, "books");
     displayBooks(books);
   } catch (error) {
     console.error("Error:", error);
     alert("Failed to load books. Please try again later.");
+  }
+}
+
+// Auto-reload function for refreshing books and statistics after CRUD operations
+async function reloadBooksAndStats() {
+  await loadBooks();
+  // Also refresh dashboard stats if totalBooks element exists (dashboard page)
+  const totalBooksElement = document.getElementById('totalBooks');
+  if (totalBooksElement && typeof refreshDashboardStats === 'function') {
+    await refreshDashboardStats();
   }
 }
 
@@ -188,6 +200,11 @@ function displayBooks(books) {
 function createBookRow(book) {
   const row = document.createElement("tr");
   
+  // Add data attribute for highlighting
+  if (book.id) {
+    row.setAttribute('data-book-id', book.id);
+  }
+  
   // Determine availability status
   const availableQty = book.available_quantity !== undefined ? book.available_quantity : book.quantity;
   const totalQty = book.quantity || 1;
@@ -216,7 +233,7 @@ function createBookRow(book) {
     <td>${book.id}</td>
     <td>${book.title}</td>
     <td>${book.author}</td>
-    <td>${totalQty}</td>
+    <td>${availableQty}/${totalQty}</td>
     <td>${book.category}</td>
     <td>${book.isbn}</td>
     <td>${formatDate(book.added_date)}</td>
@@ -225,6 +242,9 @@ function createBookRow(book) {
     book.borrowed_by || "-"
   }</td>
     <td>
+      <button class="btn view-copies-btn" data-book-id="${book.id}" title="View Copies (Accession Numbers)">
+        <span class="material-symbols-outlined">qr_code_2</span>
+      </button>
       <button class="btn edit-btn" data-book='${JSON.stringify(
         book
       )}'>Edit</button>
@@ -240,8 +260,18 @@ function createBookRow(book) {
 }
 
 function attachRowEventListeners(row) {
+  const viewCopiesBtn = row.querySelector(".view-copies-btn");
   const editBtn = row.querySelector(".edit-btn");
   const deleteBtn = row.querySelector(".delete-btn");
+
+  viewCopiesBtn?.addEventListener("click", function () {
+    const bookId = this.dataset.bookId;
+    if (typeof bookCopyManager !== 'undefined') {
+      bookCopyManager.showCopies(bookId);
+    } else {
+      alert('Book copy manager not loaded. Please refresh the page.');
+    }
+  });
 
   editBtn.addEventListener("click", function () {
     const bookData = JSON.parse(this.dataset.book);
@@ -343,7 +373,7 @@ async function handleAddBook(e) {
   }
 
   if (!validateISBN(formData.isbn)) {
-    alert("Please enter a valid 10 or 13-digit ISBN number");
+    alert("Please enter a valid ISBN/barcode");
     return;
   }
 
@@ -359,7 +389,7 @@ async function handleAddBook(e) {
 
     alert("Book added successfully!");
     closeModal();
-    await loadBooks();
+    await reloadBooksAndStats();
     document.getElementById("addBookForm").reset();
   } catch (error) {
     console.error("Error:", error);
@@ -398,7 +428,7 @@ async function handleEditBook(e) {
   }
 
   if (!validateISBN(formData.isbn)) {
-    alert("Please enter a valid 10 or 13-digit ISBN number");
+    alert("Please enter a valid ISBN/barcode");
     return;
   }
 
@@ -416,7 +446,7 @@ async function handleEditBook(e) {
 
     alert("Book updated successfully!");
     closeModal();
-    await loadBooks();
+    await reloadBooksAndStats();
   } catch (error) {
     console.error("Error:", error);
     alert(error.message || "Failed to update book. Please try again.");
@@ -444,7 +474,7 @@ async function handleDeleteBook() {
 
     alert(data.message || "Book deleted successfully");
     closeModal();
-    await loadBooks();
+    await reloadBooksAndStats();
   } catch (error) {
     console.error("Error deleting book:", error);
     alert(error.message || "Failed to delete book. Please try again.");
@@ -452,8 +482,8 @@ async function handleDeleteBook() {
 }
 
 function validateISBN(isbn) {
-  const isbnRegex = /^(?:\d{10}|\d{13}|\d{3}-\d{10})$/;
-  return isbnRegex.test(isbn.replace(/-/g, ""));
+  // Accept any non-empty ISBN/barcode format
+  return isbn && isbn.trim().length > 0;
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -474,7 +504,8 @@ async function loadStudents() {
     if (!response.ok) {
       throw new Error("Failed to fetch students");
     }
-    students = await response.json();
+    const result = await response.json();
+    students = result.data || []; // Extract students from response wrapper
   } catch (error) {
     console.error("Error loading students:", error);
   }

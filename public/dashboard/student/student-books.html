@@ -20,6 +20,100 @@
         --qb-radius: 24px;
       }
 
+      /* Selection Toolbar Styling */
+      .selection-toolbar {
+        background: linear-gradient(135deg, var(--qb-green), #5ab85a) !important;
+        box-shadow: 0 4px 12px rgba(74, 161, 74, 0.2) !important;
+        border-radius: 12px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 16px 20px !important;
+        margin-bottom: 20px !important;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .selection-toolbar span,
+      .selection-toolbar label {
+        color: var(--qb-white) !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+      }
+
+      .selection-limit-message {
+        font-size: 13px;
+        color: #fff9c4;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      #borrow-selected-btn {
+        padding: 10px 24px !important;
+        border: none !important;
+        border-radius: 999px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        cursor: pointer !important;
+        background: rgba(255, 255, 255, 0.95) !important;
+        color: var(--qb-green) !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+      }
+
+      #borrow-selected-btn:not(:disabled):hover {
+        background: var(--qb-white) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2) !important;
+      }
+
+      #borrow-selected-btn:disabled {
+        opacity: 0.5 !important;
+        cursor: not-allowed !important;
+      }
+
+      #clear-selection-btn {
+        padding: 10px 20px !important;
+        border: 2px solid rgba(255, 255, 255, 0.9) !important;
+        border-radius: 999px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        cursor: pointer !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.95) !important;
+        transition: all 0.3s ease !important;
+      }
+
+      #clear-selection-btn:hover {
+        background: rgba(255, 255, 255, 0.15) !important;
+      }
+
+      #selection-message {
+        background: #fff3cd !important;
+        color: #856404 !important;
+      }
+
+      @media (max-width: 768px) {
+        .selection-toolbar {
+          flex-direction: column;
+          align-items: flex-start !important;
+          padding: 12px 16px !important;
+        }
+
+        .selection-toolbar > div {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        #borrow-selected-btn,
+        #clear-selection-btn {
+          width: 100% !important;
+        }
+      }
+
       .qb-modal {
         position: fixed;
         inset: 0;
@@ -259,7 +353,8 @@
 
       .qb-footer {
         display: flex;
-        justify-content: flex-end;
+        justify-content: center;
+        gap: 12px;
         padding: 14px 6px 4px;
       }
 
@@ -279,6 +374,20 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+
+      .qb-cancel {
+        width: 170px;
+        height: 44px;
+        border-radius: 999px;
+        border: none;
+        cursor: pointer;
+        font-weight: 900;
+        color: #ffffff;
+        background: rgba(244, 67, 54, 0.9);
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.18);
+        transition: background 0.15s ease;
+      }
+      .qb-cancel:hover { background: rgba(211, 47, 47, 1); }
 
       /* Message Container */
       .message-container {
@@ -352,10 +461,11 @@
       // Smart Borrow Modal State
       let smartBorrowState = {
         cartItems: [], // [{ bookId, title, author, isbn, accessionNo, availableQty, qty }]
-        searchResults: [],
+        availableBooks: [], // All available books loaded from API
+        filteredBooks: [], // Filtered results based on search
         isLoading: false,
         errorMessage: null,
-        searchType: null // 'isbn' or 'title'
+        searchQuery: '' // Current search query
       };
 
       /* ========================================
@@ -363,17 +473,21 @@
          ======================================== */
 
       // Function to open Smart Borrow modal (unified borrowing)
-      function openSmartBorrowModal() {
+      async function openSmartBorrowModal() {
         console.log('[Modal] openSmartBorrowModal called');
+        console.log('[Modal] Current cart state:', smartBorrowState.cartItems.length, 'items');
         
-        // Reset modal state
+        // Reset modal state EXCEPT cartItems (preserve preloaded cart!)
         smartBorrowState = {
-          cartItems: [],
-          searchResults: [],
+          cartItems: smartBorrowState.cartItems || [],  // PRESERVE existing cart
+          availableBooks: [],
+          filteredBooks: [],
           isLoading: false,
           errorMessage: null,
-          searchType: null // 'isbn' or 'title'
+          searchQuery: ''
         };
+        
+        console.log('[Modal] State reset. Cart items preserved:', smartBorrowState.cartItems.length);
         
         // Clear session book ID
         sessionStorage.removeItem("currentBorrowBookId");
@@ -399,77 +513,69 @@
           returnDateInput.value = maxDate.toISOString().split("T")[0]; // Default to max date (7 days)
         }
 
-        // Clear search results display
-        updateSmartSearchDisplay();
-        updateConfirmButtonState();
-
         const modal = document.getElementById("modal-user");
         if (!modal) {
           console.error('[Modal] Modal element not found!');
           return;
         }
         
-        console.log('[Modal] Before open - classList:', modal.classList.toString());
-        
         // Force remove hidden class and show modal
         modal.classList.remove("qb-hidden");
-        modal.style.display = "grid"; // Force display
+        modal.style.display = "grid";
         modal.setAttribute("aria-hidden", "false");
         
-        console.log('[Modal] After open - classList:', modal.classList.toString(), 'display:', modal.style.display);
+        console.log('[Modal] Modal shown. Loading available books...');
+        await loadAvailableBooksForModal();
+        
+        // Update display
+        updateSmartSearchDisplay();
+        updateConfirmButtonState();
         
         // Focus on search input
         setTimeout(() => searchInput?.focus(), 100);
       }
 
       // Function to show book borrow modal - ONLY call when user clicks Borrow button
-      function showBorrowModal(bookId) {
+      async function showBorrowModal(bookId) {
         console.log('[Modal] showBorrowModal called with bookId:', bookId);
         
         // Find the book in cached data
         const book = allBooksData.find(b => b.id == bookId);
         console.log('[Modal] Found book:', book ? book.title : 'NOT FOUND');
         
-        // Reset modal state and add book to cart
+        // Reset modal state
         smartBorrowState = {
           cartItems: [],
-          searchResults: [],
+          availableBooks: [],
+          filteredBooks: [],
           isLoading: false,
           errorMessage: null,
-          searchType: 'direct'
+          searchQuery: ''
         };
         
-        // Add book to cart immediately
-        if (book) {
-          addToCart(book);
-        }
         
         sessionStorage.setItem("currentBorrowBookId", bookId);
         
-        // Clear search input - user can search for more books if needed
+        // Clear search input
         const searchInput = document.getElementById("smartSearchInput");
         if (searchInput) {
-          searchInput.value = ""; // Always clear, let user type to search
+          searchInput.value = "";
         }
         
         // Set minimum date to tomorrow and maximum date to 7 days from today
         const today = new Date();
         const minDate = new Date(today);
-        minDate.setDate(today.getDate() + 1); // Minimum tomorrow
+        minDate.setDate(today.getDate() + 1);
         
         const maxDate = new Date(today);
-        maxDate.setDate(today.getDate() + 7); // Maximum 7 days
+        maxDate.setDate(today.getDate() + 7);
 
         const returnDateInput = document.getElementById("returnDate");
         if (returnDateInput) {
           returnDateInput.min = minDate.toISOString().split("T")[0];
           returnDateInput.max = maxDate.toISOString().split("T")[0];
-          returnDateInput.value = maxDate.toISOString().split("T")[0]; // Default to max date (7 days)
+          returnDateInput.value = maxDate.toISOString().split("T")[0];
         }
-
-        // Update display
-        updateSmartSearchDisplay();
-        updateConfirmButtonState();
 
         const modal = document.getElementById("modal-user");
         if (!modal) {
@@ -477,14 +583,22 @@
           return;
         }
         
-        console.log('[Modal] Before open - classList:', modal.classList.toString());
-        
         // Force remove hidden class and show modal
         modal.classList.remove("qb-hidden");
-        modal.style.display = "grid"; // Force display
+        modal.style.display = "grid";
         modal.setAttribute("aria-hidden", "false");
         
-        console.log('[Modal] After open - classList:', modal.classList.toString(), 'display:', modal.style.display);
+        // Load available books first
+        await loadAvailableBooksForModal();
+        
+        // Add book to cart after loading available books
+        if (book) {
+          addToCart(book);
+        }
+        
+        // Update display
+        updateSmartSearchDisplay();
+        updateConfirmButtonState();
         
         // Focus on search input
         setTimeout(() => searchInput?.focus(), 100);
@@ -514,10 +628,11 @@
         // Reset modal state
         smartBorrowState = {
           cartItems: [],
-          searchResults: [],
+          availableBooks: [],
+          filteredBooks: [],
           isLoading: false,
           errorMessage: null,
-          searchType: null
+          searchQuery: ''
         };
         
         // Clear inputs when closing
@@ -526,14 +641,64 @@
           searchInput.value = "";
         }
         
-        // Clear search results display
-        updateSmartSearchDisplay();
-        
         sessionStorage.removeItem("currentBorrowBookId");
       }
 
       // Smart Search Handler (unified ISBN and title/author search)
       let smartSearchTimeout;
+      // Load available books for modal
+      async function loadAvailableBooksForModal() {
+        console.log('[LoadBooks] Starting load...');
+        smartBorrowState.isLoading = true;
+        smartBorrowState.errorMessage = null;
+        updateSmartSearchDisplay();
+
+        try {
+          // Fetch from /api/books (already filtered for available status)
+          console.log('[LoadBooks] Fetching from /api/books...');
+          const response = await fetchWithCsrf("/api/books");
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch books: ${response.status}`);
+          }
+
+          const result = await response.json();
+          let books = result.data || result || [];
+          
+          console.log('[LoadBooks] Raw books fetched:', books.length);
+          
+          // Filter only available books (available_quantity > 0)
+          books = books.filter(b => {
+            const qty = Number(b.available_quantity ?? b.available_qty ?? b.quantity ?? 0);
+            return qty > 0;
+          });
+          
+          console.log('[LoadBooks] After filtering available:', books.length);
+          
+          // Normalize book IDs
+          books = books.map(b => ({
+            ...b,
+            id: b.book_id ?? b.id ?? b.accession_no,
+            available_quantity: Number(b.available_quantity ?? b.available_qty ?? b.quantity ?? 0)
+          }));
+
+          smartBorrowState.availableBooks = books;
+          smartBorrowState.filteredBooks = books; // Initially show all
+          smartBorrowState.errorMessage = null;
+          
+          console.log('[LoadBooks] Books loaded successfully. Available:', books.length, 'Filtered:', smartBorrowState.filteredBooks.length);
+        } catch (error) {
+          console.error("Error loading available books:", error);
+          smartBorrowState.availableBooks = [];
+          smartBorrowState.filteredBooks = [];
+          smartBorrowState.errorMessage = "Error loading books. Please try again.";
+        } finally {
+          smartBorrowState.isLoading = false;
+          console.log('[LoadBooks] Load complete. Updating display...');
+          updateSmartSearchDisplay();
+        }
+      }
+
       function handleSmartSearch(query) {
         clearTimeout(smartSearchTimeout);
         smartSearchTimeout = setTimeout(() => {
@@ -542,125 +707,93 @@
       }
 
       async function performSmartSearch(query) {
-        if (!query || !query.trim()) {
-          smartBorrowState.searchResults = [];
+        smartBorrowState.searchQuery = query?.trim() || '';
+        
+        if (!smartBorrowState.searchQuery) {
+          // No search - show all available books
+          smartBorrowState.filteredBooks = smartBorrowState.availableBooks;
           smartBorrowState.errorMessage = null;
-          smartBorrowState.searchType = null;
           updateSmartSearchDisplay();
-          updateConfirmButtonState();
           return;
         }
 
-        smartBorrowState.isLoading = true;
-        smartBorrowState.errorMessage = null;
-        updateSmartSearchDisplay();
-        updateConfirmButtonState();
-
         try {
-          const trimmedQuery = query.trim();
+          const lowerQuery = smartBorrowState.searchQuery.toLowerCase();
           
-          // Detect search type: ISBN if mostly numeric, otherwise title/author
-          const isISBNLike = /^[\d\-]+$/.test(trimmedQuery);
-          smartBorrowState.searchType = isISBNLike ? 'isbn' : 'title';
+          // Filter from available books (client-side search)
+          const filtered = smartBorrowState.availableBooks.filter((b) => {
+            const titleMatch = b.title && b.title.toLowerCase().includes(lowerQuery);
+            const authorMatch = b.author && b.author.toLowerCase().includes(lowerQuery);
+            const isbnMatch = b.isbn && b.isbn.toString().toLowerCase().includes(lowerQuery);
+            return titleMatch || authorMatch || isbnMatch;
+          });
 
-          let results = [];
-
-          if (isISBNLike) {
-            // ISBN Search
-            const foundBook = allBooksData.find(
-              (b) => b.isbn && b.isbn.toString().trim() === trimmedQuery
-            );
-            if (foundBook) {
-              results = [foundBook];
-            }
-          } else {
-            // Title/Author Search (case-insensitive, partial match)
-            const lowerQuery = trimmedQuery.toLowerCase();
-            results = allBooksData.filter((b) => {
-              const titleMatch = b.title && b.title.toLowerCase().includes(lowerQuery);
-              const authorMatch = b.author && b.author.toLowerCase().includes(lowerQuery);
-              return titleMatch || authorMatch;
-            });
-          }
-
-          smartBorrowState.searchResults = results;
-
-          if (results.length === 0) {
-            smartBorrowState.errorMessage = isISBNLike 
-              ? "No book found with that ISBN" 
-              : "No books found matching your search";
-          } else if (results.length === 1) {
-            // Auto-add to cart if only one result and it's available
-            const book = results[0];
-            if (book.available_quantity > 0) {
-              addToCart(book);
-              smartBorrowState.errorMessage = null;
-            } else {
-              smartBorrowState.errorMessage = "Book found but not available (0 copies)";
-            }
-          } else {
-            // Multiple results - user needs to select
-            smartBorrowState.errorMessage = null;
-          }
+          smartBorrowState.filteredBooks = filtered;
+          smartBorrowState.errorMessage = filtered.length === 0 
+            ? "No books found matching your search" 
+            : null;
         } catch (error) {
           console.error("Error searching for book:", error);
-          smartBorrowState.searchResults = [];
+          smartBorrowState.filteredBooks = [];
           smartBorrowState.errorMessage = "Error searching. Please try again.";
         } finally {
-          smartBorrowState.isLoading = false;
           updateSmartSearchDisplay();
-          updateConfirmButtonState();
         }
+      }
+
+      // Normalize book ID from various possible fields
+      function normalizeBookId(book) {
+        return book.book_id ?? book.id ?? book.accession_no;
       }
 
       // Add book to cart or increment quantity if already in cart
       function addToCart(book) {
-        const existing = smartBorrowState.cartItems.find(i => i.bookId === book.id);
+        if (!book) {
+          console.error('[AddToCart] Book object is null/undefined');
+          return;
+        }
+
+        const bookId = normalizeBookId(book);
+        console.log('[AddToCart] Adding book:', { title: book.title, bookId: bookId, available: book.available_quantity });
+        
+        const existing = smartBorrowState.cartItems.find(i => i.bookId == bookId);
+        
         if (existing) {
+          console.log('[AddToCart] Book already in cart, incrementing qty from', existing.qty);
           // Increase quantity if not at max
-          existing.qty = Math.min(existing.qty + 1, existing.availableQty);
+          if (existing.qty < existing.availableQty) {
+            existing.qty++;
+          }
         } else {
           // Add new item to cart
-          smartBorrowState.cartItems.push({
-            bookId: book.id,
+          const newItem = {
+            bookId: bookId,
             title: book.title,
             author: book.author || 'Unknown',
             isbn: book.isbn || 'N/A',
             accessionNo: book.accession_no || book.accessionNo || book.isbn,
             availableQty: Number(book.available_quantity ?? book.available_qty ?? book.quantity ?? 1),
             qty: 1
-          });
+          };
+          console.log('[AddToCart] Adding new item to cart:', { title: newItem.title, bookId, availableQty: newItem.availableQty });
+          smartBorrowState.cartItems.push(newItem);
         }
         
-        // Clear search input after adding to cart
-        const searchInput = document.getElementById("smartSearchInput");
-        if (searchInput) {
-          searchInput.value = "";
-        }
+        console.log('[AddToCart] Cart now has', smartBorrowState.cartItems.length, 'items');
         
-        // Clear search results
-        smartBorrowState.searchResults = [];
+        // DO NOT clear search input - let user continue searching
+        // DO NOT clear filtered books - keep the list visible
         
         updateSmartSearchDisplay();
         updateConfirmButtonState();
       }
 
-      // Select a book from search results
+      // Select book from filtered results
       function selectBookFromResults(bookId) {
-        const book = smartBorrowState.searchResults.find(b => b.id == bookId);
+        const book = smartBorrowState.filteredBooks.find(b => normalizeBookId(b) == bookId);
         if (book && book.available_quantity > 0) {
           addToCart(book);
           smartBorrowState.errorMessage = null;
-          
-          // Clear search input after selection
-          const searchInput = document.getElementById("smartSearchInput");
-          if (searchInput) {
-            searchInput.value = "";
-          }
-          
-          // Clear search results to show all available books again
-          smartBorrowState.searchResults = [];
-          
           updateSmartSearchDisplay();
           updateConfirmButtonState();
         }
@@ -680,7 +813,7 @@
         if (smartBorrowState.isLoading) {
           availableBooksContainer.innerHTML = `
             <div style="color: #4ba14e; font-style: italic; text-align: center; padding: 15px;">
-              🔍 Searching...
+              🔍 Loading books...
             </div>
           `;
           return;
@@ -695,25 +828,28 @@
           return;
         }
 
-        if (smartBorrowState.searchResults.length > 0) {
-          // Show search results
-          const resultsHtml = smartBorrowState.searchResults.map(book => {
+        // Show filtered books (or all available books if no search)
+        const booksToShow = smartBorrowState.filteredBooks;
+        
+        if (booksToShow.length > 0) {
+          const resultsHtml = booksToShow.map(book => {
+            const bookId = normalizeBookId(book);
             const isAvailable = book.available_quantity > 0;
-            const isInCart = smartBorrowState.cartItems.some(i => i.bookId === book.id);
+            const isInCart = smartBorrowState.cartItems.some(i => i.bookId == bookId);
             return `
               <button 
                 class="qb-book ${isInCart ? 'qb-selected' : ''} ${!isAvailable ? 'qb-unavailable' : ''}"
                 type="button" 
-                data-book-id="${book.id}"
-                onclick="${isAvailable ? `selectBookFromResults(${book.id})` : ''}" 
-                ${!isAvailable ? 'disabled' : ''}
+                data-book-id="${bookId}"
+                onclick="${isAvailable && !isInCart ? `selectBookFromResults(${bookId})` : ''}" 
+                ${!isAvailable || isInCart ? 'disabled' : ''}
               >
                 <div class="qb-book-title">${book.title}</div>
                 <div class="qb-book-sub">${book.author || 'Unknown'} | ISBN: ${book.isbn || 'N/A'}</div>
                 <div class="qb-book-sub">
-                  ${isAvailable 
-                    ? (isInCart ? `✓ In Cart` : `✓ Available (${book.available_quantity})`) 
-                    : '✗ Not available'}
+                  ${isInCart 
+                    ? `✓ In Cart` 
+                    : (isAvailable ? `✓ Available (${book.available_quantity})` : '✗ Not available')}
                 </div>
               </button>
             `;
@@ -721,10 +857,10 @@
           
           availableBooksContainer.innerHTML = resultsHtml;
         } else {
-          // No search or no results
+          // No books available
           availableBooksContainer.innerHTML = `
             <div style="color: #999; font-style: italic; text-align: center; padding: 15px;">
-              Type to search for books...
+              ${smartBorrowState.searchQuery ? 'No books found matching your search' : 'No available books at the moment'}
             </div>
           `;
         }
@@ -814,6 +950,8 @@
         const hasBooks = smartBorrowState.cartItems.length > 0;
         const hasDate = returnDate && returnDate.value;
 
+        console.log('[UpdateButton] Cart items:', smartBorrowState.cartItems.length, 'Return date:', hasDate, 'Button disabled:', !hasBooks || !hasDate);
+        
         confirmBtn.disabled = !hasBooks || !hasDate;
       }
 
@@ -910,6 +1048,12 @@
           // Clear cart and close modal after 2 seconds
           setTimeout(() => {
             smartBorrowState.cartItems = [];
+            
+            // Clear checkbox selection after successful borrow
+            selectedBooks.clear();
+            updateSelectionUI();
+            updateSelectAllCheckbox();
+            
             closeModal();
             if (messageContainer) {
               messageContainer.innerHTML = '';
@@ -1301,7 +1445,7 @@
           const hasActiveFilters = currentFilters.search || currentFilters.status || currentFilters.category;
           tableBody.innerHTML = `
             <tr>
-              <td colspan="9" class="text-center" style="padding: 40px;">
+              <td colspan="10" class="text-center" style="padding: 40px;">
                 <div style="color: #666; font-size: 1.1em;">
                   <i class="fas fa-search" style="font-size: 3em; color: #ddd; margin-bottom: 15px; display: block;"></i>
                   <strong>${hasActiveFilters ? 'No books matched your search' : 'No books found'}</strong>
@@ -1312,6 +1456,7 @@
               </td>
             </tr>
           `;
+          updateSelectAllCheckbox();
           return;
         }
 
@@ -1319,9 +1464,22 @@
         tableBody.innerHTML = books
           .map(
             (book) => {
+              const bookKey = book.book_id ?? book.id ?? book.accession_no;
               const isAvailable = book.available_quantity > 0;
+              const isSelected = selectedBooks.has(bookKey);
               return `
           <tr>
+            <td style="text-align: center; vertical-align: middle;">
+              <input 
+                type="checkbox" 
+                class="book-checkbox" 
+                data-book-id="${bookKey}"
+                ${isSelected ? 'checked' : ''}
+                ${!isAvailable ? 'disabled' : ''}
+                aria-label="Select ${book.title}"
+                style="cursor: ${isAvailable ? 'pointer' : 'not-allowed'}; width: 18px; height: 18px;"
+              >
+            </td>
             <td>${book.id}</td>
             <td><strong>${book.title}</strong></td>
             <td>${book.author || 'Unknown'}</td>
@@ -1369,6 +1527,7 @@
           .join("");
         
         console.log('[DisplayBooks] HTML generated and set to table body');
+        updateSelectAllCheckbox();
       }
 
       // ==================================================
@@ -1376,6 +1535,28 @@
       // ==================================================
       
       // � Bulk Borrow Functions
+      // Update Select All checkbox state (checked/unchecked/indeterminate)
+      function updateSelectAllCheckbox() {
+        const selectAllCheckbox = document.getElementById("select-all-checkbox");
+        if (!selectAllCheckbox) return;
+
+        const visibleAvailableBooks = allBooksData.filter(b => b.available_quantity > 0);
+        const visibleAvailableKeys = visibleAvailableBooks.map(b => b.book_id ?? b.id ?? b.accession_no);
+        
+        const selectedVisibleCount = visibleAvailableKeys.filter(key => selectedBooks.has(key)).length;
+        
+        if (selectedVisibleCount === 0) {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = false;
+        } else if (selectedVisibleCount === visibleAvailableKeys.length) {
+          selectAllCheckbox.checked = true;
+          selectAllCheckbox.indeterminate = false;
+        } else {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = true;
+        }
+      }
+
       // Initialize event delegation for checkboxes (called once on DOMContentLoaded)
       function initCheckboxEventDelegation() {
         const tableBody = document.querySelector(".user-table tbody");
@@ -1384,7 +1565,7 @@
         // Event delegation - ONE listener on parent handles all checkbox changes
         tableBody.addEventListener("change", (e) => {
           if (e.target.classList.contains("book-checkbox")) {
-            const bookId = parseInt(e.target.dataset.bookId);
+            const bookId = e.target.dataset.bookId;
 
             if (e.target.checked) {
               if (selectedBooks.size >= MAX_SELECTION) {
@@ -1398,25 +1579,30 @@
             }
 
             updateSelectionUI();
+            updateSelectAllCheckbox();
           }
         });
 
         // Select All checkbox handler (initialized once)
         if (selectAllCheckbox) {
           selectAllCheckbox.addEventListener("change", (e) => {
-            const availableBooks = allBooksData.filter(b => b.available_quantity > 0);
+            const visibleAvailableBooks = allBooksData.filter(b => b.available_quantity > 0);
+            const visibleAvailableKeys = visibleAvailableBooks.map(b => b.book_id ?? b.id ?? b.accession_no);
             
             if (e.target.checked) {
-              selectedBooks.clear();
-              availableBooks.slice(0, MAX_SELECTION).forEach(book => {
-                selectedBooks.add(book.id);
+              // Add all visible available books (up to MAX_SELECTION total)
+              visibleAvailableKeys.forEach(key => {
+                if (selectedBooks.size < MAX_SELECTION) {
+                  selectedBooks.add(key);
+                }
               });
 
-              if (availableBooks.length > MAX_SELECTION) {
+              if (visibleAvailableBooks.length > MAX_SELECTION) {
                 showSelectionLimitMessage();
               }
             } else {
-              selectedBooks.clear();
+              // Remove only visible books from selection
+              visibleAvailableKeys.forEach(key => selectedBooks.delete(key));
             }
 
             displayBooks(allBooksData);
@@ -1430,38 +1616,96 @@
         const borrowBtn = document.getElementById("borrow-selected-btn");
         const clearBtn = document.getElementById("clear-selection-btn");
         const countSpan = document.getElementById("selected-count");
+        const toolbar = document.querySelector(".selection-toolbar");
 
         if (countSpan) countSpan.textContent = count;
+
+        // Show/hide toolbar
+        if (toolbar) {
+          toolbar.style.display = count > 0 ? "flex" : "none";
+        }
 
         if (borrowBtn) {
           if (count > 0) {
             borrowBtn.disabled = false;
-            borrowBtn.style.opacity = "1";
-            borrowBtn.style.cursor = "pointer";
-            borrowBtn.style.background = "#4CAF50";
-            borrowBtn.onmouseover = () => borrowBtn.style.background = "#45a049";
-            borrowBtn.onmouseout = () => borrowBtn.style.background = "#4CAF50";
-            clearBtn.style.display = "block";
+            clearBtn.style.display = "inline-block";
           } else {
             borrowBtn.disabled = true;
-            borrowBtn.style.opacity = "0.5";
-            borrowBtn.style.cursor = "not-allowed";
-            borrowBtn.style.background = "#9e9e9e";
-            borrowBtn.onmouseover = null;
-            borrowBtn.onmouseout = null;
             clearBtn.style.display = "none";
           }
         }
       }
 
       function showSelectionLimitMessage() {
-        const message = document.getElementById("selection-message");
-        if (message) {
-          message.style.display = "block";
-          setTimeout(() => {
-            message.style.display = "none";
-          }, 3000);
-        }
+        // Create and show a toast notification
+        const toastContainer = document.getElementById("toast-container") || (() => {
+          const container = document.createElement("div");
+          container.id = "toast-container";
+          container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+          `;
+          document.body.appendChild(container);
+          return container;
+        })();
+
+        const toast = document.createElement("div");
+        toast.style.cssText = `
+          background: linear-gradient(135deg, var(--qb-green), #5ab85a);
+          color: white;
+          padding: 16px 20px;
+          border-radius: 10px;
+          box-shadow: 0 4px 12px rgba(74, 161, 74, 0.3);
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-weight: 600;
+          animation: slideIn 0.3s ease-out;
+        `;
+        toast.innerHTML = `
+          <i class="fas fa-ban" style="font-size: 18px;"></i>
+          <span>Limit reached: You can only select up to 5 books.</span>
+        `;
+
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.animation = "slideOut 0.3s ease-out";
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      // Add toast animations if not already present
+      if (!document.querySelector("style[data-toast-animations]")) {
+        const styleEl = document.createElement("style");
+        styleEl.setAttribute("data-toast-animations", "true");
+        styleEl.textContent = `
+          @keyframes slideIn {
+            from {
+              transform: translateX(450px);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+          @keyframes slideOut {
+            from {
+              transform: translateX(0);
+              opacity: 1;
+            }
+            to {
+              transform: translateX(450px);
+              opacity: 0;
+            }
+          }
+        `;
+        document.head.appendChild(styleEl);
       }
 
       // Bulk borrow button listeners
@@ -1475,10 +1719,38 @@
         const confirmBorrowBtn = document.getElementById("confirm-borrow-btn");
 
         if (borrowSelectedBtn) {
-          borrowSelectedBtn.addEventListener("click", () => {
+          borrowSelectedBtn.addEventListener("click", async () => {
             if (selectedBooks.size === 0) return;
 
-            const selectedBooksData = allBooksData.filter(book => selectedBooks.has(book.id));
+            console.log('[BorrowSelected] Selected IDs:', Array.from(selectedBooks));
+
+            // Get selected books data using normalized keys
+            const selectedBooksData = allBooksData.filter(book => {
+              const bookKey = book.book_id ?? book.id ?? book.accession_no;
+              return selectedBooks.has(bookKey);
+            });
+
+            console.log('[BorrowSelected] Collected books:', selectedBooksData.length);
+            console.log('[BorrowSelected] Books:', selectedBooksData.map(b => b.title));
+
+            // Reset cart for clean preload
+            smartBorrowState.cartItems = [];
+            
+            // Open Smart Borrow modal and load available books
+            await openSmartBorrowModal();
+            
+            console.log('[BorrowSelected] Modal opened. Available books:', smartBorrowState.availableBooks.length);
+            
+            // Add selected books to cart
+            selectedBooksData.forEach(book => {
+              console.log('[BorrowSelected] Adding to cart:', book.title);
+              addToCart(book);
+            });
+            
+            console.log('[BorrowSelected] Final cart:', smartBorrowState.cartItems.length, 'items');
+            
+            return; // Skip the old bulk borrow modal
+
             const modal = document.getElementById("bulk-borrow-modal");
             const booksList = document.getElementById("selected-books-list");
             const bookCount = document.getElementById("modal-book-count");
@@ -1502,6 +1774,7 @@
             selectedBooks.clear();
             displayBooks(allBooksData);
             updateSelectionUI();
+            updateSelectAllCheckbox();
           });
         }
 
@@ -1701,11 +1974,44 @@
             </button>
           </div>
 
+          <!-- Selection Toolbar -->
+          <div class="selection-toolbar" style="display: none;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <span style="font-size: 15px; font-weight: 700;">
+                <i class="fas fa-check-square"></i>
+                <span id="selected-count">0</span> <span>selected (max 5)</span>
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button 
+                id="borrow-selected-btn" 
+                disabled
+                title="Open Smart Borrow modal with selected books"
+              >
+                <i class="fas fa-book-reader"></i> Borrow Selected
+              </button>
+              <button 
+                id="clear-selection-btn" 
+                title="Clear all selections"
+                style="display: none;"
+              >
+                <i class="fas fa-times"></i> Clear
+              </button>
+            </div>
+            <div id="selection-message" style="display: none; font-size: 13px; gap: 6px; align-items: center;">
+              <i class="fas fa-exclamation-circle"></i>
+              <span>Maximum 5 books can be selected</span>
+            </div>
+          </div>
+
           <!-- Books Table -->
           <div class="table-wrapper">
             <table class="user-table">
               <thead>
                 <tr>
+                  <th style="width: 40px; text-align: center;">
+                    <input type="checkbox" id="select-all-checkbox" aria-label="Select all books" style="cursor: pointer; width: 18px; height: 18px;">
+                  </th>
                   <th style="width: 60px;">ID</th>
                   <th>Title</th>
                   <th>Author</th>
@@ -1718,7 +2024,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td colspan="7" class="text-center">Loading books...</td>
+                  <td colspan="10" class="text-center">Loading books...</td>
                 </tr>
               </tbody>
             </table>
@@ -1819,6 +2125,7 @@
 
           <div class="qb-footer">
             <button id="confirmBorrowBtn" class="qb-done" type="button" onclick="handleBorrow()" disabled>Done</button>
+            <button class="qb-cancel" type="button" onclick="closeModal(event)">Cancel</button>
           </div>
         </div>
 

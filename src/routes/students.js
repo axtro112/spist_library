@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require("../utils/db");
 const response = require("../utils/response");
 const logger = require("../utils/logger");
-const { requireStudent, requireAdmin } = require("../middleware/auth");
+const { requireStudent, requireAdmin, requireAuth } = require("../middleware/auth");
 
 
 
@@ -522,9 +522,31 @@ router.post("/borrow-book", requireStudent, async (req, res) => {
 });
 
 // Get student's borrowing history
-router.get("/borrowing-history/:studentId", requireStudent, async (req, res) => {
+router.get("/borrowing-history/:studentId", requireAuth, async (req, res) => {
   try {
     const { studentId } = req.params;
+    const sessionStudentId = req.session.user?.studentId;
+    const userRole = req.session.user?.userRole;
+    const role = req.session.user?.role;
+
+    // Authorization: Allow if:
+    // 1. Student viewing their OWN borrowing history, OR
+    // 2. Admin/Super-admin viewing ANY student's history
+    const isOwnRecord = (userRole === 'student' && sessionStudentId === studentId);
+    const isAdmin = (userRole === 'admin' || role === 'super_admin' || role === 'admin');
+
+    if (!isOwnRecord && !isAdmin) {
+      logger.warn('Unauthorized borrowing history access attempt', { 
+        sessionStudentId, 
+        userRole,
+        role,
+        requestedStudentId: studentId 
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You cannot view this student\'s borrowing history.',
+      });
+    }
 
     const query = `
       SELECT 

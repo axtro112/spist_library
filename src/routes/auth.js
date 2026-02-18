@@ -7,7 +7,11 @@ const db = require("../utils/db");
 const response = require("../utils/response");
 const logger = require("../utils/logger");
 const passport = require("../config/passport");
+const csrf = require("csurf");
 require("dotenv").config();
+
+// CSRF protection - will be applied at the router level
+const csrfProtection = csrf({ cookie: false });
 
 const authenticateAdmin = async (email, password) => {
   const adminResults = await db.query("SELECT * FROM admins WHERE email = ?", [
@@ -50,7 +54,7 @@ const authenticateStudent = async (email, password) => {
   return passwordMatch ? student : null;
 };
 
-router.post("/login", async (req, res) => {
+router.post("/login", csrfProtection, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -132,7 +136,7 @@ const checkExistingStudent = async (email, studentId) => {
   return { exists: false };
 };
 
-router.post("/signup", async (req, res) => {
+router.post("/signup", csrfProtection, async (req, res) => {
   try {
     logger.debug('Signup request received', { body: req.body });
     

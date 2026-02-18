@@ -173,14 +173,17 @@ app.use(passport.session());
 app.use(express.static("public"));
 app.use("/pages", express.static(path.join(__dirname, "src/pages")));
 
-// CSRF Protection middleware - apply GLOBALLY to all routes
-// This ensures req.csrfToken() is available everywhere
+// CSRF Protection middleware - apply only to specific routes
 const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
-app.use(csrfProtection);
 
 // Middleware to make CSRF token available to all routes
 app.use((req, res, next) => {
-  res.locals.csrfToken = req.csrfToken();
+  // Only set csrfToken if middleware has been applied
+  try {
+    res.locals.csrfToken = req.csrfToken();
+  } catch (err) {
+    res.locals.csrfToken = null;
+  }
   next();
 });
 
@@ -193,8 +196,8 @@ app.get("/api/debug/session", (req, res) => {
   });
 });
 
-// Mount routes
-app.use("/auth", authRoutes);
+// Mount routes WITH CSRF protection for auth endpoints only
+app.use("/auth", csrfProtection, authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/book-borrowings", bookBorrowingRoutes);

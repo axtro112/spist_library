@@ -169,16 +169,18 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// CSRF Protection middleware
-const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
-
 // Serve static files FIRST (before routes)
 app.use(express.static("public"));
 app.use("/pages", express.static(path.join(__dirname, "src/pages")));
 
+// CSRF Protection middleware - apply GLOBALLY to all routes
+// This ensures req.csrfToken() is available everywhere
+const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
+app.use(csrfProtection);
+
 // Middleware to make CSRF token available to all routes
 app.use((req, res, next) => {
-  res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
+  res.locals.csrfToken = req.csrfToken();
   next();
 });
 

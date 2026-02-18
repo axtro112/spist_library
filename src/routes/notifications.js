@@ -523,12 +523,10 @@ router.get("/stream", requireAuth, async (req, res) => {
   
   let userId;
   if (req.session.user) {
-    // New session structure
     userId = userType === 'admin' 
       ? String(req.session.user.id) 
       : req.session.user.studentId;
   } else {
-    // Old session structure
     userId = userType === 'admin' 
       ? String(req.session.adminId) 
       : req.session.studentId;
@@ -536,13 +534,12 @@ router.get("/stream", requireAuth, async (req, res) => {
   
   const connectionKey = `${userType}:${userId}`;
 
-  // Set SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no' // Disable nginx buffering
-  });
+  // Set SSE headers - omit Connection header (not valid in HTTP/2)
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx/Railway buffering
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders(); // Flush headers immediately to establish the stream
 
   // Send initial connection message
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`);
@@ -551,16 +548,25 @@ router.get("/stream", requireAuth, async (req, res) => {
   sseConnections.set(connectionKey, res);
   logger.info('SSE connection established', { connectionKey });
 
-  // Send keepalive every 30 seconds
+  // Send keepalive every 15 seconds (more frequent to prevent Railway timeout)
   const keepaliveInterval = setInterval(() => {
-    res.write(`: keepalive\n\n`);
-  }, 30000);
+    try {
+      res.write(`: keepalive\n\n`);
+    } catch (e) {
+      clearInterval(keepaliveInterval);
+    }
+  }, 15000);
 
   // Handle client disconnect
   req.on('close', () => {
     clearInterval(keepaliveInterval);
     sseConnections.delete(connectionKey);
     logger.info('SSE connection closed', { connectionKey });
+  });
+
+  req.on('error', () => {
+    clearInterval(keepaliveInterval);
+    sseConnections.delete(connectionKey);
   });
 });
 

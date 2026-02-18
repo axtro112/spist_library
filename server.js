@@ -176,16 +176,6 @@ const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
 app.use(express.static("public"));
 app.use("/pages", express.static(path.join(__dirname, "src/pages")));
 
-// Mount routes BEFORE applying CSRF (so we can selectively protect endpoints)
-app.use("/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/students", studentRoutes);
-app.use("/api/book-borrowings", bookBorrowingRoutes);
-app.use("/api/book-borrowings", bookReturnRoutes);
-app.use("/api/books", booksRoutes);
-app.use("/api/book-copies", bookCopiesRoutes);
-app.use("/api/notifications", notificationRoutes);
-
 // Middleware to make CSRF token available to all routes
 app.use((req, res, next) => {
   res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
@@ -201,6 +191,7 @@ app.get("/api/debug/session", (req, res) => {
   });
 });
 
+// Mount routes
 app.use("/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/students", studentRoutes);
@@ -210,13 +201,15 @@ app.use("/api/books", booksRoutes);
 app.use("/api/book-copies", bookCopiesRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-// CSRF Error Handler - must come before general error handler
-app.use("/api", (err, req, res, next) => {
+// CSRF Error Handler - must come AFTER routes but BEFORE general error handler
+// Applies to both /auth and /api routes
+app.use((err, req, res, next) => {
   if (err.code === 'EBADCSRFTOKEN') {
     console.error("CSRF Token Error:", {
       method: req.method,
       path: req.path,
       hasToken: !!req.headers['x-csrf-token'],
+      hasBody: !!req.body,
       error: err.message
     });
     return res.status(403).json({

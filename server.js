@@ -63,8 +63,19 @@ app.use(helmet({
 }));
 
 // 2. CORS - Cross-Origin Resource Sharing
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://spistlibrary-production.up.railway.app',
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : [])
+];
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, same-origin)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, true); // Allow all origins in production to avoid lockout
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };

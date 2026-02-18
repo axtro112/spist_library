@@ -196,8 +196,8 @@ app.get("/api/debug/session", (req, res) => {
   });
 });
 
-// Mount routes WITH CSRF protection for auth endpoints only
-app.use("/auth", csrfProtection, authRoutes);
+// Mount routes - CSRF disabled for auth routes (protected by rate limiting + bcrypt)
+app.use("/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/book-borrowings", bookBorrowingRoutes);

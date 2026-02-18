@@ -42,6 +42,9 @@ const PORT = process.env.PORT || 3000;
 
 const app = express();
 
+// Trust Railway's reverse proxy - required for secure cookies and correct IP detection
+app.set('trust proxy', 1);
+
 // ============================================
 // SECURITY MIDDLEWARE
 // ============================================
@@ -171,7 +174,7 @@ app.use(
       maxAge: 1800000, // 30 minutes
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // Use secure cookies in production
-      sameSite: 'strict', // CSRF protection
+      sameSite: process.env.NODE_ENV === "production" ? 'none' : 'lax', // 'none' required for cross-site on Railway proxy
     },
   })
 );

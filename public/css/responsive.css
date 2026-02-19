@@ -1,0 +1,481 @@
+/* ================================================================
+   responsive.css — Global responsive overrides for SPIST Library
+   Load AFTER admin.css / student.css on every dashboard page.
+   Breakpoints:  992px (tablet)  ·  768px (small tablet)  ·  576px (mobile)
+   ================================================================ */
+
+/* ────────────────────────────────────────────────────────────────
+   0.  HAMBURGER TOGGLE BUTTON (hidden on desktop)
+   ──────────────────────────────────────────────────────────────── */
+.sidebar-toggle {
+  display: none;                       /* hidden ≥ 993px */
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 1100;                       /* above sidebar */
+  background: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  transition: background .2s;
+}
+.sidebar-toggle:hover { background: #388e3c; }
+.sidebar-toggle .material-symbols-outlined { font-size: 26px; }
+
+/* ────────────────────────────────────────────────────────────────
+   1.  SIDEBAR OVERLAY BACKDROP (mobile only)
+   ──────────────────────────────────────────────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 199;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.sidebar-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   2.  TABLE RESPONSIVE WRAPPER
+   ──────────────────────────────────────────────────────────────── */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   3.  MODALS — always centred & scrollable
+   ──────────────────────────────────────────────────────────────── */
+.modal {
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-content,
+.modal-content-wide {
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 100%;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   4.  CHARTS — fluid canvas
+   ──────────────────────────────────────────────────────────────── */
+.chart-card canvas {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 200px;
+  max-height: 340px;
+}
+
+/* ================================================================
+   ≤ 992px  —  TABLET
+   ================================================================ */
+@media (max-width: 992px) {
+
+  /* -- Hamburger visible ---------------------------------------- */
+  .sidebar-toggle {
+    display: flex;
+  }
+
+  /* -- ADMIN Sidebar: off-screen by default --------------------- */
+  aside.sidebar {
+    position: fixed;
+    left: -260px;                      /* hidden off-screen */
+    top: 0;
+    width: 240px;
+    height: 100vh;
+    z-index: 200;
+    transition: left .3s ease;
+    overflow-y: auto;
+  }
+  aside.sidebar.open {
+    left: 0;
+  }
+
+  /* -- STUDENT Sidebar: off-screen by default ------------------- */
+  aside.sidebar-container {
+    position: fixed;
+    left: -270px;                      /* hidden off-screen */
+    top: 0;
+    width: 250px;
+    height: 100vh;
+    z-index: 200;
+    transition: left .3s ease;
+    overflow-y: auto;
+  }
+  aside.sidebar-container.open {
+    left: 0;
+  }
+
+  /* -- Make student inner .sidebar non-fixed -------------------- */
+  .sidebar-container .sidebar {
+    position: relative;
+    height: 100%;
+  }
+
+  /* -- Main content takes full width ---------------------------- */
+  .container {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 15px;
+  }
+
+  /* -- Main container: column layout, no extra padding ---------- */
+  .main-container {
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  /* -- Admin header: allow wrapping ----------------------------- */
+  .admin-header {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+    margin-top: 50px;                  /* room for hamburger */
+  }
+
+  /* -- Welcome banner: allow wrapping --------------------------- */
+  .welcome-banner {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+    margin-top: 50px;                  /* room for hamburger */
+  }
+
+  /* -- Stats grids: 2 columns ---------------------------------- */
+  .stats-container,
+  .dashboard-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* -- Charts: single column ------------------------------------ */
+  .charts-container {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* -- Filters / search: stack ---------------------------------- */
+  .search-filter-container {
+    flex-direction: column;
+  }
+  .search-bar-wrapper {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .filter-controls {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  /* -- Tables: hide less-important columns ---------------------- */
+  .user-table th:nth-child(7),
+  .user-table td:nth-child(7),
+  .user-table th:nth-child(8),
+  .user-table td:nth-child(8) {
+    display: none;                     /* hide ISBN & Added Date on tablet */
+  }
+
+  /* -- User info card: column layout ---------------------------- */
+  .user-info {
+    flex-direction: column;
+  }
+  .user-details-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* -- Modals: wider on tablet ---------------------------------- */
+  .modal-content {
+    max-width: 95vw;
+  }
+  .modal-content-wide {
+    max-width: 95vw;
+  }
+
+  /* -- Book actions toolbar ------------------------------------- */
+  .book-actions-buttons {
+    flex-wrap: wrap;
+  }
+  .books-bulk-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* -- Notification panel: narrower ----------------------------- */
+  .notif-panel,
+  .student-notif-panel {
+    width: 360px;
+    max-width: 95vw;
+  }
+}
+
+/* ================================================================
+   ≤ 768px  —  SMALL TABLET / LARGE PHONE
+   ================================================================ */
+@media (max-width: 768px) {
+
+  /* -- Stats grids: single column ------------------------------- */
+  .stats-container,
+  .dashboard-stats {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* -- Admin header & welcome banner: column layout ------------- */
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .admin-info {
+    width: 100%;
+  }
+  .admin-notification-container {
+    align-self: flex-end;
+    margin-top: -36px;                 /* pull bell up beside name */
+  }
+
+  .welcome-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .student-notification-container {
+    align-self: flex-end;
+    margin-top: -36px;
+  }
+
+  /* -- Tables: hide more columns -------------------------------- */
+  .user-table th:nth-child(5),
+  .user-table td:nth-child(5),
+  .user-table th:nth-child(6),
+  .user-table td:nth-child(6) {
+    display: none;                     /* hide Quantity & Category */
+  }
+
+  /* -- User details grid: single-column ------------------------- */
+  .user-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* -- Modals --------------------------------------------------- */
+  .modal-content,
+  .modal-content-wide {
+    max-width: 98vw;
+    padding: 16px;
+    border-radius: 10px;
+  }
+  .modal {
+    padding: 8px;
+  }
+
+  /* -- Form rows: stack ----------------------------------------- */
+  .form-group {
+    width: 100% !important;
+  }
+  .form-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .form-actions .submit-btn,
+  .form-actions .cancel-btn {
+    width: 100%;
+  }
+
+  /* -- Buttons: touch-friendly ---------------------------------- */
+  .btn,
+  .submit-btn,
+  .cancel-btn,
+  .delete-confirm-btn,
+  .logout-confirm-btn {
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
+
+  /* -- Selection toolbar: wrap ---------------------------------- */
+  .selection-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* -- Quick borrow modal: fluid -------------------------------- */
+  .qb-card {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: 10px auto !important;
+  }
+
+  /* -- Recent activity: smaller padding ------------------------- */
+  .recent-activity {
+    padding: 12px;
+  }
+  .activity-list {
+    font-size: 0.9rem;
+  }
+}
+
+/* ================================================================
+   ≤ 576px  —  MOBILE
+   ================================================================ */
+@media (max-width: 576px) {
+
+  .main-container {
+    padding: 6px;
+  }
+
+  .container {
+    padding: 8px !important;
+  }
+
+  /* -- Admin header: compact ------------------------------------ */
+  .admin-header {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-top: 52px;
+  }
+  .admin-details h3 { font-size: 0.9em; }
+  .admin-details p   { font-size: 0.75em; }
+  .admin-avatar { width: 34px; height: 34px; font-size: 16px; }
+
+  /* -- Welcome banner: compact ---------------------------------- */
+  .welcome-banner {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-top: 52px;
+  }
+  .welcome-banner h2 { font-size: 1.15em; }
+  .welcome-banner p  { font-size: 0.8em; }
+
+  /* -- Notification bell adjustments ---------------------------- */
+  .admin-notification-container,
+  .student-notification-container {
+    margin-top: -30px;
+  }
+
+  /* -- Stat cards: compact -------------------------------------- */
+  .stat-card {
+    padding: 14px;
+  }
+  .stat-card .number {
+    font-size: 1.6em;
+  }
+
+  /* -- Tables: hide even more columns, smaller text ------------- */
+  .user-table {
+    font-size: 0.82rem;
+  }
+  .user-table th:nth-child(2),
+  .user-table td:nth-child(2) {
+    display: none;                     /* hide ID column */
+  }
+  /* Checkbox column narrower */
+  .user-table .checkbox-col {
+    width: 32px;
+    padding: 4px;
+  }
+
+  /* -- Actions dropdown: smaller -------------------------------- */
+  .btn-actions {
+    padding: 6px 10px;
+    font-size: 0.82rem;
+  }
+  .actions-menu {
+    min-width: 130px;
+  }
+  .actions-menu .dropdown-item {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+
+  /* -- Delete button: compact ----------------------------------- */
+  .delete-btn {
+    padding: 6px 10px;
+    font-size: 0.82rem;
+  }
+
+  /* -- Table wrapper: horizontal scroll hint -------------------- */
+  .table-wrapper {
+    position: relative;
+  }
+  .table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 30px;
+    height: 100%;
+    background: linear-gradient(to left, rgba(255,255,255,.7), transparent);
+    pointer-events: none;
+  }
+
+  /* -- Search bar: full width ----------------------------------- */
+  .search-filter-container {
+    padding: 12px;
+    gap: 10px;
+  }
+  .modern-filter-wrapper {
+    padding: 12px;
+  }
+
+  /* -- Modals: near full-screen --------------------------------- */
+  .modal-content,
+  .modal-content-wide {
+    max-width: 100vw;
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  /* -- Notification panel: full width --------------------------- */
+  .notif-panel,
+  .student-notif-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-radius: 0 0 12px 12px;
+  }
+
+  /* -- Add admin modal (inline styles) override ----------------- */
+  .modal .modal-content[style] {
+    max-width: 98vw !important;
+    margin: 8px auto !important;
+  }
+
+  /* -- Bulk operations / selection toolbar ----------------------- */
+  .selection-toolbar .selection-actions {
+    flex-wrap: wrap;
+  }
+
+  /* -- Typography: slightly smaller ----------------------------- */
+  .maincontent h2 { font-size: 1.2rem; }
+  .maincontent h3 { font-size: 1.05rem; }
+  .section-heading h3 { font-size: 1rem; }
+}
+
+/* ================================================================
+   ACCESSIBILITY / GLOBAL
+   ================================================================ */
+
+/* Prevent any element from overflowing viewport */
+img, canvas, video, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Smooth transitions for sidebar */
+aside.sidebar,
+aside.sidebar-container {
+  will-change: left;
+}
+
+/* When sidebar is open on mobile, prevent body scroll */
+body.sidebar-open {
+  overflow: hidden;
+}

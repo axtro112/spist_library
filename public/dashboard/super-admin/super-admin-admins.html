@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/css/backup.css" />
     <link rel="stylesheet" href="/css/notifications.css" />
     <link rel="stylesheet" href="/css/auth-layout.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
 
     <!-- Icons -->
     <link
@@ -30,6 +31,7 @@
     <script src="/js/notifications.js"></script>
     <script src="/js/super-admin-guard.js" defer></script>
     <script src="/js/admin-management.js" defer></script>
+    <script src="/js/sidebar-toggle.js" defer></script>
     
     <script>
       // Page initialization
@@ -278,6 +280,39 @@
         margin-right: 0.25rem;
       }
 
+      /* Password wrapper with eye toggle */
+      .password-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+
+      .password-wrapper input {
+        padding-right: 2.8rem;
+        width: 100%;
+      }
+
+      .eye-toggle {
+        position: absolute;
+        right: 0.75rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #888;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        transition: color 0.2s;
+      }
+
+      .eye-toggle:hover {
+        color: #4caf50;
+      }
+
+      .eye-toggle .material-symbols-outlined {
+        font-size: 1.2rem;
+      }
+
       /* Add Admin button */
       .add-admin-btn {
         padding: 0.6rem 1.25rem;
@@ -296,35 +331,6 @@
 
       .add-admin-btn:hover {
         background: #388e3c;
-      }
-
-      /* Password wrapper with toggle */
-      .password-wrapper {
-        position: relative;
-        display: flex;
-        align-items: center;
-      }
-
-      .password-wrapper input {
-        flex: 1;
-        padding-right: 2.75rem !important;
-      }
-
-      .toggle-password {
-        position: absolute;
-        right: 0.75rem;
-        background: none;
-        border: none;
-        cursor: pointer;
-        color: #888;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        transition: color 0.2s;
-      }
-
-      .toggle-password:hover {
-        color: #4caf50;
       }
 
       /* Toast notification */
@@ -509,8 +515,8 @@
                 required
                 placeholder="Minimum 8 characters"
               />
-              <button type="button" class="toggle-password" data-target="addPassword" title="Show/hide password">
-                <span class="material-symbols-outlined" style="font-size:1.2rem;">visibility</span>
+              <button type="button" class="eye-toggle" id="toggleAddPassword" tabindex="-1" aria-label="Toggle password visibility">
+                <span class="material-symbols-outlined" id="eyeIconPassword">visibility</span>
               </button>
             </div>
           </div>
@@ -525,8 +531,8 @@
                 required
                 placeholder="Re-enter your password"
               />
-              <button type="button" class="toggle-password" data-target="addConfirmPassword" title="Show/hide password">
-                <span class="material-symbols-outlined" style="font-size:1.2rem;">visibility</span>
+              <button type="button" class="eye-toggle" id="toggleAddConfirmPassword" tabindex="-1" aria-label="Toggle confirm password visibility">
+                <span class="material-symbols-outlined" id="eyeIconConfirm">visibility</span>
               </button>
             </div>
           </div>

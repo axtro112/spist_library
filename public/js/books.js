@@ -246,7 +246,7 @@ function createBookRow(book) {
         <button class="btn btn-actions dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true" data-book-id="${book.id}">
           Actions <span class="caret-icon">&#9662;</span>
         </button>
-        <ul class="dropdown-menu actions-menu" role="menu">
+        <ul class="actions-menu" role="menu">
           <li role="none"><a href="#" class="dropdown-item action-scan-qr" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;margin-right:6px;">qr_code_2</span>Scan QR</a></li>
           <li role="none"><a href="#" class="dropdown-item action-edit" role="menuitem" data-book='${JSON.stringify(book)}'><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;margin-right:6px;">edit</span>Edit</a></li>
         </ul>

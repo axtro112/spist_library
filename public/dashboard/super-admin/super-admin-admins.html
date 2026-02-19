@@ -277,6 +277,42 @@
       .user-table .btn i {
         margin-right: 0.25rem;
       }
+
+      /* Add Admin button */
+      .add-admin-btn {
+        padding: 0.6rem 1.25rem;
+        background: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+
+      .add-admin-btn:hover {
+        background: #388e3c;
+      }
+
+      /* Toast notification */
+      #toastNotification {
+        position: fixed;
+        top: 1.5rem;
+        right: 1.5rem;
+        z-index: 9999;
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        color: white;
+        max-width: 360px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        animation: slideIn 0.3s ease-out;
+        display: none;
+      }
     </style>
   </head>
 
@@ -367,8 +403,12 @@
         </div>
 
         <div class="maincontent">
-          <div class="user-info">
+          <div class="user-info" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
             <h2>Admin Management</h2>
+            <button id="addAdminBtn" class="add-admin-btn" style="display:none;">
+              <span class="material-symbols-outlined" style="font-size:1.1rem;">person_add</span>
+              Add Admin
+            </button>
           </div>
 
           <div class="spacecontainer">
@@ -396,6 +436,64 @@
             </table>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastNotification"></div>
+
+    <!-- Add Admin Modal -->
+    <div id="modalAddAdmin" class="modal">
+      <div class="modal-content">
+        <h2>Add Admin</h2>
+        <div id="addAdminError" class="modal-error"></div>
+        <form id="addAdminForm" novalidate>
+          <div class="form-group">
+            <label for="addName">Full Name *</label>
+            <input
+              type="text"
+              id="addName"
+              name="fullname"
+              required
+              placeholder="Enter full name"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="addEmail">Email Address *</label>
+            <input
+              type="email"
+              id="addEmail"
+              name="email"
+              required
+              placeholder="Enter email address"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="addPassword">Password *</label>
+            <input
+              type="password"
+              id="addPassword"
+              name="password"
+              required
+              placeholder="Minimum 8 characters"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="addRole">Role *</label>
+            <select id="addRole" name="role" required>
+              <option value="system_admin">System Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="addAdminSubmitBtn">Create Admin</button>
+            <button type="button" class="cancel-btn" id="addAdminCancelBtn">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
 

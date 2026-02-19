@@ -22,6 +22,12 @@ class AdminManagement {
       id: this.currentAdminId
     });
 
+    // Show Add Admin button only for super admins
+    const addBtn = document.getElementById('addAdminBtn');
+    if (addBtn && this.currentAdminRole === 'super_admin') {
+      addBtn.style.display = 'flex';
+    }
+
     // Setup event delegation for table buttons
     this.setupEventDelegation();
     
@@ -82,11 +88,33 @@ class AdminManagement {
       deleteCancelBtn.addEventListener('click', () => this.closeDeleteModal());
     }
 
+    // Add Admin modal submit
+    const addAdminForm = document.getElementById('addAdminForm');
+    if (addAdminForm) {
+      addAdminForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.submitAddAdmin();
+      });
+    }
+
+    // Add Admin modal cancel
+    const addAdminCancelBtn = document.getElementById('addAdminCancelBtn');
+    if (addAdminCancelBtn) {
+      addAdminCancelBtn.addEventListener('click', () => this.closeAddModal());
+    }
+
+    // Add Admin button
+    const addAdminBtn = document.getElementById('addAdminBtn');
+    if (addAdminBtn) {
+      addAdminBtn.addEventListener('click', () => this.openAddModal());
+    }
+
     // Close modals when clicking outside
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('modal') && e.target.classList.contains('show')) {
         if (e.target.id === 'modalEdit') this.closeEditModal();
         if (e.target.id === 'modalDelete') this.closeDeleteModal();
+        if (e.target.id === 'modalAddAdmin') this.closeAddModal();
       }
     });
 
@@ -95,6 +123,7 @@ class AdminManagement {
       if (e.key === 'Escape') {
         this.closeEditModal();
         this.closeDeleteModal();
+        this.closeAddModal();
       }
     });
   }
@@ -191,6 +220,98 @@ class AdminManagement {
         <i class="fas fa-trash"></i> Delete
       </button>
     `;
+  }
+
+  /**
+   * Open Add Admin Modal
+   */
+  openAddModal() {
+    const modal = document.getElementById('modalAddAdmin');
+    if (!modal) return;
+
+    // Reset form and clear errors
+    document.getElementById('addAdminForm').reset();
+    this.clearModalError('addAdminError');
+
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    document.getElementById('addName').focus();
+  }
+
+  /**
+   * Close Add Admin Modal
+   */
+  closeAddModal() {
+    const modal = document.getElementById('modalAddAdmin');
+    if (!modal) return;
+    modal.classList.remove('show');
+    document.body.classList.remove('modal-open');
+    document.getElementById('addAdminForm').reset();
+    this.clearModalError('addAdminError');
+  }
+
+  /**
+   * Submit Add Admin Form
+   */
+  async submitAddAdmin() {
+    const fullname = document.getElementById('addName').value.trim();
+    const email = document.getElementById('addEmail').value.trim();
+    const password = document.getElementById('addPassword').value;
+    const role = document.getElementById('addRole').value;
+
+    // Client-side validation
+    if (!fullname) {
+      this.showModalError('addAdminError', 'Full name is required');
+      return;
+    }
+    if (!email || !this.isValidEmail(email)) {
+      this.showModalError('addAdminError', 'A valid email address is required');
+      return;
+    }
+    if (!password || password.length < 8) {
+      this.showModalError('addAdminError', 'Password must be at least 8 characters');
+      return;
+    }
+
+    const submitBtn = document.getElementById('addAdminSubmitBtn');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    this.clearModalError('addAdminError');
+
+    try {
+      const response = await fetchWithCsrf('/api/admin/admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullname,
+          email,
+          password,
+          role,
+          currentAdminId: this.currentAdminId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const msg = data.message ||
+          (data.errors && data.errors[0] && data.errors[0].msg) ||
+          'Failed to create admin';
+        throw new Error(msg);
+      }
+
+      this.closeAddModal();
+      this.showToast('Admin created successfully', 'success');
+      await this.loadAdmins();
+
+    } catch (error) {
+      console.error('[AdminManagement] Error creating admin:', error);
+      this.showModalError('addAdminError', error.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
   }
 
   /**
@@ -426,19 +547,36 @@ class AdminManagement {
   }
 
   /**
+   * Helper: Show toast notification
+   */
+  showToast(message, type = 'success') {
+    const toast = document.getElementById('toastNotification');
+    if (!toast) {
+      if (type === 'success') alert(message);
+      else alert('Error: ' + message);
+      return;
+    }
+    toast.textContent = message;
+    toast.style.background = type === 'success' ? '#4caf50' : '#f44336';
+    toast.style.display = 'block';
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => {
+      toast.style.display = 'none';
+    }, 3500);
+  }
+
+  /**
    * Helper: Show success message (toast/notification)
    */
   showSuccessMessage(message) {
-    // Using simple alert for now - can be replaced with toast notification
-    alert(message);
+    this.showToast(message, 'success');
   }
 
   /**
    * Helper: Show error message (toast/notification)
    */
   showErrorMessage(message) {
-    // Using simple alert for now - can be replaced with toast notification
-    alert('Error: ' + message);
+    this.showToast('Error: ' + message, 'error');
   }
 }
 

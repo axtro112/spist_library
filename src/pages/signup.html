@@ -107,15 +107,17 @@
 
             <!-- STEP 2: Academic Information -->
             <div class="signup-step-2" style="display: none;">
-              <!-- Free-text input supports diverse user types including students, faculty, and staff -->
               <div class="form-group">
                 <label for="student_type">User Type</label>
-                <input
-                  type="text"
-                  id="student_type"
-                  name="student_type"
-                  placeholder="e.g. Kinder, Grade 1-12, College, Instructor, Staff"
-                />
+                <select id="student_type" name="student_type">
+                  <option value="">-- Select User Type --</option>
+                  <option value="Kindergarten">Kindergarten</option>
+                  <option value="Junior High School">Junior High School</option>
+                  <option value="Senior High School">Senior High School</option>
+                  <option value="College Student">College Student</option>
+                  <option value="Faculty/Maintenance">Faculty/Maintenance</option>
+                  <option value="Instructor">Instructor</option>
+                </select>
               </div>
 
               <div class="form-group">

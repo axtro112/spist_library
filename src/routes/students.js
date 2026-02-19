@@ -487,7 +487,7 @@ router.post("/borrow-book", requireStudent, async (req, res) => {
         WHERE id = ?
         AND available_quantity > 0
       `;
-      const [updateResult] = await conn.queryAsync(updateBookQuery, [bookId]);
+      const updateResult = await conn.queryAsync(updateBookQuery, [bookId]);
 
       if (updateResult.affectedRows === 0) {
         throw new Error("Failed to update book quantity - no copies available");

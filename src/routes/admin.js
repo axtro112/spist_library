@@ -273,120 +273,66 @@ router.put("/books/:id", async (req, res) => {
   }
 
   try {
-    // Start transaction
-    await db.beginTransaction();
-    try {
-      // Verify book exists
-      const book = await db.query(
+    await db.withTransaction(async (conn) => {
+      const book = await conn.queryAsync(
         "SELECT id, status, quantity, available_quantity FROM books WHERE id = ?",
         [bookId]
       );
-      if (book.length === 0) {
-        throw new Error("Book not found");
-      }
+      if (book.length === 0) throw new Error("Book not found");
 
-      // Ensure quantity and available_quantity are set properly
       const bookQuantity = parseInt(quantity) || 1;
-      
-      // Calculate available quantity based on ACTUAL borrowings
-      const [borrowingCount] = await db.query(
-        `SELECT COUNT(*) as count 
-         FROM book_borrowings 
-         WHERE book_id = ? AND return_date IS NULL AND status IN ('borrowed', 'overdue')`,
+      const [borrowingCount] = await conn.queryAsync(
+        `SELECT COUNT(*) as count FROM book_borrowings WHERE book_id = ? AND return_date IS NULL AND status IN ('borrowed', 'overdue')`,
         [bookId]
       );
       const activeBorrowings = borrowingCount.count || 0;
       const newAvailableQty = Math.max(0, bookQuantity - activeBorrowings);
 
-      // Map frontend status to v2.0 status values (active, maintenance, retired)
       let dbStatus = 'active';
-      if (status === 'maintenance') {
-        dbStatus = 'maintenance';
-      } else if (status === 'retired') {
-        dbStatus = 'retired';
-      } else if (status === 'borrowed' || status === 'available' || status === 'All Borrowed' || status === 'Available') {
-        // For borrowed/available status, keep as 'active' but manage via available_quantity
-        dbStatus = 'active';
-      } else {
-        // Default to active for any other status
-        dbStatus = 'active';
-      }
+      if (status === 'maintenance') dbStatus = 'maintenance';
+      else if (status === 'retired') dbStatus = 'retired';
 
-      // Update book details with quantity and available_quantity
-      await db.query(
-        `UPDATE books 
-         SET title = ?, author = ?, category = ?, isbn = ?, 
-             status = ?, quantity = ?, available_quantity = ?,
-             updated_at = NOW()
-         WHERE id = ?`,
+      await conn.queryAsync(
+        `UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ?, available_quantity = ?, updated_at = NOW() WHERE id = ?`,
         [title, author, category, isbn, dbStatus, bookQuantity, newAvailableQty, bookId]
       );
 
       logger.info('Book updated', { bookId, dbStatus, bookQuantity, newAvailableQty });
 
-      // Handle borrowing status
       if (status === "borrowed") {
-        if (!student_id) {
-          throw new Error("Student ID is required when status is borrowed");
-        }
+        if (!student_id) throw new Error("Student ID is required when status is borrowed");
 
-        // Check if book is already borrowed
-        const currentBorrowing = await db.query(
-          `SELECT bb.id, bb.student_id 
-           FROM book_borrowings bb 
-           WHERE bb.book_id = ? 
-           AND bb.status IN ('borrowed', 'overdue') 
-           AND bb.return_date IS NULL`,
+        const currentBorrowing = await conn.queryAsync(
+          `SELECT bb.id, bb.student_id FROM book_borrowings bb WHERE bb.book_id = ? AND bb.status IN ('borrowed', 'overdue') AND bb.return_date IS NULL`,
           [bookId]
         );
 
         if (currentBorrowing.length > 0) {
-          // If current borrower is different from new borrower
           if (currentBorrowing[0].student_id !== student_id) {
-            // Return the current borrowing
-            await db.query(
-              `UPDATE book_borrowings 
-               SET status = 'returned', return_date = CURRENT_TIMESTAMP 
-               WHERE id = ?`,
+            await conn.queryAsync(
+              `UPDATE book_borrowings SET status = 'returned', return_date = CURRENT_TIMESTAMP WHERE id = ?`,
               [currentBorrowing[0].id]
             );
-
-            // Create new borrowing record
-            await db.query(
-              `INSERT INTO book_borrowings 
-               (book_id, student_id, borrow_date, due_date, status) 
-               VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
+            await conn.queryAsync(
+              `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status) VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
               [bookId, student_id]
             );
           }
-          // If same borrower, do nothing
         } else {
-          // No current borrowing, create new one
-          await db.query(
-            `INSERT INTO book_borrowings 
-             (book_id, student_id, borrow_date, due_date, status) 
-             VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
+          await conn.queryAsync(
+            `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status) VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
             [bookId, student_id]
           );
         }
       } else if (status === "available") {
-        // Mark any existing borrowings as returned
-        await db.query(
-          `UPDATE book_borrowings 
-           SET status = 'returned', return_date = CURRENT_TIMESTAMP 
-           WHERE book_id = ? 
-           AND status IN ('borrowed', 'overdue') 
-           AND return_date IS NULL`,
+        await conn.queryAsync(
+          `UPDATE book_borrowings SET status = 'returned', return_date = CURRENT_TIMESTAMP WHERE book_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL`,
           [bookId]
         );
       }
+    });
 
-      await db.commit();
-      response.success(res, null, 'Book updated successfully');
-    } catch (transactionError) {
-      await db.rollback();
-      throw transactionError;
-    }
+    response.success(res, null, 'Book updated successfully');
   } catch (err) {
     logger.error('Error updating book', { bookId, error: err.message });
     response.error(res, 'Error updating book', err);
@@ -415,20 +361,13 @@ router.delete("/books/:id", async (req, res) => {
     }
 
     // Delete book and its borrowing records in a transaction
-    await db.beginTransaction();
-    try {
-      await db.query("DELETE FROM book_borrowings WHERE book_id = ?", [
-        bookId,
-      ]);
-      await db.query("DELETE FROM books WHERE id = ?", [bookId]);
+    await db.withTransaction(async (conn) => {
+      await conn.queryAsync("DELETE FROM book_borrowings WHERE book_id = ?", [bookId]);
+      await conn.queryAsync("DELETE FROM books WHERE id = ?", [bookId]);
+    });
 
-      await db.commit();
-      logger.info('Book deleted successfully', { bookId });
-      response.success(res, null, 'Book deleted successfully');
-    } catch (transactionError) {
-      await db.rollback();
-      throw transactionError;
-    }
+    logger.info('Book deleted successfully', { bookId });
+    response.success(res, null, 'Book deleted successfully');
   } catch (err) {
     logger.error('Error deleting book', { bookId, error: err.message });
     response.error(res, 'Error deleting book', err);

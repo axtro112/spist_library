@@ -734,6 +734,78 @@ body.modal-open {
   transition: opacity 0.3s, transform 0.3s;
 }
 
+/* ── Actions Dropdown ─────────────────────────────────────── */
+.actions-dropdown {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.btn-actions {
+  background-color: #4caf50;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.btn-actions:hover {
+  background-color: #43a047;
+}
+
+.btn-actions .caret-icon {
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.actions-dropdown.show .caret-icon {
+  transform: rotate(180deg);
+}
+
+.actions-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  min-width: 150px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 6px 0;
+  list-style: none;
+  z-index: 1050;
+}
+
+.actions-dropdown.show .actions-menu {
+  display: block;
+}
+
+.actions-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  color: #333;
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.actions-menu .dropdown-item:hover {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.actions-menu .dropdown-item .material-symbols-outlined {
+  font-size: 18px;
+  margin-right: 6px;
+}
+/* ── /Actions Dropdown ────────────────────────────────────── */
+
 .edit-btn {
   background-color: #4caf50;
   color: white;

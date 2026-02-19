@@ -242,12 +242,15 @@ function createBookRow(book) {
     book.borrowed_by || "-"
   }</td>
     <td>
-      <button class="btn view-copies-btn" data-book-id="${book.id}" title="View Copies (Accession Numbers)">
-        <span class="material-symbols-outlined">qr_code_2</span>
-      </button>
-      <button class="btn edit-btn" data-book='${JSON.stringify(
-        book
-      )}'>Edit</button>
+      <div class="actions-dropdown">
+        <button class="btn btn-actions dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true" data-book-id="${book.id}">
+          Actions <span class="caret-icon">&#9662;</span>
+        </button>
+        <ul class="dropdown-menu actions-menu" role="menu">
+          <li role="none"><a href="#" class="dropdown-item action-scan-qr" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;margin-right:6px;">qr_code_2</span>Scan QR</a></li>
+          <li role="none"><a href="#" class="dropdown-item action-edit" role="menuitem" data-book='${JSON.stringify(book)}'><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;margin-right:6px;">edit</span>Edit</a></li>
+        </ul>
+      </div>
       <button class="btn delete-btn" data-book-id="${book.id}" ${
     isBorrowed ? "disabled" : ""
   }>Delete</button>
@@ -260,23 +263,8 @@ function createBookRow(book) {
 }
 
 function attachRowEventListeners(row) {
-  const viewCopiesBtn = row.querySelector(".view-copies-btn");
-  const editBtn = row.querySelector(".edit-btn");
+  // Scan QR and Edit are handled by document-level event delegation (Actions dropdown)
   const deleteBtn = row.querySelector(".delete-btn");
-
-  viewCopiesBtn?.addEventListener("click", function () {
-    const bookId = this.dataset.bookId;
-    if (typeof bookCopyManager !== 'undefined') {
-      bookCopyManager.showCopies(bookId);
-    } else {
-      alert('Book copy manager not loaded. Please refresh the page.');
-    }
-  });
-
-  editBtn.addEventListener("click", function () {
-    const bookData = JSON.parse(this.dataset.book);
-    handleEditClick(bookData);
-  });
 
   deleteBtn.addEventListener("click", function () {
     const bookId = this.dataset.bookId;
@@ -285,6 +273,79 @@ function attachRowEventListeners(row) {
     showModal("modalDelete");
   });
 }
+
+// ── Actions Dropdown: Event Delegation ──────────────────────────────────────
+
+/** Close every open Actions dropdown on the page */
+function closeAllActionDropdowns() {
+  document.querySelectorAll('.actions-dropdown.show').forEach(function (dd) {
+    dd.classList.remove('show');
+    var toggle = dd.querySelector('.dropdown-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  });
+}
+
+/**
+ * Single document-level click listener that handles:
+ *  1) Toggling the Actions dropdown open / closed
+ *  2) "Scan QR" item  → bookCopyManager.showCopies()
+ *  3) "Edit" item     → handleEditClick()
+ *  4) Closing dropdowns when clicking anywhere else
+ */
+document.addEventListener('click', function (e) {
+
+  /* ── 1. Toggle button ─────────────────────────────────────────────── */
+  var toggleBtn = e.target.closest('.btn-actions.dropdown-toggle');
+  if (toggleBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    var dropdown = toggleBtn.closest('.actions-dropdown');
+    var isOpen = dropdown.classList.contains('show');
+    closeAllActionDropdowns();          // close any other open dropdown first
+    if (!isOpen) {
+      dropdown.classList.add('show');
+      toggleBtn.setAttribute('aria-expanded', 'true');
+    }
+    return;
+  }
+
+  /* ── 2. Scan QR action ────────────────────────────────────────────── */
+  var scanQrItem = e.target.closest('.action-scan-qr');
+  if (scanQrItem) {
+    e.preventDefault();
+    var bookId = scanQrItem.dataset.bookId;
+    if (!bookId) { console.error('Actions dropdown: missing book ID for Scan QR'); return; }
+    closeAllActionDropdowns();
+    if (typeof bookCopyManager !== 'undefined') {
+      bookCopyManager.showCopies(bookId);
+    } else {
+      alert('Book copy manager not loaded. Please refresh the page.');
+    }
+    return;
+  }
+
+  /* ── 3. Edit action ───────────────────────────────────────────────── */
+  var editItem = e.target.closest('.action-edit');
+  if (editItem) {
+    e.preventDefault();
+    var bookDataStr = editItem.dataset.book;
+    if (!bookDataStr) { console.error('Actions dropdown: missing book data for Edit'); return; }
+    closeAllActionDropdowns();
+    try {
+      var bookData = JSON.parse(bookDataStr);
+      handleEditClick(bookData);
+    } catch (err) {
+      console.error('Actions dropdown: failed to parse book data', err);
+      alert('Error loading book data. Please try again.');
+    }
+    return;
+  }
+
+  /* ── 4. Click outside → close all ─────────────────────────────────── */
+  if (!e.target.closest('.actions-dropdown')) {
+    closeAllActionDropdowns();
+  }
+});
 
 function handleEditClick(book) {
   if (!book?.id) {

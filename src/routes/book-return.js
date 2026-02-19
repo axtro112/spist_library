@@ -7,7 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
+const db = require('../utils/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const response = require('../utils/response');
 const logger = require('../utils/logger');

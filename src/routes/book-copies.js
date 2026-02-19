@@ -7,7 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
+const db = require('../utils/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const response = require('../utils/response');
 const logger = require('../utils/logger');
@@ -111,40 +111,22 @@ router.post('/', requireAdmin, async (req, res) => {
     // Get current year and next sequence
     const currentYear = new Date().getFullYear();
     
-    await db.beginTransaction();
-    
-    try {
-      // Get and increment sequence
-      const [seqRow] = await db.query(
-        'SELECT last_sequence FROM accession_sequence WHERE year = ? FOR UPDATE',
-        [currentYear]
-      );
-      
-      let sequence = 1;
-      if (seqRow && seqRow.last_sequence) {
-        sequence = seqRow.last_sequence + 1;
-        await db.query(
-          'UPDATE accession_sequence SET last_sequence = ? WHERE year = ?',
-          [sequence, currentYear]
-        );
-      } else {
-        await db.query(
-          'INSERT INTO accession_sequence (year, last_sequence) VALUES (?, ?)',
-          [currentYear, sequence]
-        );
-      }
-      
-      const accessionNumber = `ACC-${currentYear}-${String(sequence).padStart(5, '0')}`;
-      
+    let accessionNumber, copyNumber;
+
+    await db.withTransaction(async (conn) => {
+      // Generate accession number based on total existing copies count
+      const totalRows = await conn.queryAsync('SELECT COUNT(*) as total FROM book_copies');
+      const sequence = (totalRows[0].total || 0) + 1;
+      accessionNumber = `ACC-${currentYear}-${String(sequence).padStart(5, '0')}`;
+
       // Get next copy number for this book
-      const [maxCopy] = await db.query(
+      const maxCopyRows = await conn.queryAsync(
         'SELECT COALESCE(MAX(copy_number), 0) as max_copy FROM book_copies WHERE book_id = ?',
         [book_id]
       );
-      const copyNumber = maxCopy.max_copy + 1;
-      
-      // Insert new copy
-      await db.query(`
+      copyNumber = maxCopyRows[0].max_copy + 1;
+
+      await conn.queryAsync(`
         INSERT INTO book_copies 
         (accession_number, book_id, copy_number, condition_status, location, notes, status)
         VALUES (?, ?, ?, ?, ?, ?, 'available')
@@ -156,33 +138,15 @@ router.post('/', requireAdmin, async (req, res) => {
         location || 'Main Library',
         notes
       ]);
-      
-      // Update book quantity
-      await db.query(
+
+      await conn.queryAsync(
         'UPDATE books SET quantity = quantity + 1, available_quantity = available_quantity + 1 WHERE id = ?',
         [book_id]
       );
-      
-      // Log audit
-      await db.query(`
-        INSERT INTO book_copy_audit (accession_number, action, new_value, performed_by, notes)
-        VALUES (?, 'created', ?, ?, ?)
-      `, [
-        accessionNumber,
-        JSON.stringify({ copyNumber, condition: condition_status || 'excellent' }),
-        req.session?.user?.id || null,
-        'New copy added to inventory'
-      ]);
-      
-      await db.commit();
-      
-      logger.info('New book copy created', { accessionNumber, bookId: book_id, copyNumber });
-      response.success(res, { accession_number: accessionNumber, copy_number: copyNumber }, 'Copy added successfully');
-      
-    } catch (txError) {
-      await db.rollback();
-      throw txError;
-    }
+    });
+
+    logger.info('New book copy created', { accessionNumber, bookId: book_id, copyNumber });
+    response.success(res, { accession_number: accessionNumber, copy_number: copyNumber }, 'Copy added successfully');
     
   } catch (error) {
     logger.error('Error creating book copy', { error: error.message });

@@ -452,8 +452,7 @@ router.post("/borrow-book", requireStudent, async (req, res) => {
     }
 
     // Create borrowing transaction
-    await db.beginTransaction();
-    try {
+    const borrowResult = await db.withTransaction(async (conn) => {
       const borrowQuery = `
         INSERT INTO book_borrowings (
           book_id, 
@@ -473,10 +472,10 @@ router.post("/borrow-book", requireStudent, async (req, res) => {
           'borrowed'
         )
       `;
-      await db.query(borrowQuery, [bookId, studentId, accessionNumber, copyCondition, returnDate]);
+      await conn.queryAsync(borrowQuery, [bookId, studentId, accessionNumber, copyCondition, returnDate]);
 
       // Mark the specific copy as borrowed
-      await db.query(
+      await conn.queryAsync(
         "UPDATE book_copies SET status = 'borrowed' WHERE accession_number = ?",
         [accessionNumber]
       );
@@ -488,33 +487,18 @@ router.post("/borrow-book", requireStudent, async (req, res) => {
         WHERE id = ?
         AND available_quantity > 0
       `;
-      const updateResult = await db.query(updateBookQuery, [bookId]);
+      const [updateResult] = await conn.queryAsync(updateBookQuery, [bookId]);
 
       if (updateResult.affectedRows === 0) {
         throw new Error("Failed to update book quantity - no copies available");
       }
 
-      // Log to audit trail
-      await db.query(`
-        INSERT INTO book_copy_audit (accession_number, action, new_value, notes)
-        VALUES (?, 'borrowed', ?, ?)
-      `, [
-        accessionNumber,
-        JSON.stringify({ student_id: studentId, due_date: returnDate }),
-        `Borrowed by ${studentId}`
-      ]);
+      return { dueDate: returnDate, accessionNumber };
+    });
 
-      await db.commit();
-      logger.info('Single book borrowed successfully', { studentId, bookId, accessionNumber, returnDate });
+    logger.info('Single book borrowed successfully', { studentId, bookId, accessionNumber, returnDate });
+    response.success(res, borrowResult, `Book borrowed successfully (Copy: ${accessionNumber})`);
 
-      response.success(res, { 
-        dueDate: returnDate,
-        accessionNumber: accessionNumber 
-      }, `Book borrowed successfully (Copy: ${accessionNumber})`);
-    } catch (transactionError) {
-      await db.rollback();
-      throw transactionError;
-    }
   } catch (err) {
     logger.error('Error borrowing book', { error: err.message, studentId, bookId });
     response.error(res, 'Error borrowing book', err);
@@ -617,26 +601,17 @@ router.post("/borrow-multiple", async (req, res) => {
   }
 
   try {
-    // Start transaction
-    await db.beginTransaction();
-
-    // Check current active borrowings for student
+    // Validation 5: Check active borrowings count (read-only, before transaction)
     const countQuery = `
       SELECT COUNT(*) as activeCount 
       FROM book_borrowings 
       WHERE student_id = ? 
       AND status IN ('borrowed', 'overdue', 'pending')
     `;
-
     const countResult = await db.query(countQuery, [studentId]);
     const currentActiveBorrowings = countResult[0].activeCount;
 
-    // Validation 5: Total borrowing limit (5 active at a time)
     if (currentActiveBorrowings + uniqueBookIds.length > 5) {
-      await new Promise((resolve) => {
-        db.rollback(() => resolve());
-      });
-
       return res.status(400).json({ 
         error: `You currently have ${currentActiveBorrowings} active borrowing(s). You can only have 5 books borrowed at a time.`,
         currentBorrowings: currentActiveBorrowings,
@@ -644,141 +619,101 @@ router.post("/borrow-multiple", async (req, res) => {
       });
     }
 
-    // Fetch book details and validate availability
+    // Validation 6 & 7: Check books exist and have available copies (read-only)
     const booksQuery = `
       SELECT id, title, author, isbn, available_quantity, status 
       FROM books 
       WHERE id IN (?) 
-      AND status = 'active'
+      AND status = 'available'
     `;
-
     const books = await db.query(booksQuery, [uniqueBookIds]);
 
-    // Validation 6: All books must exist
     if (books.length !== uniqueBookIds.length) {
-      await new Promise((resolve) => {
-        db.rollback(() => resolve());
-      });
-
       return res.status(404).json({ 
         error: "One or more books not found or are not available for borrowing." 
       });
     }
 
-    // Validation 7: All books must have available copies
     const unavailableBooks = books.filter(book => book.available_quantity <= 0);
     if (unavailableBooks.length > 0) {
-      await new Promise((resolve) => {
-        db.rollback(() => resolve());
-      });
-
       return res.status(400).json({ 
         error: `The following books are not available: ${unavailableBooks.map(b => b.title).join(', ')}`,
-        unavailableBooks: unavailableBooks.map(b => ({
-          id: b.id,
-          title: b.title
-        }))
+        unavailableBooks: unavailableBooks.map(b => ({ id: b.id, title: b.title }))
       });
     }
 
     // Calculate default dates (current date + 14 days)
     const borrowDate = new Date();
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 14); // 2 weeks borrowing period
-
+    dueDate.setDate(dueDate.getDate() + 14);
     const borrowDateStr = borrowDate.toISOString().split('T')[0];
     const dueDateStr = dueDate.toISOString().split('T')[0];
 
-    // Create borrowing records with accession numbers
-    const borrowings = [];
+    // Execute all inserts/updates inside a single transaction
+    const borrowings = await db.withTransaction(async (conn) => {
+      const results = [];
 
-    for (const book of books) {
-      // Get first available copy for this book
-      const availableCopyQuery = `
-        SELECT accession_number, condition_status
-        FROM book_copies
-        WHERE book_id = ? AND status = 'available'
-        ORDER BY copy_number ASC
-        LIMIT 1
-      `;
-      const [availableCopy] = await db.query(availableCopyQuery, [book.id]);
+      for (const book of books) {
+        const availableCopyQuery = `
+          SELECT accession_number, condition_status
+          FROM book_copies
+          WHERE book_id = ? AND status = 'available'
+          ORDER BY copy_number ASC
+          LIMIT 1
+        `;
+        const availableCopyRows = await conn.queryAsync(availableCopyQuery, [book.id]);
+        const availableCopy = availableCopyRows[0];
 
-      if (!availableCopy) {
-        throw new Error(`No available copies found for book: ${book.title}`);
+        if (!availableCopy) {
+          throw new Error(`No available copies found for book: ${book.title}`);
+        }
+
+        const accessionNumber = availableCopy.accession_number;
+        const copyCondition = availableCopy.condition_status;
+
+        const insertQuery = `
+          INSERT INTO book_borrowings 
+          (book_id, student_id, accession_number, copy_condition_at_borrow, borrow_date, due_date, status) 
+          VALUES (?, ?, ?, ?, ?, ?, 'borrowed')
+        `;
+        const borrowingResult = await conn.queryAsync(insertQuery, [
+          book.id, studentId, accessionNumber, copyCondition, borrowDateStr, dueDateStr
+        ]);
+
+        await conn.queryAsync(
+          "UPDATE book_copies SET status = 'borrowed' WHERE accession_number = ?",
+          [accessionNumber]
+        );
+
+        const updateQuery = `
+          UPDATE books 
+          SET available_quantity = available_quantity - 1 
+          WHERE id = ? 
+          AND available_quantity > 0
+        `;
+        const updateResult = await conn.queryAsync(updateQuery, [book.id]);
+
+        if (updateResult.affectedRows === 0) {
+          throw new Error(`Failed to update quantity for book: ${book.title}`);
+        }
+
+        results.push({
+          borrowingId: borrowingResult.insertId,
+          bookId: book.id,
+          title: book.title,
+          author: book.author,
+          accessionNumber: accessionNumber,
+          borrowDate: borrowDateStr,
+          dueDate: dueDateStr
+        });
       }
-
-      const accessionNumber = availableCopy.accession_number;
-      const copyCondition = availableCopy.condition_status;
-
-      // Insert borrowing record with accession number
-      const insertQuery = `
-        INSERT INTO book_borrowings 
-        (book_id, student_id, accession_number, copy_condition_at_borrow, borrow_date, due_date, status) 
-        VALUES (?, ?, ?, ?, ?, ?, 'borrowed')
-      `;
-
-      const borrowingResult = await db.query(insertQuery, [
-        book.id, 
-        studentId,
-        accessionNumber,
-        copyCondition,
-        borrowDateStr, 
-        dueDateStr
-      ]);
-
-      // Mark the specific copy as borrowed
-      await db.query(
-        "UPDATE book_copies SET status = 'borrowed' WHERE accession_number = ?",
-        [accessionNumber]
-      );
-
-      // Decrement available_quantity (atomic operation with row lock)
-      const updateQuery = `
-        UPDATE books 
-        SET available_quantity = available_quantity - 1 
-        WHERE id = ? 
-        AND available_quantity > 0
-      `;
-
-      const updateResult = await db.query(updateQuery, [book.id]);
-
-      // Log to audit trail
-      await db.query(`
-        INSERT INTO book_copy_audit (accession_number, action, new_value, notes)
-        VALUES (?, 'borrowed', ?, ?)
-      `, [
-        accessionNumber,
-        JSON.stringify({ student_id: studentId, due_date: dueDateStr }),
-        `Bulk borrowed by ${studentId}`
-      ]);
-
-      // Validation 8: Ensure quantity was actually decremented
-      if (updateResult.affectedRows === 0) {
-        throw new Error(`Failed to update quantity for book: ${book.title}`);
-      }
-
-      borrowings.push({
-        borrowingId: borrowingResult.insertId,
-        bookId: book.id,
-        title: book.title,
-        author: book.author,
-        accessionNumber: accessionNumber,
-        borrowDate: borrowDateStr,
-        dueDate: dueDateStr
-      });
-    }
-
-    // Commit transaction
-    await db.commit();
-
-    // Log successful bulk borrow
-    logger.info('Bulk borrow successful', { 
-      studentId, 
-      bookCount: borrowings.length, 
-      books: borrowings.map(b => b.title) 
+      return results;
     });
 
-    // Success response
+    logger.info('Bulk borrow successful', { 
+      studentId, bookCount: borrowings.length, books: borrowings.map(b => b.title) 
+    });
+
     res.json({
       success: true,
       successCount: borrowings.length,
@@ -788,9 +723,6 @@ router.post("/borrow-multiple", async (req, res) => {
     });
 
   } catch (error) {
-    // Rollback on any error
-    await db.rollback();
-
     logger.error('Bulk borrow error', { error: error.message, studentId, bookIds });
     response.error(res, 'Failed to process bulk borrowing request. Please try again.', error);
   }
@@ -816,55 +748,35 @@ router.delete("/bulk", requireAdmin, async (req, res) => {
   const failedDeletes = [];
 
   try {
-    await db.beginTransaction();
+    await db.withTransaction(async (conn) => {
+      for (const studentId of studentIds) {
+        try {
+          const activeBorrowings = await conn.queryAsync(
+            `SELECT COUNT(*) as count FROM book_borrowings 
+             WHERE student_id = ? AND status IN ('borrowed', 'overdue')`,
+            [studentId]
+          );
 
-    for (const studentId of studentIds) {
-      try {
-        // Check if student has active borrowings
-        const activeBorrowings = await db.query(
-          `SELECT COUNT(*) as count FROM book_borrowings 
-           WHERE student_id = ? AND status IN ('borrowed', 'overdue')`,
-          [studentId]
-        );
+          if (activeBorrowings[0].count > 0) {
+            failedDeletes.push({ studentId, reason: 'Student has active book borrowings' });
+            continue;
+          }
 
-        if (activeBorrowings[0].count > 0) {
-          failedDeletes.push({
-            studentId,
-            reason: 'Student has active book borrowings'
-          });
-          continue;
+          await conn.queryAsync('DELETE FROM book_borrowings WHERE student_id = ?', [studentId]);
+
+          const deleteResult = await conn.queryAsync('DELETE FROM students WHERE student_id = ?', [studentId]);
+
+          if (deleteResult.affectedRows > 0) {
+            successfulDeletes.push(studentId);
+          } else {
+            failedDeletes.push({ studentId, reason: 'Student not found' });
+          }
+        } catch (err) {
+          logger.error('Error deleting student', { studentId, error: err.message });
+          failedDeletes.push({ studentId, reason: err.message });
         }
-
-        // Delete borrowing history first
-        await db.query(
-          'DELETE FROM book_borrowings WHERE student_id = ?',
-          [studentId]
-        );
-
-        // Delete student
-        const deleteResult = await db.query(
-          'DELETE FROM students WHERE student_id = ?',
-          [studentId]
-        );
-
-        if (deleteResult.affectedRows > 0) {
-          successfulDeletes.push(studentId);
-        } else {
-          failedDeletes.push({
-            studentId,
-            reason: 'Student not found'
-          });
-        }
-      } catch (error) {
-        logger.error('Error deleting student', { studentId, error: error.message });
-        failedDeletes.push({
-          studentId,
-          reason: error.message
-        });
       }
-    }
-
-    await db.commit();
+    });
 
     logger.info('Bulk delete completed', { 
       successful: successfulDeletes.length, 
@@ -880,7 +792,6 @@ router.delete("/bulk", requireAdmin, async (req, res) => {
     }, `Successfully deleted ${successfulDeletes.length} student(s)`);
 
   } catch (error) {
-    await db.rollback();
     logger.error('Bulk delete transaction error', { error: error.message });
     response.error(res, 'Failed to process bulk delete request', error);
   }

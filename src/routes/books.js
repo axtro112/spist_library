@@ -102,7 +102,7 @@ router.post("/borrow", async (req, res) => {
 
   try {
     // Check if book has available copies
-    const books = await db.query("SELECT available_quantity FROM books WHERE id = ? AND status = 'active'", [
+    const books = await db.query("SELECT available_quantity FROM books WHERE id = ? AND status = 'available'", [
       bookId,
     ]);
     if (!books.length || books[0].available_quantity <= 0) {
@@ -110,27 +110,16 @@ router.post("/borrow", async (req, res) => {
       return response.validationError(res, 'No copies available for borrowing');
     }
 
-    // Create borrowing record and decrease available quantity in transaction
-    await db.beginTransaction();
-    try {
-      // Create borrowing record
-      await db.query(
+    await db.withTransaction(async (conn) => {
+      await conn.queryAsync(
         "INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, approved_by, notes, status) VALUES (?, ?, ?, ?, ?, ?, 'borrowed')",
         [bookId, studentId, borrowDate, returnDate, adminId || null, notes]
       );
+      await conn.queryAsync("UPDATE books SET available_quantity = available_quantity - 1 WHERE id = ?", [bookId]);
+    });
 
-      // Decrease available quantity
-      await db.query("UPDATE books SET available_quantity = available_quantity - 1 WHERE id = ?", [
-        bookId,
-      ]);
-
-      await db.commit();
-      logger.info('Book borrowed successfully', { bookId, studentId });
-      response.success(res, null, 'Book borrowed successfully');
-    } catch (transactionError) {
-      await db.rollback();
-      throw transactionError;
-    }
+    logger.info('Book borrowed successfully', { bookId, studentId });
+    response.success(res, null, 'Book borrowed successfully');
   } catch (error) {
     logger.error('Error borrowing book', { error: error.message, bookId, studentId });
     response.error(res, 'Error borrowing book', error);

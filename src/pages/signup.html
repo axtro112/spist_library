@@ -110,36 +110,31 @@
               <!-- Free-text input supports diverse user types including students, faculty, and staff -->
               <div class="form-group">
                 <label for="student_type">User Type</label>
-                <input
-                  type="text"
-                  id="student_type"
-                  name="student_type"
-                  placeholder="Enter type (Student, Faculty, Staff)"
-                  required
-                />
+                <select id="student_type" name="student_type">
+                  <option value="">-- Select User Type --</option>
+                  <option value="undergraduate">Undergraduate</option>
+                  <option value="graduate">Graduate</option>
+                  <option value="transferee">Transferee</option>
+                </select>
               </div>
 
-              <!-- Free-text input allows flexibility for various departments beyond predefined list -->
               <div class="form-group">
                 <label for="department">Department</label>
                 <input
                   type="text"
                   id="department"
                   name="department"
-                  placeholder="Enter department (Kinder-Senior High School, BSIT, BSCS, HR, Accounting, Faculty)"
-                  required
+                  placeholder="e.g. BSIT, BSCS, Accounting, Faculty"
                 />
               </div>
 
-              <!-- Free-text input accommodates students, faculty, and staff with varying levels -->
               <div class="form-group">
                 <label for="year_level">Year Level</label>
                 <input
                   type="text"
                   id="year_level"
                   name="year_level"
-                  placeholder="Enter year level (Kinder-Senior High, College Dept, Faculty, Staff)"
-                  required
+                  placeholder="e.g. 1st Year, 2nd Year, Faculty, Staff"
                 />
               </div>
 
@@ -163,7 +158,6 @@
                   name="contact_number"
                   pattern="[0-9]{11}"
                   placeholder="09771683520"
-                  required
                 />
               </div>
 
@@ -175,7 +169,6 @@
                     id="password"
                     name="password"
                     placeholder="Enter a strong password"
-                    required
                   />
                   <button type="button" class="toggle-password" data-target="password" aria-label="Toggle password visibility">
                     <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -194,7 +187,6 @@
                     id="confirmPassword"
                     name="confirmPassword"
                     placeholder="Re-enter your password"
-                    required
                   />
                   <button type="button" class="toggle-password" data-target="confirmPassword" aria-label="Toggle password visibility">
                     <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

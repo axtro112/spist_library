@@ -103,6 +103,26 @@ class AdminManagement {
       addAdminCancelBtn.addEventListener('click', () => this.closeAddModal());
     }
 
+    // Password visibility toggles (event delegation on the Add Admin modal)
+    const addAdminModal = document.getElementById('modalAddAdmin');
+    if (addAdminModal) {
+      addAdminModal.addEventListener('click', (e) => {
+        const btn = e.target.closest('.toggle-password');
+        if (!btn) return;
+        const targetId = btn.dataset.target;
+        const input = document.getElementById(targetId);
+        if (!input) return;
+        const icon = btn.querySelector('.material-symbols-outlined');
+        if (input.type === 'password') {
+          input.type = 'text';
+          if (icon) icon.textContent = 'visibility_off';
+        } else {
+          input.type = 'password';
+          if (icon) icon.textContent = 'visibility';
+        }
+      });
+    }
+
     // Add Admin button
     const addAdminBtn = document.getElementById('addAdminBtn');
     if (addAdminBtn) {
@@ -248,6 +268,16 @@ class AdminManagement {
     document.body.classList.remove('modal-open');
     document.getElementById('addAdminForm').reset();
     this.clearModalError('addAdminError');
+    // Reset password fields back to hidden and icons back to 'visibility'
+    ['addPassword', 'addConfirmPassword'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.type = 'password';
+      const btn = document.querySelector(`.toggle-password[data-target="${id}"]`);
+      if (btn) {
+        const icon = btn.querySelector('.material-symbols-outlined');
+        if (icon) icon.textContent = 'visibility';
+      }
+    });
   }
 
   /**
@@ -257,6 +287,7 @@ class AdminManagement {
     const fullname = document.getElementById('addName').value.trim();
     const email = document.getElementById('addEmail').value.trim();
     const password = document.getElementById('addPassword').value;
+    const confirmPassword = document.getElementById('addConfirmPassword').value;
     const role = document.getElementById('addRole').value;
 
     // Client-side validation
@@ -270,6 +301,10 @@ class AdminManagement {
     }
     if (!password || password.length < 8) {
       this.showModalError('addAdminError', 'Password must be at least 8 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      this.showModalError('addAdminError', 'Passwords do not match');
       return;
     }
 

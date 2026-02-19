@@ -298,6 +298,35 @@
         background: #388e3c;
       }
 
+      /* Password wrapper with toggle */
+      .password-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+
+      .password-wrapper input {
+        flex: 1;
+        padding-right: 2.75rem !important;
+      }
+
+      .toggle-password {
+        position: absolute;
+        right: 0.75rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #888;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        transition: color 0.2s;
+      }
+
+      .toggle-password:hover {
+        color: #4caf50;
+      }
+
       /* Toast notification */
       #toastNotification {
         position: fixed;
@@ -472,13 +501,34 @@
 
           <div class="form-group">
             <label for="addPassword">Password *</label>
-            <input
-              type="password"
-              id="addPassword"
-              name="password"
-              required
-              placeholder="Minimum 8 characters"
-            />
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="addPassword"
+                name="password"
+                required
+                placeholder="Minimum 8 characters"
+              />
+              <button type="button" class="toggle-password" data-target="addPassword" title="Show/hide password">
+                <span class="material-symbols-outlined" style="font-size:1.2rem;">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="addConfirmPassword">Confirm Password *</label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="addConfirmPassword"
+                name="confirmPassword"
+                required
+                placeholder="Re-enter your password"
+              />
+              <button type="button" class="toggle-password" data-target="addConfirmPassword" title="Show/hide password">
+                <span class="material-symbols-outlined" style="font-size:1.2rem;">visibility</span>
+              </button>
+            </div>
           </div>
 
           <div class="form-group">

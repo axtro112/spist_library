@@ -103,30 +103,33 @@ class AdminManagement {
       addAdminCancelBtn.addEventListener('click', () => this.closeAddModal());
     }
 
-    // Password visibility toggles (event delegation on the Add Admin modal)
-    const addAdminModal = document.getElementById('modalAddAdmin');
-    if (addAdminModal) {
-      addAdminModal.addEventListener('click', (e) => {
-        const btn = e.target.closest('.toggle-password');
-        if (!btn) return;
-        const targetId = btn.dataset.target;
-        const input = document.getElementById(targetId);
-        if (!input) return;
-        const icon = btn.querySelector('.material-symbols-outlined');
-        if (input.type === 'password') {
-          input.type = 'text';
-          if (icon) icon.textContent = 'visibility_off';
-        } else {
-          input.type = 'password';
-          if (icon) icon.textContent = 'visibility';
-        }
-      });
-    }
-
     // Add Admin button
     const addAdminBtn = document.getElementById('addAdminBtn');
     if (addAdminBtn) {
       addAdminBtn.addEventListener('click', () => this.openAddModal());
+    }
+
+    // Password visibility toggles for Add Admin modal
+    const togglePassword = document.getElementById('toggleAddPassword');
+    if (togglePassword) {
+      togglePassword.addEventListener('click', () => {
+        const input = document.getElementById('addPassword');
+        const icon = document.getElementById('eyeIconPassword');
+        const isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        icon.textContent = isHidden ? 'visibility_off' : 'visibility';
+      });
+    }
+
+    const toggleConfirm = document.getElementById('toggleAddConfirmPassword');
+    if (toggleConfirm) {
+      toggleConfirm.addEventListener('click', () => {
+        const input = document.getElementById('addConfirmPassword');
+        const icon = document.getElementById('eyeIconConfirm');
+        const isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        icon.textContent = isHidden ? 'visibility_off' : 'visibility';
+      });
     }
 
     // Close modals when clicking outside
@@ -268,16 +271,11 @@ class AdminManagement {
     document.body.classList.remove('modal-open');
     document.getElementById('addAdminForm').reset();
     this.clearModalError('addAdminError');
-    // Reset password fields back to hidden and icons back to 'visibility'
-    ['addPassword', 'addConfirmPassword'].forEach(id => {
-      const input = document.getElementById(id);
-      if (input) input.type = 'password';
-      const btn = document.querySelector(`.toggle-password[data-target="${id}"]`);
-      if (btn) {
-        const icon = btn.querySelector('.material-symbols-outlined');
-        if (icon) icon.textContent = 'visibility';
-      }
-    });
+    // Reset password fields to hidden and restore icons
+    const passInput = document.getElementById('addPassword');
+    const confirmInput = document.getElementById('addConfirmPassword');
+    if (passInput) { passInput.type = 'password'; document.getElementById('eyeIconPassword').textContent = 'visibility'; }
+    if (confirmInput) { confirmInput.type = 'password'; document.getElementById('eyeIconConfirm').textContent = 'visibility'; }
   }
 
   /**

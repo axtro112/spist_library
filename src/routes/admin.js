@@ -5,7 +5,7 @@ const response = require("../utils/response");
 const logger = require("../utils/logger");
 const bcrypt = require("bcrypt");
 const upload = require("../middleware/upload");
-const { requireAdmin, requireSuperAdmin: requireSuperAdminMiddleware } = require("../middleware/auth");
+const { requireAdmin } = require("../middleware/auth");
 const {
   parseCSV,
   parseExcel,
@@ -112,7 +112,7 @@ async function requireSuperAdmin(req, res, next) {
 }
 
 // Get all active students
-router.get("/students", async (req, res) => {
+router.get("/students", requireAdmin, async (req, res) => {
   const query = `
     SELECT 
       student_id,
@@ -135,7 +135,7 @@ router.get("/students", async (req, res) => {
 });
 
 // Book Management Routes with Search and Filter Support
-router.get("/books", async (req, res) => {
+router.get("/books", requireAdmin, async (req, res) => {
   // Extract search and filter parameters from query string
   const { search, category, status } = req.query;
   
@@ -227,7 +227,7 @@ router.get("/books", async (req, res) => {
   }
 });
 
-router.post("/books", async (req, res) => {
+router.post("/books", requireAdmin, async (req, res) => {
   const { title, author, category, isbn, quantity, adminId } = req.body;
   logger.debug('Adding new book', { title, author, category, isbn, quantity, adminId });
 
@@ -262,7 +262,7 @@ router.post("/books", async (req, res) => {
   }
 });
 
-router.put("/books/:id", async (req, res) => {
+router.put("/books/:id", requireAdmin, async (req, res) => {
   const bookId = req.params.id;
   const { title, author, category, isbn, status, student_id, quantity } = req.body;
 
@@ -339,7 +339,7 @@ router.put("/books/:id", async (req, res) => {
   }
 });
 
-router.delete("/books/:id", async (req, res) => {
+router.delete("/books/:id", requireAdmin, async (req, res) => {
   const bookId = req.params.id;
 
   try {
@@ -375,7 +375,7 @@ router.delete("/books/:id", async (req, res) => {
 });
 
 // Dashboard Statistics Route
-router.get("/dashboard/stats", async (req, res) => {
+router.get("/dashboard/stats", requireAdmin, async (req, res) => {
   const queries = {
     totalBooks: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
     totalCopies: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
@@ -582,21 +582,21 @@ router.get("/:id", requireAdmin, async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireAdmin, async (req, res) => {
   try {
     const { fullname, email, password, role, currentAdminId } = req.body;
 
     //  AUTHORIZATION: Only super_admin can create admins
-    if (currentAdminId) {
-      const currentAdmin = await db.query(
-        "SELECT role FROM admins WHERE id = ?",
-        [currentAdminId]
-      );
-      
-      if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
-        logger.warn('Admin create attempt - not super_admin', { currentAdminId });
-        return response.forbidden(res, 'Access denied. Only Super Admins can create admin accounts.');
-      }
+    if (!currentAdminId) {
+      return response.unauthorized(res, 'Authentication required. Please provide currentAdminId.');
+    }
+    const currentAdmin = await db.query(
+      "SELECT role FROM admins WHERE id = ?",
+      [currentAdminId]
+    );
+    if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
+      logger.warn('Admin create attempt - not super_admin', { currentAdminId });
+      return response.forbidden(res, 'Access denied. Only Super Admins can create admin accounts.');
     }
 
     //  VALIDATION: Ensure all required fields are present
@@ -641,22 +641,22 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAdmin, async (req, res) => {
   try {
     const { fullname, email, password, role, currentAdminId } = req.body;
     const adminId = req.params.id;
 
     //  AUTHORIZATION: Only super_admin can update admins
-    if (currentAdminId) {
-      const currentAdmin = await db.query(
-        "SELECT role FROM admins WHERE id = ?",
-        [currentAdminId]
-      );
-      
-      if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
-        logger.warn('Admin update attempt - not super_admin', { currentAdminId, targetAdminId: adminId });
-        return response.forbidden(res, 'Access denied. Only Super Admins can update admin accounts.');
-      }
+    if (!currentAdminId) {
+      return response.unauthorized(res, 'Authentication required. Please provide currentAdminId.');
+    }
+    const currentAdmin = await db.query(
+      "SELECT role FROM admins WHERE id = ?",
+      [currentAdminId]
+    );
+    if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
+      logger.warn('Admin update attempt - not super_admin', { currentAdminId, targetAdminId: adminId });
+      return response.forbidden(res, 'Access denied. Only Super Admins can update admin accounts.');
     }
 
     //  ROLE VALIDATION: If role is being updated, validate it
@@ -728,21 +728,21 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAdmin, async (req, res) => {
   try {
     const currentAdminId = req.query.currentAdminId || req.body.currentAdminId;
 
     //  AUTHORIZATION: Only super_admin can delete admins
-    if (currentAdminId) {
-      const currentAdmin = await db.query(
-        "SELECT role FROM admins WHERE id = ?",
-        [currentAdminId]
-      );
-      
-      if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
-        logger.warn('Admin delete attempt - not super_admin', { currentAdminId, targetAdminId: req.params.id });
-        return response.forbidden(res, 'Access denied. Only Super Admins can delete admin accounts.');
-      }
+    if (!currentAdminId) {
+      return response.unauthorized(res, 'Authentication required. Please provide currentAdminId.');
+    }
+    const currentAdmin = await db.query(
+      "SELECT role FROM admins WHERE id = ?",
+      [currentAdminId]
+    );
+    if (currentAdmin.length === 0 || currentAdmin[0].role !== 'super_admin') {
+      logger.warn('Admin delete attempt - not super_admin', { currentAdminId, targetAdminId: req.params.id });
+      return response.forbidden(res, 'Access denied. Only Super Admins can delete admin accounts.');
     }
 
     const result = await db.query("DELETE FROM admins WHERE id = ?", [
@@ -877,7 +877,7 @@ router.delete("/:id", async (req, res) => {
  * @query {string} mode - Optional. Set to "template" for header-only download
  * @returns {text/csv} CSV file download (template or full export)
  */
-router.get("/books/export", async (req, res) => {
+router.get("/books/export", requireAdmin, async (req, res) => {
   try {
     const mode = req.query.mode;
 
@@ -972,7 +972,7 @@ router.get("/books/export", async (req, res) => {
  * @route GET /api/admin/books/export-excel
  * @returns {application/vnd.openxmlformats-officedocument.spreadsheetml.sheet} Excel file download
  */
-router.get("/books/export-excel", async (req, res) => {
+router.get("/books/export-excel", requireAdmin, async (req, res) => {
   try {
     logger.info('Exporting books to Excel');
 
@@ -1074,7 +1074,7 @@ router.get("/books/export-excel", async (req, res) => {
  * @param {File} req.file - Uploaded CSV file (handled by multer middleware)
  * @returns {Object} JSON response with import summary and validation details
  */
-router.post("/books/import", upload.single("file"), async (req, res) => {
+router.post("/books/import", requireAdmin, upload.single("file"), async (req, res) => {
   let filePath = null;
 
   try {
@@ -1160,7 +1160,7 @@ router.post("/books/import", upload.single("file"), async (req, res) => {
  * Request body: { ids: [1, 2, 3] }
  * Response: { success: true, deletedCount: N }
  */
-router.post("/books/bulk-delete", async (req, res) => {
+router.post("/books/bulk-delete", requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
     
@@ -1244,7 +1244,7 @@ router.post("/books/bulk-delete", async (req, res) => {
  * }
  * Response: { success: true, updatedCount: N }
  */
-router.patch("/books/bulk-update", async (req, res) => {
+router.patch("/books/bulk-update", requireAdmin, async (req, res) => {
   try {
     const { ids, update } = req.body;
     

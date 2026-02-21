@@ -509,8 +509,8 @@ router.get("/dashboard/stats", async (req, res) => {
   }
 });
 
-// GET /api/admin - List all admins (requires admin authentication)
-router.get("/", requireAdmin, async (req, res) => {
+// GET /api/admin  OR  GET /api/admin/admins - List all admins
+async function listAdmins(req, res) {
   try {
     // Extract search and filter parameters
     const { search, role } = req.query;
@@ -546,7 +546,10 @@ router.get("/", requireAdmin, async (req, res) => {
     logger.error('Failed to fetch admins', { error: err.message });
     response.error(res, 'Failed to fetch admins', err);
   }
-});
+}
+
+router.get("/", requireAdmin, listAdmins);
+router.get("/admins", requireAdmin, listAdmins);
 
 // GET /api/admin/:id - Get single admin (requires admin authentication)
 router.get("/:id", requireAdmin, async (req, res) => {

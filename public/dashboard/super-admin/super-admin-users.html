@@ -1018,7 +1018,7 @@
             return;
           }
 
-          const confirmed = confirm(`Are you sure you want to delete ${selectedStudentIds.size} student(s)?\n\nNote: Students with active book borrowings cannot be deleted.`);
+          const confirmed = confirm(`Are you sure you want to delete ${selectedStudentIds.size} student(s)?\n\nNote: Any active book borrowings will be automatically returned.`);
           if (!confirmed) return;
 
           try {

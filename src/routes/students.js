@@ -751,15 +751,30 @@ router.delete("/bulk", requireAdmin, async (req, res) => {
     await db.withTransaction(async (conn) => {
       for (const studentId of studentIds) {
         try {
+          // Auto-return any active borrowings and restore book available_quantity
           const activeBorrowings = await conn.queryAsync(
-            `SELECT COUNT(*) as count FROM book_borrowings 
-             WHERE student_id = ? AND status IN ('borrowed', 'overdue')`,
+            `SELECT id, book_id FROM book_borrowings
+             WHERE student_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL`,
             [studentId]
           );
 
-          if (activeBorrowings[0].count > 0) {
-            failedDeletes.push({ studentId, reason: 'Student has active book borrowings' });
-            continue;
+          if (activeBorrowings.length > 0) {
+            // Mark all active borrowings as returned
+            await conn.queryAsync(
+              `UPDATE book_borrowings SET status = 'returned', return_date = CURRENT_TIMESTAMP
+               WHERE student_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL`,
+              [studentId]
+            );
+            // Restore available_quantity for each affected book
+            const bookIds = [...new Set(activeBorrowings.map(b => b.book_id))];
+            for (const bookId of bookIds) {
+              const returnedCount = activeBorrowings.filter(b => b.book_id === bookId).length;
+              await conn.queryAsync(
+                `UPDATE books SET available_quantity = LEAST(quantity, available_quantity + ?) WHERE id = ?`,
+                [returnedCount, bookId]
+              );
+            }
+            logger.info('Auto-returned active borrowings on student delete', { studentId, count: activeBorrowings.length });
           }
 
           await conn.queryAsync('DELETE FROM book_borrowings WHERE student_id = ?', [studentId]);

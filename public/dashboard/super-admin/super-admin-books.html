@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+    
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/admin.css" />
     <link rel="stylesheet" href="/css/bulk-operations.css" />
@@ -19,9 +23,19 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
       rel="stylesheet"
     />
+    
+    <!-- Open Sans Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/css/backup.css" />
     <link rel="stylesheet" href="/css/notifications.css" />
+    <link rel="stylesheet" href="/css/book-details-modal.css" />
+    <link rel="stylesheet" href="/css/book-profile-modal.css" />
     <link rel="stylesheet" href="/css/responsive.css" />
+
+    <!-- Bootstrap 5 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
 
     <!-- JavaScript -->
     <script>
@@ -44,9 +58,11 @@
     <script src="/js/admin.js" defer></script>
     <script src="/js/super-admin-guard.js" defer></script>
     <script src="/js/books.js" defer></script>
+    <script src="/js/book-profile-modal.js" defer></script>
     <script src="/js/book-copies.js" defer></script>
     <script src="/js/books-import-export.js" defer></script>
     <script src="/js/bulk-operations.js" defer></script>
+    <script src="/js/book-details-modal.js" defer></script>
     <script src="/js/sidebar-toggle.js" defer></script>
 
     <script>
@@ -108,6 +124,12 @@
                 Manage Admins
               </a>
             </li>
+            <li>
+              <a href="/super-admin-admins-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Admins Trash
+              </a>
+            </li>
             <li class="active">
               <a href="/super-admin-books">
                 <span class="material-symbols-outlined">book</span>
@@ -115,9 +137,33 @@
               </a>
             </li>
             <li>
+              <a href="/super-admin-books-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Books Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-borrowed-books">
+                <span class="material-symbols-outlined">local_library</span>
+                Borrowed Books
+              </a>
+            </li>
+            <li>
               <a href="/super-admin-users">
                 <span class="material-symbols-outlined">group</span>
                 Users
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-users-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Users Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-trash-bin">
+                <span class="material-symbols-outlined">delete_sweep</span>
+                Trash Bin
               </a>
             </li>
             <li>
@@ -217,28 +263,33 @@
           </div>
 
           <!-- Search and Filter Section -->
-          <div class="search-filter-container">
-            <div class="search-bar-wrapper">
-              <span class="material-symbols-outlined search-icon">search</span>
-              <input 
-                type="text" 
-                id="searchInput" 
-                class="search-input" 
-                placeholder="Search by title, author, ISBN, or category..."
-              />
+          <div class="modern-filter-wrapper">
+            <!-- Search Bar -->
+            <div class="modern-filter-header">
+              <div class="modern-search-container">
+                <span class="material-symbols-outlined search-icon">search</span>
+                <input 
+                  type="text" 
+                  id="searchInput" 
+                  class="modern-search-input" 
+                  placeholder="Search by title, author, ISBN, or category..."
+                />
+              </div>
             </div>
-            <div class="filter-controls">
-              <select id="categoryFilter" class="filter-select">
+
+            <!-- Filter Controls -->
+            <div class="modern-filter-controls">
+              <select id="categoryFilter" class="modern-filter-select">
                 <option value="">All Categories</option>
                 <!-- Categories will be populated dynamically -->
               </select>
-              <select id="statusFilter" class="filter-select">
+              <select id="statusFilter" class="modern-filter-select">
                 <option value="">All Status</option>
                 <option value="Available">Available</option>
                 <option value="All Borrowed">Borrowed</option>
                 <option value="maintenance">Maintenance</option>
               </select>
-              <button id="clearFilters" class="clear-filters-btn" title="Clear all filters">
+              <button id="clearFilters" class="modern-clear-btn" title="Clear all filters">
                 <span class="material-symbols-outlined">filter_alt_off</span>
                 Clear
               </button>
@@ -521,6 +572,154 @@
         </form>
       </div>
     </div>
+
+    <!-- Book Profile Modal with Borrowing Overview -->
+    <div class="modal fade" id="bookProfileModal" tabindex="-1" aria-labelledby="bookProfileModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title" id="bookProfileModalLabel">
+              <i class="fas fa-book me-2"></i>Book Profile & Borrowing Overview
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="bookProfileModalBody" style="min-height: 400px;">
+            <!-- Loading Skeleton -->
+            <div id="bookProfileLoading" class="text-center py-5">
+              <div class="spinner-border text-success" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-3 text-muted">Loading book information...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div id="bookProfileError" class="alert alert-danger d-none" role="alert">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <span id="bookProfileErrorMessage">Failed to load book profile. Please try again.</span>
+            </div>
+            
+            <!-- Content Container -->
+            <div id="bookProfileContent" class="d-none">
+              <div class="row g-3">
+                <!-- LEFT: Book Profile -->
+                <div class="col-lg-5 col-md-12 mb-3 mb-lg-0">
+                  <div class="card border-success h-100">
+                    <div class="card-header bg-success bg-opacity-10">
+                      <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Book Information</h6>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-2">
+                        <strong class="text-success d-block mb-1">Title:</strong>
+                        <div id="profileTitle" class="text-dark">-</div>
+                      </div>
+                      <div class="mb-2">
+                        <strong class="text-success d-block mb-1">Author:</strong>
+                        <div id="profileAuthor" class="text-dark">-</div>
+                      </div>
+                      <div class="mb-2">
+                        <strong class="text-success d-block mb-1">Category:</strong>
+                        <div id="profileCategory" class="text-dark">-</div>
+                      </div>
+                      <div class="mb-2">
+                        <strong class="text-success d-block mb-1">ISBN:</strong>
+                        <div id="profileISBN" class="text-dark">-</div>
+                      </div>
+                      <div class="mb-2">
+                        <strong class="text-success d-block mb-1">Total Quantity:</strong>
+                        <span id="profileTotalQty" class="badge bg-primary fs-6">0</span>
+                      </div>
+                      <div class="mb-2">
+                        <strong class="text-success d-block mb-1">Available:</strong>
+                        <span id="profileAvailableQty" class="badge bg-success fs-6">0</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Accession Numbers List -->
+                  <div class="card border-success mt-3">
+                    <div class="card-header bg-success bg-opacity-10">
+                      <h6 class="mb-0"><i class="fas fa-barcode me-2"></i>Accession Numbers</h6>
+                    </div>
+                    <div class="card-body p-0">
+                      <div id="accessionList" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                        <!-- Populated by JS -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- RIGHT: Borrowing Overview -->
+                <div class="col-lg-7 col-md-12">
+                  <div class="card border-success h-100">
+                    <div class="card-header bg-success bg-opacity-10">
+                      <h6 class="mb-0"><i class="fas fa-users me-2"></i>Borrowing Overview</h6>
+                    </div>
+                    <div class="card-body">
+                      <!-- Summary Counts -->
+                      <div class="row g-2 mb-3">
+                        <div class="col-md-4 col-sm-4 col-4">
+                          <div class="text-center p-2 border rounded bg-light">
+                            <div class="fs-3 fw-bold text-primary" id="summaryActive">0</div>
+                            <small class="text-muted d-block">Active</small>
+                          </div>
+                        </div>
+                        <div class="col-md-4 col-sm-4 col-4">
+                          <div class="text-center p-2 border rounded bg-light">
+                            <div class="fs-3 fw-bold text-danger" id="summaryOverdue">0</div>
+                            <small class="text-muted d-block">Overdue</small>
+                          </div>
+                        </div>
+                        <div class="col-md-4 col-sm-4 col-4">
+                          <div class="text-center p-2 border rounded bg-light">
+                            <div class="fs-3 fw-bold text-success" id="summaryReturned">0</div>
+                            <small class="text-muted d-block">Returned</small>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- Search Input -->
+                      <div class="mb-3">
+                        <input 
+                          type="text" 
+                          class="form-control" 
+                          id="borrowerSearch" 
+                          placeholder="Search by student name or ID..."
+                        />
+                      </div>
+                      
+                      <!-- Status Filter Tabs -->
+                      <ul class="nav nav-pills mb-3 flex-wrap" id="statusFilterTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link active" data-status="all" type="button" style="font-size: 0.875rem; padding: 0.375rem 0.75rem;">All</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link" data-status="active" type="button" style="font-size: 0.875rem; padding: 0.375rem 0.75rem;">Active</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link" data-status="overdue" type="button" style="font-size: 0.875rem; padding: 0.375rem 0.75rem;">Overdue</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link" data-status="returned" type="button" style="font-size: 0.875rem; padding: 0.375rem 0.75rem;">Returned</button>
+                        </li>
+                      </ul>
+                      
+                      <!-- Borrowers List -->
+                      <div id="borrowersList" style="max-height: 350px; overflow-y: auto;">
+                        <!-- Populated by JS -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="/js/notification-deeplink.js"></script>
     <script src="/js/notification-highlight.js"></script>
   </body>

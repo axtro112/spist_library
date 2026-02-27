@@ -62,14 +62,21 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 // Load unique categories from all books to populate the dropdown
 async function loadCategories() {
+  console.log('[Books Filter] Loading categories...');
   try {
     const response = await fetchWithCsrf('/api/admin/books');
-    if (!response.ok) return;
+    if (!response.ok) {
+      console.error('[Books Filter] Failed to fetch books for categories');
+      return;
+    }
     
     const result = await response.json();
     const books = result.data || []; // Extract books from response wrapper
+    console.log('[Books Filter] Total books loaded:', books.length);
+    
     const categories = [...new Set(books.map(b => b.category).filter(c => c && c.trim()))];
     categories.sort();
+    console.log('[Books Filter] Unique categories found:', categories);
     
     const categoryFilter = document.getElementById('categoryFilter');
     if (categoryFilter) {
@@ -83,18 +90,36 @@ async function loadCategories() {
         categoryFilter.appendChild(option);
       });
       categoryFilter.value = currentValue;
+      console.log('[Books Filter] Category dropdown populated with', categories.length, 'categories');
+    } else {
+      console.error('[Books Filter] Category filter element not found!');
     }
   } catch (error) {
-    console.error('Error loading categories:', error);
+    console.error('[Books Filter] Error loading categories:', error);
   }
 }
 
 // Search and Filter functionality
 function setupSearchAndFilters() {
+  console.log('[Books Filter] Initializing filters...');
+  
   const searchInput = document.getElementById('searchInput');
   const categoryFilter = document.getElementById('categoryFilter');
   const statusFilter = document.getElementById('statusFilter');
   const clearFiltersBtn = document.getElementById('clearFilters');
+  
+  console.log('[Books Filter] Elements found:', {
+    searchInput: !!searchInput,
+    categoryFilter: !!categoryFilter,
+    statusFilter: !!statusFilter,
+    clearFiltersBtn: !!clearFiltersBtn
+  });
+  
+  // Check if all required elements exist
+  if (!searchInput || !categoryFilter || !statusFilter || !clearFiltersBtn) {
+    console.error('[Books Filter] Some filter elements not found! Cannot initialize filters.');
+    return;
+  }
   
   // Debounce search input to avoid too many requests
   let searchTimeout;
@@ -106,16 +131,26 @@ function setupSearchAndFilters() {
   });
   
   // Apply filters immediately when changed
-  categoryFilter.addEventListener('change', () => loadBooks());
-  statusFilter.addEventListener('change', () => loadBooks());
+  categoryFilter.addEventListener('change', () => {
+    console.log('[Books Filter] Category changed to:', categoryFilter.value);
+    loadBooks();
+  });
+  
+  statusFilter.addEventListener('change', () => {
+    console.log('[Books Filter] Status changed to:', statusFilter.value);
+    loadBooks();
+  });
   
   // Clear all filters button
   clearFiltersBtn.addEventListener('click', () => {
+    console.log('[Books Filter] Clearing all filters');
     searchInput.value = '';
     categoryFilter.value = '';
     statusFilter.value = '';
     loadBooks();
   });
+  
+  console.log('[Books Filter] All event listeners attached successfully');
 }
 
 function getFilterParams() {
@@ -123,10 +158,14 @@ function getFilterParams() {
   const category = document.getElementById('categoryFilter')?.value || '';
   const status = document.getElementById('statusFilter')?.value || '';
   
+  console.log('[Books Filter] Current filter values:', { search, category, status });
+  
   const params = new URLSearchParams();
   if (search.trim()) params.append('search', search.trim());
   if (category.trim()) params.append('category', category.trim());
   if (status.trim()) params.append('status', status.trim());
+  
+  console.log('[Books Filter] Filter params:', params.toString());
   
   return params.toString();
 }
@@ -134,7 +173,7 @@ function getFilterParams() {
 async function loadBooks() {
   try {
     const filterParams = getFilterParams();
-    const url = `/api/books${filterParams ? '?' + filterParams : ''}`;
+    const url = `/api/admin/books${filterParams ? '?' + filterParams : ''}`;
     
     console.log("[FRONTEND] Fetching books from:", url);
     const response = await fetchWithCsrf(url);
@@ -205,6 +244,9 @@ function createBookRow(book) {
     row.setAttribute('data-book-id', book.id);
   }
   
+  // Make row clickable - cursor pointer
+  row.style.cursor = 'pointer';
+  
   // Determine availability status
   const availableQty = book.available_quantity !== undefined ? book.available_quantity : book.quantity;
   const totalQty = book.quantity || 1;
@@ -265,12 +307,42 @@ function createBookRow(book) {
 function attachRowEventListeners(row) {
   // Scan QR and Edit are handled by document-level event delegation (Actions dropdown)
   const deleteBtn = row.querySelector(".delete-btn");
+  const bookId = row.getAttribute('data-book-id');
 
-  deleteBtn.addEventListener("click", function () {
+  deleteBtn.addEventListener("click", function (e) {
+    e.stopPropagation(); // Prevent row click
     const bookId = this.dataset.bookId;
     const modalDelete = document.getElementById("modalDelete");
     modalDelete.dataset.bookId = bookId;
     showModal("modalDelete");
+  });
+  
+  // Add click handler to row to open Book Profile Modal
+  row.addEventListener('click', function(e) {
+    // Don't trigger if clicking on:
+    // - Checkbox
+    // - Actions button/menu
+    // - Delete button
+    if (e.target.closest('.checkbox-col') || 
+        e.target.closest('.actions-dropdown') || 
+        e.target.closest('.delete-btn')) {
+      return;
+    }
+    
+    console.log('[Books] Row clicked, bookId:', bookId);
+    
+    // Open the Book Profile Modal
+    if (bookId) {
+      if (typeof openBookProfileModal === 'function') {
+        console.log('[Books] Calling openBookProfileModal...');
+        openBookProfileModal(bookId);
+      } else {
+        console.error('[Books] openBookProfileModal function not found!');
+        alert('Book profile modal is not available. Please refresh the page.');
+      }
+    } else {
+      console.error('[Books] No bookId found for this row');
+    }
   });
 }
 

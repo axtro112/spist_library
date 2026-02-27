@@ -1,14 +1,134 @@
 /* Common styles for all pages */
+
+/* ============================================
+   OPEN SANS FONT - GLOBAL TYPOGRAPHY
+   ============================================ */
+
+/* Import Open Sans if not already loaded in HTML */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap');
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 body {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
+  font-weight: 400;
+  font-size: 16px;
+  color: #333;
+}
+
+/* Ensure white text in navigation and header areas */
+.sidebar,
+.sidebar *,
+.nav,
+.nav *,
+.logo,
+.logo *,
+.admin-header,
+.admin-header *,
+.primary-header,
+.primary-header *,
+.primaryNavigation,
+.primaryNavigation * {
+  color: white !important;
+}
+
+/* Exception: maintain specific colors for badges and status indicators */
+.badge,
+.notif-badge,
+.status-badge {
+  color: white !important;
+}
+
+/* Global Heading Styles with Open Sans */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 0.75rem;
+}
+
+/* Default heading colors for light backgrounds */
+.content h1,
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  color: #2c3e50;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: clamp(1.75rem, 4vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: clamp(1.5rem, 3.5vw, 1.75rem);
+  font-weight: 700;
+}
+
+h4 {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 600;
+}
+
+h5 {
+  font-size: clamp(1.1rem, 2.5vw, 1.25rem);
+  font-weight: 600;
+}
+
+h6 {
+  font-size: clamp(1rem, 2vw, 1.1rem);
+  font-weight: 600;
+}
+
+/* White text for headings in sidebars and headers */
+.sidebar h1,
+.sidebar h2,
+.sidebar h3,
+.sidebar h4,
+.sidebar h5,
+.sidebar h6,
+.admin-header h1,
+.admin-header h2,
+.admin-header h3,
+.admin-header h4,
+.admin-header h5,
+.admin-header h6,
+.primary-header h1,
+.primary-header h2,
+.primary-header h3,
+.primary-header h4,
+.primary-header h5,
+.primary-header h6 {
+  color: white;
+}
+
+/* Text Elements */
+p, span, div, label, input, textarea, select, button {
+  font-family: 'Open Sans', sans-serif;
+}
+
+strong, b {
+  font-weight: 600;
+}
+
+em, i {
+  font-style: italic;
 }
 
 /* Fade transitions for page navigation */

@@ -681,7 +681,7 @@
             return;
           }
 
-          const confirmed = confirm(`Are you sure you want to delete ${selectedStudentIds.size} student(s)?\n\nNote: Any active book borrowings will be automatically returned.`);
+          const confirmed = confirm(`Are you sure you want to move ${selectedStudentIds.size} student(s) to trash?\n\nNote: Any active book borrowings will be automatically returned. You can restore them from the Trash later.`);
           if (!confirmed) return;
 
           try {
@@ -694,15 +694,15 @@
             const result = await response.json();
             
             if (!response.ok) {
-              throw new Error(result.message || 'Failed to delete students');
+              throw new Error(result.message || 'Failed to move students to trash');
             }
 
             const data = result.data || result;
             
             // Show results
-            let message = `Successfully deleted ${data.successCount} student(s)`;
+            let message = `Successfully moved ${data.successCount} student(s) to trash`;
             if (data.failureCount > 0) {
-              message += `\n\nFailed to delete ${data.failureCount} student(s):`;
+              message += `\n\nFailed to move ${data.failureCount} student(s):`;
               data.failedDeletes.forEach(fail => {
                 message += `\n- ${fail.studentId}: ${fail.reason}`;
               });
@@ -787,10 +787,28 @@
                 Books
               </a>
             </li>
+            <li>
+              <a href="/admin-books-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Books Trash
+              </a>
+            </li>
+            <li>
+              <a href="/admin-borrowed-books">
+                <span class="material-symbols-outlined">local_library</span>
+                Borrowed Books
+              </a>
+            </li>
             <li class="active">
               <a href="/admin-users">
                 <span class="material-symbols-outlined">group</span>
                 Users
+              </a>
+            </li>
+            <li>
+              <a href="/admin-trash-bin">
+                <span class="material-symbols-outlined">delete_sweep</span>
+                Trash Bin
               </a>
             </li>
             <li>

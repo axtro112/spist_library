@@ -1,0 +1,624 @@
+/* ============================================
+   BOOK PROFILE MODAL - RESPONSIVE STYLES
+   Open Sans Font Implementation
+   ============================================ */
+
+/* Global Font Family for Modal */
+#bookProfileModal {
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+#bookProfileModal *,
+#bookProfileModal *::before,
+#bookProfileModal *::after {
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Headings Typography */
+#bookProfileModal h1,
+#bookProfileModal h2,
+#bookProfileModal h3,
+#bookProfileModal h4,
+#bookProfileModal h5,
+#bookProfileModal h6 {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 0.75rem;
+  color: #2c3e50;
+}
+
+#bookProfileModal h1 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 800;
+}
+
+#bookProfileModal h2 {
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-weight: 700;
+}
+
+#bookProfileModal h3 {
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-weight: 700;
+}
+
+#bookProfileModal h4 {
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+  font-weight: 600;
+}
+
+#bookProfileModal h5 {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  font-weight: 600;
+}
+
+#bookProfileModal h6 {
+  font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+  font-weight: 600;
+}
+
+/* Body Text */
+#bookProfileModal p,
+#bookProfileModal span,
+#bookProfileModal div:not(.spinner-border):not(.badge) {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+#bookProfileModal strong {
+  font-weight: 600;
+}
+
+/* Modal Dialog Sizing - Fully Responsive */
+#bookProfileModal .modal-dialog {
+  max-width: min(1200px, 95vw);
+  margin: 1rem auto;
+}
+
+/* Modal Body Responsive Layout */
+#bookProfileModalBody {
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+/* Card Styling */
+#bookProfileModal .card {
+  border-radius: clamp(6px, 1vw, 8px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
+}
+
+#bookProfileModal .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Card Headers */
+#bookProfileModal .card-header {
+  border-bottom: 2px solid #28a745;
+  font-weight: 600;
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(40, 167, 69, 0.05) 100%);
+}
+
+#bookProfileModal .card-header h6 {
+  margin: 0;
+  font-size: clamp(0.9rem, 1.8vw, 1.1rem);
+  font-weight: 700;
+  color: #28a745;
+}
+
+/* Book Information Fields */
+#bookProfileModal .card-body {
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+#bookProfileModal .card-body strong {
+  font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+  font-weight: 600;
+  color: #28a745;
+}
+
+#bookProfileModal .card-body > div > div {
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
+  padding: clamp(0.2rem, 0.5vw, 0.25rem) 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Summary Counts Boxes */
+#bookProfileModal .text-center.p-2 {
+  transition: all 0.3s ease;
+  border-radius: clamp(4px, 1vw, 6px);
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) !important;
+}
+
+#bookProfileModal .text-center.p-2:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+#bookProfileModal .text-center.p-2 .fs-3 {
+  font-size: clamp(1.5rem, 4vw, 2rem) !important;
+  font-weight: 700;
+}
+
+#bookProfileModal .text-center.p-2 small {
+  font-size: clamp(0.75rem, 1.5vw, 0.875rem);
+  font-weight: 500;
+}
+
+/* Badges */
+#bookProfileModal .badge {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  padding: clamp(0.35rem, 1vw, 0.5rem) clamp(0.6rem, 1.5vw, 0.75rem);
+  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
+  border-radius: clamp(3px, 0.5vw, 4px);
+}
+
+/* Status Pills/Tabs */
+#statusFilterTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(0.25rem, 1vw, 0.5rem);
+}
+
+#statusFilterTabs .nav-link {
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
+  padding: clamp(0.3rem, 1vw, 0.4rem) clamp(0.6rem, 2vw, 0.8rem);
+  white-space: nowrap;
+}
+
+#statusFilterTabs .nav-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+#statusFilterTabs .nav-link.active {
+  background-color: #28a745;
+  border-color: #28a745;
+  color: white;
+}
+
+/* Borrowers List Cards */
+#borrowersList .card {
+  transition: all 0.2s ease;
+  border-radius: clamp(6px, 1vw, 8px);
+  margin-bottom: clamp(0.5rem, 1vw, 0.75rem);
+}
+
+#borrowersList .card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateX(4px);
+}
+
+#borrowersList .card-body {
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+}
+
+#borrowersList h6 {
+  font-size: clamp(0.95rem, 2vw, 1.1rem);
+  font-weight: 700;
+  margin-bottom: clamp(0.25rem, 0.5vw, 0.5rem);
+  color: #2c3e50;
+}
+
+#borrowersList .small {
+  font-size: clamp(0.75rem, 1.5vw, 0.85rem);
+}
+
+#borrowersList strong {
+  font-weight: 600;
+  color: #555;
+}
+
+/* Accession List Items */
+#accessionList .list-group-item {
+  border-left: none;
+  border-right: none;
+  transition: background-color 0.2s ease;
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+}
+
+#accessionList .list-group-item:hover {
+  background-color: #f8f9fa;
+}
+
+#accessionList .list-group-item:first-child {
+  border-top: none;
+}
+
+#accessionList strong {
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
+  font-weight: 700;
+}
+
+#accessionList small {
+  font-size: clamp(0.75rem, 1.3vw, 0.85rem);
+}
+
+/* Search Input */
+#borrowerSearch {
+  border-radius: clamp(6px, 1vw, 8px);
+  padding: clamp(0.5rem, 1.5vw, 0.6rem) clamp(0.75rem, 2vw, 1rem);
+  border: 2px solid #e0e0e0;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  font-family: 'Open Sans', sans-serif;
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
+  width: 100%;
+}
+
+#borrowerSearch:focus {
+  border-color: #28a745;
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+  outline: none;
+}
+
+#borrowerSearch::placeholder {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 400;
+  color: #999;
+}
+
+/* Loading Spinner */
+#bookProfileLoading {
+  padding: clamp(2rem, 5vw, 3rem);
+}
+
+#bookProfileLoading .spinner-border {
+  width: clamp(2.5rem, 5vw, 3rem);
+  height: clamp(2.5rem, 5vw, 3rem);
+  border-width: clamp(0.2rem, 0.4vw, 0.3rem);
+}
+
+#bookProfileLoading p {
+  margin-top: clamp(0.75rem, 2vw, 1rem);
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
+  font-weight: 500;
+}
+
+/* Error Alert */
+#bookProfileError {
+  border-radius: clamp(6px, 1vw, 8px);
+  border-left: 4px solid #dc3545;
+  padding: clamp(0.75rem, 2vw, 1rem);
+  font-family: 'Open Sans', sans-serif;
+}
+
+#bookProfileError i {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+}
+
+/* Modal Header */
+#bookProfileModal .modal-header {
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(1rem, 2.5vw, 1.5rem);
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+#bookProfileModal .modal-title {
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.25rem, 1vw, 0.5rem);
+}
+
+#bookProfileModal .modal-title i {
+  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
+}
+
+/* Modal Footer */
+#bookProfileModal .modal-footer {
+  padding: clamp(0.75rem, 2vw, 1rem);
+  border-top: 2px solid #e9ecef;
+}
+
+#bookProfileModal .modal-footer .btn {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  font-size: clamp(0.9rem, 1.5vw, 1rem);
+  padding: clamp(0.4rem, 1vw, 0.5rem) clamp(1rem, 2vw, 1.25rem);
+  border-radius: clamp(4px, 0.8vw, 6px);
+}
+
+/* Scrollbar Styling */
+#accessionList::-webkit-scrollbar,
+#borrowersList::-webkit-scrollbar {
+  width: clamp(4px, 0.8vw, 6px);
+}
+
+#accessionList::-webkit-scrollbar-track,
+#borrowersList::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+#accessionList::-webkit-scrollbar-thumb,
+#borrowersList::-webkit-scrollbar-thumb {
+  background: #28a745;
+  border-radius: 10px;
+}
+
+#accessionList::-webkit-scrollbar-thumb:hover,
+#borrowersList::-webkit-scrollbar-thumb:hover {
+  background: #218838;
+}
+
+/* Responsive Grid Adjustments */
+#bookProfileModal .row {
+  margin-left: clamp(-0.5rem, -1vw, -0.75rem);
+  margin-right: clamp(-0.5rem, -1vw, -0.75rem);
+}
+
+#bookProfileModal .row > * {
+  padding-left: clamp(0.5rem, 1vw, 0.75rem);
+  padding-right: clamp(0.5rem, 1vw, 0.75rem);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1200px) {
+  #bookProfileModal .modal-dialog {
+    max-width: 96vw;
+  }
+}
+
+@media (max-width: 991px) {
+  #bookProfileModal .modal-dialog {
+    max-width: 98vw;
+    margin: 0.5rem auto;
+  }
+  
+  #bookProfileModalBody {
+    padding: clamp(0.75rem, 2vw, 1rem);
+  }
+  
+  #bookProfileModal .card {
+    margin-bottom: 1rem;
+  }
+  
+  /* Stack columns on tablet */
+  #bookProfileModal .col-lg-5,
+  #bookProfileModal .col-lg-7 {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  #bookProfileModal .modal-dialog {
+    margin: 0.25rem;
+    max-width: calc(100vw - 0.5rem);
+  }
+  
+  #bookProfileModalBody {
+    padding: 0.75rem;
+  }
+  
+  /* Optimize headings for mobile */
+  #bookProfileModal h1 {
+    font-size: 1.75rem;
+  }
+  
+  #bookProfileModal h2 {
+    font-size: 1.5rem;
+  }
+  
+  #bookProfileModal h3 {
+    font-size: 1.25rem;
+  }
+  
+  #bookProfileModal h4,
+  #bookProfileModal h5 {
+    font-size: 1.1rem;
+  }
+  
+  #bookProfileModal h6 {
+    font-size: 1rem;
+  }
+  
+  /* Reduce card spacing */
+  #bookProfileModal .card-body {
+    padding: 0.75rem;
+  }
+  
+  #bookProfileModal .card-header {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  #bookProfileModal .card-header h6 {
+    font-size: 0.95rem;
+  }
+  
+  /* Adjust summary boxes */
+  #bookProfileModal .text-center.p-2 {
+    padding: 0.5rem !important;
+  }
+  
+  #bookProfileModal .text-center.p-2 .fs-3 {
+    font-size: 1.5rem !important;
+  }
+  
+  #bookProfileModal .text-center.p-2 small {
+    font-size: 0.75rem;
+  }
+  
+  /* Optimize tabs for mobile */
+  #statusFilterTabs .nav-link {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+  }
+  
+  /* Reduce spacing in borrower cards */
+  #borrowersList .card-body {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  #borrowersList h6 {
+    font-size: 0.95rem;
+  }
+  
+  #borrowersList .small {
+    font-size: 0.75rem;
+  }
+  
+  /* Search input */
+  #borrowerSearch {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Badges */
+  #bookProfileModal .badge {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.5rem;
+  }
+  
+  /* Modal header */
+  #bookProfileModal .modal-header {
+    padding: 0.75rem;
+  }
+  
+  #bookProfileModal .modal-title {
+    font-size: 1.1rem;
+  }
+  
+  /* Modal footer */
+  #bookProfileModal .modal-footer {
+    padding: 0.75rem;
+  }
+  
+  #bookProfileModal .modal-footer .btn {
+    font-size: 0.9rem;
+    padding: 0.4rem 1rem;
+  }
+}
+
+@media (max-width: 575px) {
+  #bookProfileModal .modal-dialog {
+    margin: 0.25rem;
+    max-width: calc(100vw - 0.5rem);
+  }
+  
+  /* Extra small devices optimization */
+  #bookProfileModalBody {
+    padding: 0.5rem;
+  }
+  
+  /* Full width for all columns */
+  #bookProfileModal .col-4,
+  #bookProfileModal .col-6,
+  #bookProfileModal .col-sm-4,
+  #bookProfileModal .col-md-4 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Stack summary boxes vertically */
+  #bookProfileModal .row.g-2 {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  #bookProfileModal .row.g-2 > div {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Reduce modal header size */
+  #bookProfileModal .modal-title {
+    font-size: 1rem;
+  }
+  
+  #bookProfileModal .modal-title i {
+    font-size: 1.1rem;
+  }
+  
+  /* Compact cards */
+  #bookProfileModal .card {
+    margin-bottom: 0.75rem;
+  }
+  
+  #bookProfileModal .card-body > div {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Accession list compact */
+  #accessionList .list-group-item {
+    padding: 0.5rem;
+    font-size: 0.85rem;
+  }
+  
+  /* Borrowers list compact */
+  #borrowersList .card-body {
+    padding: 0.5rem;
+  }
+  
+  #borrowersList .row.g-2 {
+    gap: 0.25rem !important;
+  }
+}
+
+@media (max-width: 400px) {
+  /* Ultra-small devices (older phones) */
+  #bookProfileModal .modal-dialog {
+    margin: 0.125rem;
+    max-width: calc(100vw - 0.25rem);
+  }
+  
+  #bookProfileModalBody {
+    padding: 0.5rem;
+  }
+  
+  #bookProfileModal .card-body {
+    padding: 0.5rem;
+  }
+  
+  #statusFilterTabs .nav-link {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 991px) and (orientation: landscape) {
+  #bookProfileModal .modal-dialog {
+    max-height: 95vh;
+  }
+  
+  #bookProfileModalBody {
+    max-height: calc(95vh - 120px);
+    overflow-y: auto;
+  }
+  
+  #accessionList {
+    max-height: 200px !important;
+  }
+  
+  #borrowersList {
+    max-height: 250px !important;
+  }
+}
+
+/* Print Styles */
+@media print {
+  #bookProfileModal .modal-dialog {
+    max-width: 100%;
+  }
+  
+  #bookProfileModal .modal-header,
+  #bookProfileModal .modal-footer {
+    display: none;
+  }
+  
+  #bookProfileModal .card {
+    break-inside: avoid;
+  }
+}

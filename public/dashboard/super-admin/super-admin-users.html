@@ -274,12 +274,6 @@
             }
           }
         }
-
-        // Initialize filters
-        initializeUsersFilters();
-        
-        // Initial fetch without filters
-        fetchStudentsData();
         
         function initializeUsersFilters() {
           const searchInput = document.getElementById('usersSearchInput');
@@ -1018,7 +1012,7 @@
             return;
           }
 
-          const confirmed = confirm(`Are you sure you want to delete ${selectedStudentIds.size} student(s)?\n\nNote: Any active book borrowings will be automatically returned.`);
+          const confirmed = confirm(`Are you sure you want to move ${selectedStudentIds.size} student(s) to trash?\n\nNote: Any active book borrowings will be automatically returned. You can restore them from the Trash later.`);
           if (!confirmed) return;
 
           try {
@@ -1031,15 +1025,15 @@
             const result = await response.json();
             
             if (!response.ok) {
-              throw new Error(result.message || 'Failed to delete students');
+              throw new Error(result.message || 'Failed to move students to trash');
             }
 
             const data = result.data || result;
             
             // Show results
-            let message = `Successfully deleted ${data.successCount} student(s)`;
+            let message = `Successfully moved ${data.successCount} student(s) to trash`;
             if (data.failureCount > 0) {
-              message += `\n\nFailed to delete ${data.failureCount} student(s):`;
+              message += `\n\nFailed to move ${data.failureCount} student(s):`;
               data.failedDeletes.forEach(fail => {
                 message += `\n- ${fail.studentId}: ${fail.reason}`;
               });
@@ -1062,6 +1056,11 @@
 
         // Initialize bulk selection on page load
         initBulkSelection();
+
+        // Initialize filters and fetch data (moved to end to ensure DOM is ready)
+        console.log('[Users Filter] Calling initialization...');
+        initializeUsersFilters();
+        fetchStudentsData();
 
         // Deep-link handler: Opens modal only if valid query param exists
         initDeepLinkFromURL();
@@ -1667,15 +1666,45 @@
               </a>
             </li>
             <li>
+              <a href="/super-admin-admins-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Admins Trash
+              </a>
+            </li>
+            <li>
               <a href="/super-admin-books">
                 <span class="material-symbols-outlined">book</span>
                 Books
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Books Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-borrowed-books">
+                <span class="material-symbols-outlined">local_library</span>
+                Borrowed Books
               </a>
             </li>
             <li class="active">
               <a href="/super-admin-users">
                 <span class="material-symbols-outlined">group</span>
                 Users
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-users-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Users Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-trash-bin">
+                <span class="material-symbols-outlined">delete_sweep</span>
+                Trash Bin
               </a>
             </li>
             <li>
@@ -1775,7 +1804,7 @@
 
             <!-- Search and Filter Bar -->
             <div class="modern-filter-wrapper">
-              <!-- Search Bar with Result Count -->
+              <!-- Search Bar -->
               <div class="modern-filter-header">
                 <div class="modern-search-container">
                   <span class="material-symbols-outlined search-icon">search</span>
@@ -1786,12 +1815,9 @@
                     placeholder="Search by name, ID, email, or course..."
                   />
                 </div>
-                <div id="usersResultCount" class="modern-result-count">
-                  Showing 0 of 0 users
-                </div>
               </div>
 
-              <!-- Filter Dropdowns -->
+              <!-- Filter Controls -->
               <div class="modern-filter-controls">
                 <select id="usersCourseFilter" class="modern-filter-select">
                   <option value="All">All Courses</option>
@@ -1821,6 +1847,11 @@
                   <span class="material-symbols-outlined">filter_alt_off</span>
                   Clear
                 </button>
+              </div>
+              
+              <!-- Result Count -->
+              <div id="usersResultCount" class="modern-result-count" style="margin-top: 16px; text-align: right;">
+                Showing 0 of 0 users
               </div>
             </div>
 

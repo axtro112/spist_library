@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/bulk-operations.css" />
+
+    <!-- Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+
+    <!-- Symbols -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/notifications.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
+
+    <!-- JavaScript -->
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/notifications.js"></script>
+    <script src="/js/super-admin-guard.js" defer></script>
+    <script src="/js/trash-manager.js" defer></script>
+    <script src="/js/sidebar-toggle.js" defer></script>
+
+    <script>
+      let trashManager;
+      let selectedIds = new Set();
+
+      document.addEventListener("DOMContentLoaded", async function () {
+        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+        const userRole = sessionStorage.getItem("userRole");
+        const adminRole = sessionStorage.getItem("adminRole");
+        const adminId = sessionStorage.getItem("adminId");
+
+        // Super Admin access control
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
+          window.location.href = "/login";
+          return;
+        }
+
+        try {
+          const adminResponse = await fetch(`/api/admin/${adminId}`);
+          if (!adminResponse.ok) {
+            throw new Error("Failed to fetch admin information");
+          }
+          const result = await adminResponse.json();
+          const adminData = result.data || result;
+
+          document.getElementById("adminName").textContent = adminData.fullname;
+          document.getElementById("adminEmail").textContent = adminData.email;
+          document.getElementById("adminRole").textContent = adminData.role;
+          document.getElementById("adminInitial").textContent = adminData.fullname.charAt(0).toUpperCase();
+        } catch (error) {
+          console.error("Error fetching admin data:", error);
+        }
+
+        // Initialize trash manager
+        trashManager = new TrashManager('admins', '/api/admin/admins');
+        await loadTrash();
+        setupFilters();
+        setupBulkOperations();
+      });
+
+      async function loadTrash() {
+        try {
+          const search = document.getElementById("searchInput").value;
+          const role = document.getElementById("roleFilter").value;
+
+          const filters = {};
+          if (search) filters.search = search;
+          if (role) filters.role = role;
+
+          const items = await trashManager.loadTrash(filters);
+          displayTrash(items);
+        } catch (error) {
+          console.error("Error loading trash:", error);
+          showToast("Failed to load trash. Please try again.", "error");
+        }
+      }
+
+      function displayTrash(items) {
+        const tbody = document.querySelector('.user-table tbody');
+        tbody.innerHTML = '';
+        selectedIds.clear();
+        updateBulkButtons();
+
+        if (items.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="9" style="text-align:center;padding:40px;color:#666;">
+                <span class="material-symbols-outlined" style="font-size:48px;display:block;margin-bottom:16px;opacity:0.5;">delete_outline</span>
+                <strong>No admins in trash</strong><br>
+                <span style="font-size:14px;">Deleted admins will appear here</span>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        items.forEach(item => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="checkbox-col">
+              <input type="checkbox" class="row-checkbox" data-id="${item.id}" onchange="handleCheckboxChange()">
+            </td>
+            <td>${item.id}</td>
+            <td>${escapeHtml(item.fullname)}</td>
+            <td>${escapeHtml(item.email)}</td>
+            <td>
+              <span class="role-badge role-${item.role.replace('_', '-')}">${formatRole(item.role)}</span>
+            </td>
+            <td>${formatDate(item.created_at)}</td>
+            <td>${formatDate(item.deleted_at)}</td>
+            <td>
+              <span class="status-badge status-${item.is_active ? 'active' : 'inactive'}">
+                ${item.is_active ? 'Active' : 'Inactive'}
+              </span>
+            </td>
+            <td class="action-buttons">
+              <button onclick="restoreAdmin(${item.id}, '${escapeHtml(item.fullname)}')" class="btn-restore" title="Restore">
+                <span class="material-symbols-outlined">restore_from_trash</span>
+              </button>
+              <button onclick="permanentDeleteAdmin(${item.id}, '${escapeHtml(item.fullname)}')" class="btn-delete" title="Delete Permanently">
+                <span class="material-symbols-outlined">delete_forever</span>
+              </button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      async function restoreAdmin(id, name) {
+        if (!confirm(`Restore admin "${name}"? They will be able to access the admin panel again.`)) {
+          return;
+        }
+
+        const success = await trashManager.restore(id);
+        if (success) {
+          showToast("Admin restored successfully!", "success");
+          await loadTrash();
+        }
+      }
+
+      async function permanentDeleteAdmin(id, name) {
+        const confirmMessage = `⚠️ PERMANENTLY DELETE admin "${name}"?\n\nThis action CANNOT be undone! The admin account will be removed from the database forever.`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+
+        // Double confirmation
+        if (prompt("Type DELETE to confirm:") !== "DELETE") {
+          return;
+        }
+
+        const success = await trashManager.permanentDelete(id);
+        if (success) {
+          showToast("Admin permanently deleted", "success");
+          await loadTrash();
+        }
+      }
+
+      function setupFilters() {
+        const searchInput = document.getElementById('searchInput');
+        const roleFilter = document.getElementById('roleFilter');
+        const clearButton = document.getElementById('clearFilters');
+
+        // Debounce search
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(loadTrash, 300);
+        });
+
+        roleFilter.addEventListener('change', loadTrash);
+
+        clearButton.addEventListener('click', () => {
+          searchInput.value = '';
+          roleFilter.value = '';
+          loadTrash();
+        });
+      }
+
+      function setupBulkOperations() {
+        const masterCheckbox = document.getElementById('bulkMasterCheckbox');
+        masterCheckbox.addEventListener('change', function() {
+          const checkboxes = document.querySelectorAll('.row-checkbox');
+          checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+            if (this.checked) {
+              selectedIds.add(parseInt(cb.dataset.id));
+            } else {
+              selectedIds.delete(parseInt(cb.dataset.id));
+            }
+          });
+          updateBulkButtons();
+        });
+
+        document.getElementById('bulkRestoreBtn').addEventListener('click', bulkRestore);
+        document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDelete);
+      }
+
+      function handleCheckboxChange() {
+        const checkboxes = document.querySelectorAll('.row-checkbox');
+        selectedIds.clear();
+        checkboxes.forEach(cb => {
+          if (cb.checked) {
+            selectedIds.add(parseInt(cb.dataset.id));
+          }
+        });
+
+        const masterCheckbox = document.getElementById('bulkMasterCheckbox');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        const someChecked = Array.from(checkboxes).some(cb => cb.checked);
+        masterCheckbox.checked = allChecked;
+        masterCheckbox.indeterminate = someChecked && !allChecked;
+
+        updateBulkButtons();
+      }
+
+      function updateBulkButtons() {
+        const count = selectedIds.size;
+        const restoreBtn = document.getElementById('bulkRestoreBtn');
+        const deleteBtn = document.getElementById('bulkDeleteBtn');
+        const selectionText = document.getElementById('bulkSelectionText');
+
+        restoreBtn.disabled = count === 0;
+        deleteBtn.disabled = count === 0;
+
+        if (count > 0) {
+          selectionText.textContent = `${count} admin${count > 1 ? 's' : ''} selected`;
+          selectionText.style.display = 'inline';
+        } else {
+          selectionText.textContent = '';
+          selectionText.style.display = 'none';
+        }
+      }
+
+      async function bulkRestore() {
+        const count = selectedIds.size;
+        if (count === 0) return;
+
+        if (!confirm(`Restore ${count} admin${count > 1 ? 's' : ''}? They will be able to access the admin panel again.`)) {
+          return;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const id of selectedIds) {
+          const success = await trashManager.restore(id);
+          if (success) successCount++;
+          else failCount++;
+        }
+
+        if (successCount > 0) {
+          showToast(`${successCount} admin${successCount > 1 ? 's' : ''} restored successfully!`, "success");
+        }
+        if (failCount > 0) {
+          showToast(`${failCount} admin${failCount > 1 ? 's' : ''} failed to restore`, "error");
+        }
+
+        await loadTrash();
+      }
+
+      async function bulkDelete() {
+        const count = selectedIds.size;
+        if (count === 0) return;
+
+        const confirmMessage = `⚠️ PERMANENTLY DELETE ${count} admin${count > 1 ? 's' : ''}?\n\nThis action CANNOT be undone!`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+
+        // Double confirmation
+        if (prompt("Type DELETE to confirm:") !== "DELETE") {
+          return;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const id of selectedIds) {
+          const success = await trashManager.permanentDelete(id);
+          if (success) successCount++;
+          else failCount++;
+        }
+
+        if (successCount > 0) {
+          showToast(`${successCount} admin${successCount > 1 ? 's' : ''} permanently deleted`, "success");
+        }
+        if (failCount > 0) {
+          showToast(`${failCount} admin${failCount > 1 ? 's' : ''} failed to delete`, "error");
+        }
+
+        await loadTrash();
+      }
+
+      function formatDate(dateString) {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[date.getMonth()];
+        const day = date.getDate();
+        const year = date.getFullYear();
+        const hours = date.getHours();
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12;
+        return `${month} ${day}, ${year} ${displayHours}:${minutes} ${ampm}`;
+      }
+
+      function formatRole(role) {
+        return role === 'super_admin' ? 'Super Admin' : 'System Admin';
+      }
+
+      function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          padding: 16px 24px;
+          border-radius: 8px;
+          color: white;
+          font-weight: 500;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 10000;
+          animation: slideInRight 0.3s ease;
+        `;
+
+        const colors = {
+          success: '#10b981',
+          error: '#ef4444',
+          warning: '#f59e0b',
+          info: '#3b82f6'
+        };
+        toast.style.backgroundColor = colors[type] || colors.info;
+
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.animation = 'slideOutRight 0.3s ease';
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      function showLogoutModal() {
+        const modal = document.getElementById("logoutModal");
+        if (modal) {
+          modal.style.display = "flex";
+        }
+      }
+
+      function hideLogoutModal() {
+        const modal = document.getElementById("logoutModal");
+        if (modal) {
+          modal.style.display = "none";
+        }
+      }
+
+      function confirmLogout() {
+        sessionStorage.clear();
+        window.location.href = "/login";
+      }
+    </script>
+
+    <style>
+      @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+
+      @keyframes slideOutRight {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+      }
+
+      .btn-restore {
+        background-color: #10b981;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 14px;
+        transition: background-color 0.2s;
+      }
+
+      .btn-restore:hover {
+        background-color: #059669;
+      }
+
+      .btn-delete {
+        background-color: #ef4444;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 14px;
+        transition: background-color 0.2s;
+      }
+
+      .btn-delete:hover {
+        background-color: #dc2626;
+      }
+
+      .action-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .role-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .role-super-admin {
+        background-color: #dbeafe;
+        color: #1e40af;
+      }
+
+      .role-system-admin {
+        background-color: #e0e7ff;
+        color: #4338ca;
+      }
+
+      .status-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-active {
+        background-color: #d1fae5;
+        color: #065f46;
+      }
+
+      .status-inactive {
+        background-color: #fee2e2;
+        color: #991b1b;
+      }
+
+      .modern-filter-wrapper {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+      }
+
+      .modern-filter-header {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .modern-search-container {
+        position: relative;
+        flex: 1;
+        min-width: 250px;
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6b7280;
+        pointer-events: none;
+      }
+
+      .modern-search-container input {
+        width: 100%;
+        padding: 10px 12px 10px 40px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+      }
+
+      .modern-search-container input:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+
+      .modern-filter-select {
+        padding: 10px 12px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        background-color: white;
+        cursor: pointer;
+        transition: border-color 0.2s;
+        min-width: 150px;
+      }
+
+      .modern-filter-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+
+      .modern-clear-btn {
+        padding: 10px 16px;
+        background-color: #f3f4f6;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+      }
+
+      .modern-clear-btn:hover {
+        background-color: #e5e7eb;
+        border-color: #d1d5db;
+      }
+
+      .books-bulk-toolbar {
+        background: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .bulk-toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .bulk-master-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+
+      .bulk-selection-text {
+        font-size: 14px;
+        color: #374151;
+        font-weight: 500;
+      }
+
+      .bulk-toolbar-right {
+        display: flex;
+        gap: 8px;
+      }
+
+      .bulk-action-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        transition: all 0.2s;
+        background-color: #3b82f6;
+        color: white;
+      }
+
+      .bulk-action-btn:hover:not(:disabled) {
+        background-color: #2563eb;
+        transform: translateY(-1px);
+      }
+
+      .bulk-action-btn:disabled {
+        background-color: #d1d5db;
+        color: #9ca3af;
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      .bulk-action-btn.delete-action {
+        background-color: #ef4444;
+      }
+
+      .bulk-action-btn.delete-action:hover:not(:disabled) {
+        background-color: #dc2626;
+      }
+
+      .table-wrapper {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+      }
+
+      .checkbox-col {
+        width: 50px;
+        text-align: center;
+      }
+    </style>
+
+    <title>Admins Trash - SPIST Library</title>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="logo">
+          <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+          <h3>SPIST Library</h3>
+        </div>
+
+        <nav class="nav">
+          <ul>
+            <li>
+              <a href="/super-admin-dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            <li class="active">
+              <a href="/super-admin-admins-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Admins Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books">
+                <span class="material-symbols-outlined">book</span>
+                Books
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-books-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Books Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-borrowed-books">
+                <span class="material-symbols-outlined">local_library</span>
+                Borrowed Books
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-users">
+                <span class="material-symbols-outlined">group</span>
+                Users
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-users-trash">
+                <span class="material-symbols-outlined">delete</span>
+                Users Trash
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">history</span>
+                Audit Logs
+              </a>
+            </li>
+            <li>
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
+              </a>
+            </li>
+            <li>
+              <a href="#" onclick="showLogoutModal()">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="container">
+        <div class="admin-header">
+          <div class="admin-info">
+            <div class="admin-avatar">
+              <span id="adminInitial">A</span>
+            </div>
+            <div class="admin-details">
+              <h3 id="adminName">Admin User</h3>
+              <p id="adminEmail">admin@spist.edu</p>
+              <p id="adminRole">Super Admin</p>
+            </div>
+          </div>
+          <!-- Super Admin Notification Bell -->
+          <div class="admin-notification-container" id="superAdminNotificationContainer">
+            <button class="admin-notif-btn" id="superAdminNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false" role="button">
+              <span class="material-symbols-outlined">notifications</span>
+              <span class="notif-badge" id="superAdminNotifBadge" style="display: none;">0</span>
+            </button>
+            <div class="student-notif-panel" id="superAdminNotifPanel" style="display: none;">
+              <div class="notif-header"><h3>Notifications</h3><div class="notif-actions"><button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read" aria-label="Mark all as read"><span class="material-symbols-outlined">done_all</span></button><button class="notif-action-btn" id="notifSettingsBtn" title="Notification settings" aria-label="Notification settings"><span class="material-symbols-outlined">settings</span></button></div></div>
+              <div class="notif-tabs"><button class="notif-tab active" id="tabAll" data-tab="all"><span class="material-symbols-outlined">list</span>All</button><button class="notif-tab" id="tabUnread" data-tab="unread"><span class="material-symbols-outlined">mark_as_unread</span>Unread</button></div>
+              <div class="notif-list" id="notifList"><div class="notif-loading">Loading notifications...</div></div>
+              <div class="notif-footer"><button class="notif-see-more" id="notifSeeMore">See previous notifications</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="maincontent">
+          <div class="user-info">
+            <h2>Admins Trash</h2>
+            <p style="color:#666;margin-top:8px;font-size:14px;">Deleted admins can be restored or permanently removed</p>
+          </div>
+
+          <div class="spacecontainer">
+            <div class="spacerdiv"></div>
+          </div>
+
+          <!-- Search and Filter Section -->
+          <div class="modern-filter-wrapper">
+            <div class="modern-filter-header">
+              <div class="modern-search-container">
+                <span class="material-symbols-outlined search-icon">search</span>
+                <input 
+                  type="text" 
+                  id="searchInput" 
+                  placeholder="Search by name or email..." 
+                  class="modern-search-input"
+                />
+              </div>
+              <select id="roleFilter" class="modern-filter-select">
+                <option value="">All Roles</option>
+                <option value="super_admin">Super Admin</option>
+                <option value="system_admin">System Admin</option>
+              </select>
+              <button id="clearFilters" class="modern-clear-btn">
+                <span class="material-symbols-outlined">filter_alt_off</span>
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Bulk Operations Toolbar -->
+          <div class="books-bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <input type="checkbox" id="bulkMasterCheckbox" class="bulk-master-checkbox" />
+              <span id="bulkSelectionText" class="bulk-selection-text"></span>
+            </div>
+            <div class="bulk-toolbar-right">
+              <button id="bulkRestoreBtn" class="bulk-action-btn" disabled>
+                <span class="material-symbols-outlined">restore_from_trash</span>
+                Restore
+              </button>
+              <button id="bulkDeleteBtn" class="bulk-action-btn delete-action" disabled>
+                <span class="material-symbols-outlined">delete_forever</span>
+                Delete Forever
+              </button>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-wrapper">
+            <table class="user-table">
+              <thead>
+                <tr>
+                  <th class="checkbox-col"><input type="checkbox" style="visibility:hidden;"></th>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Created</th>
+                  <th>Deleted At</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="9" style="text-align:center;padding:40px;">
+                    <div class="notif-loading">Loading trash...</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logout Modal -->
+    <div id="logoutModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to logout?</p>
+        <div class="modal-buttons">
+          <button class="btn-cancel" onclick="hideLogoutModal()">Cancel</button>
+          <button class="btn-confirm" onclick="confirmLogout()">Logout</button>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>

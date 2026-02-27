@@ -54,7 +54,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
       scriptSrcAttr: ["'unsafe-inline'"],  // Allow inline event handlers (onclick, onsubmit, etc.)
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
@@ -171,7 +171,7 @@ app.use(
     saveUninitialized: false,
     rolling: true, // Reset maxAge on every request
     cookie: {
-      maxAge: 1800000, // 30 minutes
+      maxAge: 28800000, // 8 hours (8 * 60 * 60 * 1000)
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // Use secure cookies in production
       sameSite: process.env.NODE_ENV === "production" ? 'none' : 'lax', // 'none' required for cross-site on Railway proxy
@@ -268,8 +268,11 @@ const adminPages = [
   "admin",
   "admin-dashboard",
   "admin-books",
+  "admin-borrowed-books",
+  "admin-books-trash",
   "admin-users",
   "admin-admins",
+  "admin-trash-bin",
 ];
 
 adminPages.forEach((page) => {
@@ -284,8 +287,13 @@ const superAdminPages = [
   "super-admin",
   "super-admin-dashboard",
   "super-admin-admins",
-  "super-admin-books",
+  "super-admin-books",  
+  "super-admin-borrowed-books",
+  "super-admin-books-trash",
   "super-admin-users",
+  "super-admin-users-trash",
+  "super-admin-admins-trash",
+  "super-admin-trash-bin",
   "super-admin-audit-logs",
   "super-admin-settings",
 ];

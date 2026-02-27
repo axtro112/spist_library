@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/notifications.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
+
+    <!-- Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+
+    <!-- Symbols -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+
+    <!-- JavaScript -->
+    <script src="/js/csrf-helper.js"></script>
+    <script src="/js/session-timeout.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/notifications.js"></script>
+    <script src="/js/system-admin-guard.js" defer></script>
+    <script src="/js/auth-helper.js"></script>
+    <script src="/js/borrowed-books.js" defer></script>
+    <script src="/js/sidebar-toggle.js" defer></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", async function () {
+        console.log('[Admin Books] Page loaded, checking AuthHelper...');
+        
+        if (!window.AuthHelper) {
+          console.error('[Admin Books] CRITICAL: AuthHelper not loaded!');
+          alert('System error: Authentication module not loaded. Please refresh the page.');
+          return;
+        }
+        
+        console.log('[Admin Books] AuthHelper loaded successfully');
+        
+        const session = window.AuthHelper.getSession();
+        console.log('[Admin Books] Session data:', {
+          isLoggedIn: session.isLoggedIn,
+          userRole: session.userRole,
+          adminRole: session.adminRole,
+          adminId: session.adminId
+        });
+
+        if (!session.isLoggedIn || session.userRole !== "admin") {
+          console.warn('[Admin Books] Not authenticated as admin, redirecting...');
+          alert("Please log in with admin credentials to access this page.");
+          window.location.href = "/login";
+          return;
+        }
+
+        try {
+          console.log('[Admin Books] Fetching admin data for ID:', session.adminId);
+          
+          // Fetch and validate current admin data using AuthHelper
+          const adminData = await window.AuthHelper.fetchCurrentAdmin();
+          
+          console.log('[Admin Books] Received admin data:', {
+            id: adminData.id,
+            fullname: adminData.fullname,
+            email: adminData.email,
+            role: adminData.role
+          });
+          
+          // Update header with validated data
+          window.AuthHelper.updateAdminHeader(adminData);
+
+          console.log('[Admin Books] ✅ Header updated successfully for:', adminData.email, '- Role:', adminData.role);
+        } catch (error) {
+          console.error('[Admin Books] ❌ Error fetching/updating admin data:', error);
+          alert('Failed to load admin information. Please try logging in again.');
+        }
+      });
+    </script>
+
+    <title>Borrowed Books Management - SPIST Library</title>
+    
+    <style>
+      .borrowings-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      
+      .borrowings-table thead {
+        background: #0e5e3f;
+        color: white;
+      }
+      
+      .borrowings-table th {
+        padding: 14px 12px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      
+      .borrowings-table td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 13px;
+      }
+      
+      .borrowings-table tbody tr:hover {
+        background-color: #f9fafb;
+      }
+      
+      .action-buttons {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s;
+      }
+      
+      .btn-success {
+        background: #10b981;
+        color: white;
+      }
+      
+      .btn-success:hover {
+        background: #059669;
+      }
+      
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+      
+      .btn-secondary {
+        background: #6b7280;
+        color: white;
+      }
+      
+      .btn-secondary:hover {
+        background: #4b5563;
+      }
+      
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .modal-content {
+        background: white;
+        border-radius: 12px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      }
+      
+      .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .modal-header h2 {
+        margin: 0;
+        font-size: 20px;
+        color: #111827;
+      }
+      
+      .modal-body {
+        padding: 20px;
+      }
+      
+      .modal-footer {
+        padding: 20px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+      
+      .modal-detail-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      .detail-row {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 10px;
+      }
+      
+      .detail-label {
+        font-weight: 600;
+        color: #374151;
+      }
+      
+      .detail-value {
+        color: #6b7280;
+      }
+      
+      .alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+      }
+      
+      .alert-info {
+        background: #dbeafe;
+        color: #1e40af;
+        border: 1px solid #93c5fd;
+      }
+      
+      .alert-warning {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fcd34d;
+      }
+      
+      .form-group {
+        margin-bottom: 15px;
+      }
+      
+      .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: #374151;
+      }
+      
+      .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+      
+      .form-control:focus {
+        outline: none;
+        border-color: #0e5e3f;
+        box-shadow: 0 0 0 3px rgba(14, 94, 63, 0.1);
+      }
+      
+      h4 {
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 16px;
+        color: #111827;
+        font-weight: 600;
+      }
+      
+      h4:first-child {
+        margin-top: 0;
+      }
+      
+      .result-count {
+        font-size: 14px;
+        color: #6b7280;
+        margin-left: 10px;
+      }
+      
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes slideOutRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="logo">
+          <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+          <h3>SPIST Library</h3>
+        </div>
+
+        <nav class="nav">
+          <ul>
+            <li>
+              <a href="/admin-dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+              </a>
+            </li>
+            <li>
+              <a href="/admin-books">
+                <span class="material-symbols-outlined">book</span>
+                Books
+              </a>
+            </li>
+            <li class="active">
+              <a href="/admin-borrowed-books">
+                <span class="material-symbols-outlined">local_library</span>
+                Borrowed Books
+              </a>
+            </li>
+            <li>
+              <a href="/admin-users">
+                <span class="material-symbols-outlined">group</span>
+                Users
+              </a>
+            </li>
+            <li>
+              <a href="/admin-trash-bin">
+                <span class="material-symbols-outlined">delete_sweep</span>
+                Trash Bin
+              </a>
+            </li>
+            <li>
+              <a href="/admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            <li>
+              <a href="#" onclick="showLogoutModal()">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="container">
+        <div class="admin-header">
+          <div class="admin-info">
+            <div class="admin-avatar">
+              <span id="adminInitial">A</span>
+            </div>
+            <div class="admin-details">
+              <h3 id="adminName">Admin User</h3>
+              <p id="adminEmail">admin@spist.edu</p>
+              <p id="adminRole">Admin</p>
+            </div>
+          </div>
+          <!-- Admin Notification Bell -->
+          <div class="admin-notification-container" id="adminNotificationContainer">
+            <button class="admin-notif-btn" id="adminNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false" role="button">
+              <span class="material-symbols-outlined">notifications</span>
+              <span class="notif-badge" id="adminNotifBadge" style="display: none;">0</span>
+            </button>
+            <div class="student-notif-panel" id="adminNotifPanel" style="display: none;">
+              <div class="notif-header"><h3>Notifications</h3><div class="notif-actions"><button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read" aria-label="Mark all as read"><span class="material-symbols-outlined">done_all</span></button><button class="notif-action-btn" id="notifSettingsBtn" title="Notification settings" aria-label="Notification settings"><span class="material-symbols-outlined">settings</span></button></div></div>
+              <div class="notif-tabs"><button class="notif-tab active" id="tabAll" data-tab="all"><span class="material-symbols-outlined">list</span>All</button><button class="notif-tab" id="tabUnread" data-tab="unread"><span class="material-symbols-outlined">mark_as_unread</span>Unread</button></div>
+              <div class="notif-list" id="notifList"><div class="notif-loading">Loading notifications...</div></div>
+              <div class="notif-footer"><button class="notif-see-more" id="notifSeeMore">See previous notifications</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="maincontent">
+          <div class="user-info">
+            <h2>Borrowed Books Management</h2>
+            <span id="resultCount" class="result-count"></span>
+          </div>
+
+          <!-- Search and Filter Section -->
+          <div class="modern-filter-wrapper">
+            <div class="modern-filter-header">
+              <div class="modern-search-container">
+                <span class="material-symbols-outlined search-icon">search</span>
+                <input 
+                  id="searchInput" 
+                  type="text" 
+                  class="modern-search-input" 
+                  placeholder="Search by student name, ID, book title, accession number..."
+                />
+              </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="modern-filter-controls">
+              <select id="categoryFilter" class="modern-filter-select">
+                <option value="">All Categories</option>
+                <!-- Categories will be populated dynamically -->
+              </select>
+              <select id="statusFilter" class="modern-filter-select">
+                <option value="">All Status</option>
+                <option value="pending_pickup">Pending Pickup</option>
+                <option value="picked_up">Picked Up</option>
+                <option value="overdue">Overdue</option>
+                <option value="returned">Returned</option>
+              </select>
+              <button id="clearFilters" class="modern-clear-btn" title="Clear all filters">
+                <span class="material-symbols-outlined">filter_alt_off</span>
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-wrapper" style="margin-top: 20px;">
+            <table class="borrowings-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Student</th>
+                  <th>Book</th>
+                  <th>Accession No</th>
+                  <th>Borrow Date</th>
+                  <th>Due Date</th>
+                  <th>Picked Up</th>
+                  <th>Returned</th>
+                  <th>Status</th>
+                  <th>Category</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="11" style="text-align: center; padding: 40px;">
+                    <span class="material-symbols-outlined" style="font-size: 48px; color: #9ca3af;">hourglass_empty</span>
+                    <p style="margin-top: 10px; color: #6b7280;">Loading borrowing records...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pickup Confirmation Modal -->
+    <div id="pickupModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Confirm Book Pickup</h2>
+          <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Content will be dynamically inserted -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-success btn-confirm-pickup">Confirm Pickup</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Return Confirmation Modal -->
+    <div id="returnModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Confirm Book Return</h2>
+          <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Content will be dynamically inserted -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary btn-confirm-return">Confirm Return</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Borrowing Details</h2>
+          <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Content will be dynamically inserted -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal">
+      <div class="modal-content">
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to log out?</p>
+        <div class="form-actions">
+          <button class="logout-confirm-btn" onclick="logout()">Logout</button>
+          <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/js/notification-deeplink.js"></script>
+    <script src="/js/notification-highlight.js"></script>
+  </body>
+</html>

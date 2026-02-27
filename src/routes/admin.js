@@ -5,7 +5,7 @@ const response = require("../utils/response");
 const logger = require("../utils/logger");
 const bcrypt = require("bcrypt");
 const upload = require("../middleware/upload");
-const { requireAdmin } = require("../middleware/auth");
+const { requireAdmin, requireSuperAdmin } = require("../middleware/auth");
 const {
   parseCSV,
   parseExcel,
@@ -82,35 +82,6 @@ router.use((req, res, next) => {
   next();
 });
 
-// Authorization middleware for admin management
-async function requireSuperAdmin(req, res, next) {
-  try {
-    const { currentAdminId } = req.body;
-    
-    if (!currentAdminId) {
-      return response.unauthorized(res, 'Authentication required');
-    }
-
-    const results = await db.query(
-      "SELECT role FROM admins WHERE id = ?",
-      [currentAdminId]
-    );
-
-    if (results.length === 0) {
-      return response.unauthorized(res, 'Admin not found');
-    }
-
-    if (results[0].role !== 'super_admin') {
-      return response.forbidden(res, 'Access denied. Only Super Admins can manage admin accounts.');
-    }
-
-    next();
-  } catch (err) {
-    logger.error('Authorization check failed', { error: err.message });
-    response.error(res, 'Authorization check failed', err);
-  }
-}
-
 // Get all active students
 router.get("/students", requireAdmin, async (req, res) => {
   const query = `
@@ -120,7 +91,7 @@ router.get("/students", requireAdmin, async (req, res) => {
       email,
       status
     FROM students
-    WHERE status = 'active'
+    WHERE status = 'active' AND deleted_at IS NULL
     ORDER BY fullname ASC
   `;
 
@@ -143,8 +114,11 @@ router.get("/books", requireAdmin, async (req, res) => {
   let whereConditions = [];
   let queryParams = [];
   
-  // Base condition: only show active books (v2.0 status values)
-  whereConditions.push("b.status IN ('active', 'maintenance', 'retired')");
+  // Base condition: exclude soft-deleted books
+  whereConditions.push("b.deleted_at IS NULL");
+  
+  // Include 'available', 'active', 'maintenance', 'retired' statuses
+  whereConditions.push("b.status IN ('available', 'active', 'maintenance', 'retired', 'borrowed')");
   
   // Search condition: search across title, author, ISBN, and category (partial match, case-insensitive)
   if (search && search.trim()) {
@@ -360,14 +334,11 @@ router.delete("/books/:id", requireAdmin, async (req, res) => {
       return response.validationError(res, 'Cannot delete book that is currently borrowed');
     }
 
-    // Delete book and its borrowing records in a transaction
-    await db.withTransaction(async (conn) => {
-      await conn.queryAsync("DELETE FROM book_borrowings WHERE book_id = ?", [bookId]);
-      await conn.queryAsync("DELETE FROM books WHERE id = ?", [bookId]);
-    });
+    // Soft delete the book (move to trash)
+    await db.query("UPDATE books SET deleted_at = NOW() WHERE id = ?", [bookId]);
 
-    logger.info('Book deleted successfully', { bookId });
-    response.success(res, null, 'Book deleted successfully');
+    logger.info('Book moved to trash successfully', { bookId });
+    response.success(res, null, 'Book moved to trash successfully');
   } catch (err) {
     logger.error('Error deleting book', { bookId, error: err.message });
     response.error(res, 'Error deleting book', err);
@@ -519,6 +490,9 @@ async function listAdmins(req, res) {
     let whereConditions = [];
     let queryParams = [];
     
+    // Base condition: exclude soft-deleted admins
+    whereConditions.push("deleted_at IS NULL");
+    
     // Search condition: search across fullname and email (partial match, case-insensitive)
     if (search && search.trim()) {
       const searchTerm = `%${search.trim()}%`;
@@ -550,37 +524,6 @@ async function listAdmins(req, res) {
 
 router.get("/", requireAdmin, listAdmins);
 router.get("/admins", requireAdmin, listAdmins);
-
-// GET /api/admin/:id - Get single admin (requires admin authentication)
-router.get("/:id", requireAdmin, async (req, res) => {
-  try {
-    const admin = await db.query(
-      "SELECT id, fullname, email, role FROM admins WHERE id = ?",
-      [req.params.id]
-    );
-
-    // Debug log to inspect the query and parameters
-    logger.debug('Executing query to fetch admin', {
-      query: "SELECT id, fullname, email, role FROM admins WHERE id = ?",
-      params: [req.params.id]
-    });
-
-    if (admin.length === 0) {
-      logger.warn('Admin not found', { adminId: req.params.id });
-      return response.notFound(res, 'Admin not found');
-    }
-
-    logger.info('Admin fetched', { adminId: req.params.id });
-    response.success(res, admin[0]);
-  } catch (err) {
-    logger.error('Failed to fetch admin', {
-      adminId: req.params.id,
-      error: err.message,
-      stack: err.stack
-    });
-    response.error(res, 'Failed to fetch admin', err);
-  }
-});
 
 router.post("/", requireAdmin, async (req, res) => {
   try {
@@ -1338,6 +1281,1494 @@ router.patch("/books/bulk-update", requireAdmin, async (req, res) => {
   } catch (err) {
     logger.error('Bulk update failed', { error: err.message });
     response.error(res, "Failed to update books", err);
+  }
+});
+
+// =============================
+// BORROWED BOOKS MANAGEMENT
+// =============================
+
+/**
+ * GET /api/admin/borrowings
+ * List all borrow transactions with filters
+ * Access: Super Admin + System Admin
+ */
+router.get("/borrowings", requireAdmin, async (req, res) => {
+  try {
+    const { search, category, status } = req.query;
+    
+    let whereConditions = [];
+    let queryParams = [];
+    
+    // Search filter: student name, student ID, book title, accession number, ISBN
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      whereConditions.push(`(
+        s.fullname LIKE ? OR 
+        s.student_id LIKE ? OR 
+        b.title LIKE ? OR 
+        bb.accession_number LIKE ? OR 
+        b.isbn LIKE ?
+      )`);
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    // Category filter
+    if (category && category.trim()) {
+      whereConditions.push("b.category = ?");
+      queryParams.push(category.trim());
+    }
+    
+    // Status filter
+    if (status && status.trim()) {
+      if (status === 'pending_pickup') {
+        // Borrowed status but no pickup confirmation yet
+        whereConditions.push("bb.status = 'borrowed' AND bb.picked_up_at IS NULL");
+      } else if (status === 'picked_up') {
+        // Picked up (borrowed with pickup confirmation)
+        whereConditions.push("bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL");
+      } else {
+        // Direct status match (returned, overdue, etc.)
+        whereConditions.push("bb.status = ?");
+        queryParams.push(status);
+      }
+    }
+    
+    const whereClause = whereConditions.length > 0 
+      ? "WHERE " + whereConditions.join(" AND ")
+      : "";
+    
+    const query = `
+      SELECT 
+        bb.id,
+        bb.book_id,
+        bb.accession_number,
+        bb.student_id,
+        bb.borrow_date,
+        bb.due_date,
+        bb.claim_expires_at,
+        bb.picked_up_at,
+        bb.return_date,
+        bb.status,
+        bb.copy_condition_at_borrow,
+        bb.copy_condition_at_return,
+        bb.notes,
+        s.fullname AS student_name,
+        s.email AS student_email,
+        s.department AS student_department,
+        s.year_level AS student_year_level,
+        b.title AS book_title,
+        b.author AS book_author,
+        b.isbn AS book_isbn,
+        b.category AS book_category,
+        a_approved.fullname AS approved_by_name,
+        a_picked.fullname AS picked_up_by_name,
+        a_returned.fullname AS returned_by_name,
+        CASE 
+          WHEN bb.status = 'returned' THEN 'returned'
+          WHEN bb.status = 'overdue' THEN 'overdue'
+          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
+          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
+          ELSE bb.status
+        END AS display_status
+      FROM book_borrowings bb
+      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN books b ON bb.book_id = b.id
+      LEFT JOIN admins a_approved ON bb.approved_by = a_approved.id
+      LEFT JOIN admins a_picked ON bb.picked_up_by_admin_id = a_picked.id
+      LEFT JOIN admins a_returned ON bb.returned_by_admin_id = a_returned.id
+      ${whereClause}
+      ORDER BY bb.borrow_date DESC
+    `;
+    
+    const borrowings = await db.query(query, queryParams);
+    
+    logger.info('Borrowings fetched', { 
+      count: borrowings.length, 
+      search: search || 'none', 
+      category: category || 'none',
+      status: status || 'all'
+    });
+    
+    response.success(res, borrowings);
+    
+  } catch (error) {
+    logger.error('Error fetching borrowings', { error: error.message });
+    response.error(res, 'Error fetching borrowings', error);
+  }
+});
+
+/**
+ * POST /api/admin/borrowings/:id/confirm-pickup
+ * Confirm that book was physically handed to student
+ * Access: Super Admin + System Admin
+ */
+router.post("/borrowings/:id/confirm-pickup", requireAdmin, async (req, res) => {
+  const borrowingId = req.params.id;
+  const adminId = req.session.user?.id || req.session.adminId;
+  
+  try {
+    // Get borrowing details
+    const borrowing = await db.query(
+      "SELECT id, status, picked_up_at, student_id FROM book_borrowings WHERE id = ?",
+      [borrowingId]
+    );
+    
+    if (!borrowing || borrowing.length === 0) {
+      logger.warn('Borrowing not found for pickup confirmation', { borrowingId });
+      return response.notFound(res, 'Borrowing record not found');
+    }
+    
+    const record = borrowing[0];
+    
+    // Validate status transition
+    if (record.picked_up_at) {
+      logger.warn('Pickup already confirmed', { borrowingId, picked_up_at: record.picked_up_at });
+      return response.validationError(res, 'Pickup has already been confirmed');
+    }
+    
+    if (record.status !== 'borrowed') {
+      logger.warn('Invalid status for pickup', { borrowingId, status: record.status });
+      return response.validationError(res, 'Can only confirm pickup for borrowed items');
+    }
+    
+    // Update borrowing record
+    await db.query(
+      `UPDATE book_borrowings 
+       SET picked_up_at = NOW(), 
+           picked_up_by_admin_id = ?
+       WHERE id = ?`,
+      [adminId, borrowingId]
+    );
+    
+    // Fetch updated record
+    const updated = await db.query(
+      `SELECT 
+        bb.*,
+        s.fullname AS student_name,
+        b.title AS book_title,
+        a.fullname AS picked_up_by_name
+       FROM book_borrowings bb
+       LEFT JOIN students s ON bb.student_id = s.student_id
+       LEFT JOIN books b ON bb.book_id = b.id
+       LEFT JOIN admins a ON bb.picked_up_by_admin_id = a.id
+       WHERE bb.id = ?`,
+      [borrowingId]
+    );
+    
+    logger.info('Pickup confirmed', { 
+      borrowingId, 
+      adminId, 
+      studentId: record.student_id 
+    });
+    
+    response.success(res, updated[0], 'Pickup confirmed successfully');
+    
+  } catch (error) {
+    logger.error('Error confirming pickup', { borrowingId, error: error.message });
+    response.error(res, 'Error confirming pickup', error);
+  }
+});
+
+/**
+ * POST /api/admin/borrowings/:id/confirm-return
+ * Confirm that book was returned to library
+ * Access: Super Admin + System Admin
+ */
+router.post("/borrowings/:id/confirm-return", requireAdmin, async (req, res) => {
+  const borrowingId = req.params.id;
+  const adminId = req.session.user?.id || req.session.adminId;
+  const { condition } = req.body; // Optional: copy condition at return
+  
+  try {
+    // Get borrowing details
+    const borrowing = await db.query(
+      `SELECT bb.id, bb.status, bb.return_date, bb.accession_number, bb.book_id
+       FROM book_borrowings bb
+       WHERE bb.id = ?`,
+      [borrowingId]
+    );
+    
+    if (!borrowing || borrowing.length === 0) {
+      logger.warn('Borrowing not found for return confirmation', { borrowingId });
+      return response.notFound(res, 'Borrowing record not found');
+    }
+    
+    const record = borrowing[0];
+    
+    // Validate status transition
+    if (record.status === 'returned') {
+      logger.warn('Return already confirmed', { borrowingId });
+      return response.validationError(res, 'Return has already been confirmed');
+    }
+    
+    if (!['borrowed', 'overdue'].includes(record.status)) {
+      logger.warn('Invalid status for return', { borrowingId, status: record.status });
+      return response.validationError(res, 'Can only confirm return for borrowed or overdue items');
+    }
+    
+    // Start transaction
+    await db.query('START TRANSACTION');
+    
+    try {
+      // Update borrowing record
+      const updateFields = [
+        'return_date = NOW()',
+        'returned_by_admin_id = ?',
+        "status = 'returned'"
+      ];
+      const updateParams = [adminId];
+      
+      if (condition && ['excellent', 'good', 'fair', 'poor', 'damaged'].includes(condition)) {
+        updateFields.push('copy_condition_at_return = ?');
+        updateParams.push(condition);
+      }
+      
+      await db.query(
+        `UPDATE book_borrowings 
+         SET ${updateFields.join(', ')}
+         WHERE id = ?`,
+        [...updateParams, borrowingId]
+      );
+      
+      // Update book copy status back to available
+      if (record.accession_number) {
+        await db.query(
+          "UPDATE book_copies SET status = 'available' WHERE accession_number = ?",
+          [record.accession_number]
+        );
+        
+        logger.info('Book copy marked as available', { accession_number: record.accession_number });
+      }
+      
+      // Update book available quantity
+      await db.query(
+        "UPDATE books SET available_quantity = available_quantity + 1 WHERE id = ?",
+        [record.book_id]
+      );
+      
+      await db.query('COMMIT');
+      
+      // Fetch updated record
+      const updated = await db.query(
+        `SELECT 
+          bb.*,
+          s.fullname AS student_name,
+          b.title AS book_title,
+          a.fullname AS returned_by_name
+         FROM book_borrowings bb
+         LEFT JOIN students s ON bb.student_id = s.student_id
+         LEFT JOIN books b ON bb.book_id = b.id
+         LEFT JOIN admins a ON bb.returned_by_admin_id = a.id
+         WHERE bb.id = ?`,
+        [borrowingId]
+      );
+      
+      logger.info('Return confirmed', { 
+        borrowingId, 
+        adminId, 
+        accession_number: record.accession_number 
+      });
+      
+      response.success(res, updated[0], 'Return confirmed successfully');
+      
+    } catch (txError) {
+      await db.query('ROLLBACK');
+      throw txError;
+    }
+    
+  } catch (error) {
+    logger.error('Error confirming return', { borrowingId, error: error.message });
+    response.error(res, 'Error confirming return', error);
+  }
+});
+
+// =============================
+// BOOK DETAILS & STATISTICS
+// =============================
+
+// Get book details with borrowing overview
+router.get('/books/:id/details', requireAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    
+    // Get book details with copies count
+    const [book] = await db.query(`
+      SELECT 
+        b.*,
+        a.fullname as added_by_name,
+        COUNT(DISTINCT bc.id) as total_copies,
+        COUNT(DISTINCT CASE WHEN bc.status = 'available' THEN bc.id END) as available_copies,
+        COUNT(DISTINCT CASE WHEN bc.status = 'borrowed' THEN bc.id END) as borrowed_copies
+      FROM books b
+      LEFT JOIN admins a ON b.added_by = a.id
+      LEFT JOIN book_copies bc ON b.id = bc.book_id
+      WHERE b.id = ? AND b.deleted_at IS NULL
+      GROUP BY b.id
+    `, [bookId]);
+    
+    if (!book) {
+      return response.notFound(res, 'Book not found');
+    }
+    
+    // Get borrowing statistics
+    const borrowingStats = await db.query(`
+      SELECT 
+        COUNT(*) as total_borrowings,
+        COUNT(DISTINCT student_id) as unique_borrowers,
+        SUM(CASE WHEN status = 'borrowed' THEN 1 ELSE 0 END) as currently_borrowed,
+        SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+        SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as overdue_count,
+        AVG(CASE 
+          WHEN status = 'returned' AND return_date IS NOT NULL 
+          THEN DATEDIFF(return_date, borrow_date) 
+          ELSE NULL 
+        END) as avg_borrow_duration_days
+      FROM book_borrowings
+      WHERE book_id = ?
+    `, [bookId]);
+    
+    // Get recent borrowings (last 10)
+    const recentBorrowings = await db.query(`
+      SELECT 
+        bb.id,
+        bb.student_id,
+        s.fullname as student_name,
+        s.department,
+        bb.borrow_date,
+        bb.due_date,
+        bb.return_date,
+        bb.status,
+        bb.accession_number,
+        bc.copy_number
+      FROM book_borrowings bb
+      LEFT JOIN students s ON bb.student_id = s.student_id
+      LEFT JOIN book_copies bc ON bb.accession_number = bc.accession_number
+      WHERE bb.book_id = ?
+      ORDER BY bb.borrow_date DESC
+      LIMIT 10
+    `, [bookId]);
+    
+    // Get monthly borrowing trend (last 12 months)
+    const borrowingTrend = await db.query(`
+      SELECT 
+        DATE_FORMAT(borrow_date, '%Y-%m') as month,
+        COUNT(*) as count
+      FROM book_borrowings
+      WHERE book_id = ? AND borrow_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      GROUP BY DATE_FORMAT(borrow_date, '%Y-%m')
+      ORDER BY month DESC
+    `, [bookId]);
+    
+    // Get book copies with status
+    const bookCopies = await db.query(`
+      SELECT 
+        id,
+        copy_number,
+        accession_number,
+        status,
+        acquisition_date,
+        notes
+      FROM book_copies
+      WHERE book_id = ?
+      ORDER BY copy_number ASC
+    `, [bookId]);
+    
+    const result = {
+      book,
+      statistics: borrowingStats[0] || {},
+      recentBorrowings,
+      borrowingTrend,
+      bookCopies
+    };
+    
+    response.success(res, result, 'Book details fetched successfully');
+    
+  } catch (error) {
+    logger.error('Error fetching book details', { bookId: req.params.id, error: error.message });
+    response.error(res, 'Error fetching book details', error);
+  }
+});
+
+// =============================
+// BOOK PROFILE WITH BORROWING OVERVIEW
+// (Accessible by both Super Admin and System Admin)
+// =============================
+
+// Get book profile data
+router.get('/books/:bookId/profile', requireAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.bookId);
+    
+    const books = await db.query(`
+      SELECT 
+        id,
+        title,
+        author,
+        category,
+        isbn,
+        quantity as total_quantity,
+        available_quantity,
+        status,
+        added_date
+      FROM books
+      WHERE id = ? AND deleted_at IS NULL
+    `, [bookId]);
+    
+    if (!books || books.length === 0) {
+      return response.notFound(res, 'Book not found');
+    }
+    
+    response.success(res, books[0], 'Book profile fetched successfully');
+    
+  } catch (error) {
+    logger.error('Error fetching book profile', { bookId: req.params.bookId, error: error.message, stack: error.stack });
+    response.error(res, 'Error fetching book profile', error);
+  }
+});
+
+// Get book copies with accession numbers
+router.get('/books/:bookId/copies', requireAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.bookId);
+    
+    const copies = await db.query(`
+      SELECT 
+        id,
+        accession_number,
+        copy_number,
+        status,
+        acquisition_date,
+        notes
+      FROM book_copies
+      WHERE book_id = ?
+      ORDER BY copy_number ASC
+    `, [bookId]);
+    
+    response.success(res, copies, `Found ${copies.length} copies`);
+    
+  } catch (error) {
+    logger.error('Error fetching book copies', { bookId: req.params.bookId, error: error.message });
+    response.error(res, 'Error fetching book copies', error);
+  }
+});
+
+// Get book borrowings with student information
+router.get('/books/:bookId/borrowings', requireAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.bookId);
+    const statusFilter = req.query.status || 'all'; // all, active, overdue, returned
+    
+    let query = `
+      SELECT 
+        bb.id,
+        bb.student_id,
+        s.fullname as student_name,
+        s.email as student_email,
+        s.department,
+        bb.borrow_date as borrowed_on,
+        bb.due_date,
+        bb.return_date,
+        bb.status,
+        bb.accession_number,
+        bc.copy_number
+      FROM book_borrowings bb
+      LEFT JOIN students s ON bb.student_id = s.student_id AND s.deleted_at IS NULL
+      LEFT JOIN book_copies bc ON bb.accession_number = bc.accession_number
+      WHERE bb.book_id = ?
+    `;
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'active') {
+        query += ` AND bb.status IN ('borrowed', 'approved')`;
+      } else if (statusFilter === 'overdue') {
+        query += ` AND bb.status = 'overdue'`;
+      } else if (statusFilter === 'returned') {
+        query += ` AND bb.status = 'returned'`;
+      }
+    }
+    
+    query += ` ORDER BY bb.borrow_date DESC LIMIT 100`;
+    
+    const borrowings = await db.query(query, [bookId]);
+    
+    // Calculate summary counts from all borrowings (not filtered)
+    const allBorrowingsQuery = `
+      SELECT status FROM book_borrowings WHERE book_id = ?
+    `;
+    const allBorrowings = await db.query(allBorrowingsQuery, [bookId]);
+    
+    const summary = {
+      total: allBorrowings.length,
+      active: allBorrowings.filter(b => b.status === 'borrowed' || b.status === 'approved').length,
+      overdue: allBorrowings.filter(b => b.status === 'overdue').length,
+      returned: allBorrowings.filter(b => b.status === 'returned').length
+    };
+    
+    response.success(res, { borrowings, summary }, 'Borrowings fetched successfully');
+    
+  } catch (error) {
+    logger.error('Error fetching book borrowings', { bookId: req.params.bookId, error: error.message, stack: error.stack });
+    response.error(res, 'Error fetching book borrowings', error);
+  }
+});
+
+// =============================
+// TRASH/BIN MANAGEMENT
+// =============================
+
+// ===== BOOKS TRASH (Admin - both Super Admin and System Admin) =====
+
+// Get all trashed books
+router.get('/books/trash', requireAdmin, async (req, res) => {
+  try {
+    const { search, category } = req.query;
+    
+    let query = `
+      SELECT 
+        b.*,
+        a.fullname as added_by_name,
+        COUNT(DISTINCT bc.id) as total_copies
+      FROM books b
+      LEFT JOIN admins a ON b.added_by = a.id
+      LEFT JOIN book_copies bc ON b.id = bc.book_id
+      WHERE b.deleted_at IS NOT NULL
+    `;
+    
+    const queryParams = [];
+    
+    if (search) {
+      query += ` AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ?)`;
+      const searchTerm = `%${search}%`;
+      queryParams.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (category) {
+      query += ` AND b.category = ?`;
+      queryParams.push(category);
+    }
+    
+    query += ` GROUP BY b.id ORDER BY b.deleted_at DESC`;
+    
+    const trashedBooks = await db.query(query, queryParams);
+    
+    response.success(res, trashedBooks, `Found ${trashedBooks.length} trashed books`);
+    
+  } catch (error) {
+    logger.error('Error fetching trashed books', { error: error.message });
+    response.error(res, 'Error fetching trashed books', error);
+  }
+});
+
+// Soft delete a book (move to trash)
+router.post('/books/:id/soft-delete', requireAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    
+    // Check if book exists and is not already deleted
+    const [book] = await db.query(
+      'SELECT id, title, deleted_at FROM books WHERE id = ?',
+      [bookId]
+    );
+    
+    if (!book) {
+      return response.notFound(res, 'Book not found');
+    }
+    
+    if (book.deleted_at) {
+      return response.validationError(res, 'Book is already in trash');
+    }
+    
+    // Soft delete the book
+    await db.query(
+      'UPDATE books SET deleted_at = NOW() WHERE id = ?',
+      [bookId]
+    );
+    
+    logger.info('Book moved to trash', { 
+      bookId, 
+      title: book.title,
+      adminId: req.session.user.id 
+    });
+    
+    response.success(res, { id: bookId }, 'Book moved to trash successfully');
+    
+  } catch (error) {
+    logger.error('Error moving book to trash', { bookId: req.params.id, error: error.message });
+    response.error(res, 'Error moving book to trash', error);
+  }
+});
+
+// Restore a book from trash
+router.post('/books/:id/restore', requireAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    
+    // Check if book exists and is deleted
+    const [book] = await db.query(
+      'SELECT id, title, deleted_at FROM books WHERE id = ?',
+      [bookId]
+    );
+    
+    if (!book) {
+      return response.notFound(res, 'Book not found');
+    }
+    
+    if (!book.deleted_at) {
+      return response.validationError(res, 'Book is not in trash');
+    }
+    
+    // Restore the book
+    await db.query(
+      'UPDATE books SET deleted_at = NULL WHERE id = ?',
+      [bookId]
+    );
+    
+    logger.info('Book restored from trash', { 
+      bookId, 
+      title: book.title,
+      adminId: req.session.user.id 
+    });
+    
+    response.success(res, { id: bookId }, 'Book restored successfully');
+    
+  } catch (error) {
+    logger.error('Error restoring book', { bookId: req.params.id, error: error.message });
+    response.error(res, 'Error restoring book', error);
+  }
+});
+
+// Permanently delete a book (Super Admin only)
+router.delete('/books/:id/permanent-delete', requireSuperAdmin, async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    
+    // Check if book exists and is in trash
+    const [book] = await db.query(
+      'SELECT id, title, deleted_at FROM books WHERE id = ?',
+      [bookId]
+    );
+    
+    if (!book) {
+      return response.notFound(res, 'Book not found');
+    }
+    
+    if (!book.deleted_at) {
+      return response.validationError(res, 'Book must be in trash before permanent deletion');
+    }
+    
+    // Check for active borrowings
+    const activeBorrowings = await db.query(
+      'SELECT COUNT(*) as count FROM book_borrowings WHERE book_id = ? AND status IN ("borrowed", "approved")',
+      [bookId]
+    );
+    
+    if (activeBorrowings[0].count > 0) {
+      return response.validationError(res, 'Cannot delete book with active borrowings');
+    }
+    
+    // Permanently delete book copies first (foreign key constraint)
+    await db.query('DELETE FROM book_copies WHERE book_id = ?', [bookId]);
+    
+    // Permanently delete the book
+    await db.query('DELETE FROM books WHERE id = ?', [bookId]);
+    
+    logger.info('Book permanently deleted', { 
+      bookId, 
+      title: book.title,
+      adminId: req.session.user.id 
+    });
+    
+    response.success(res, { id: bookId }, 'Book permanently deleted');
+    
+  } catch (error) {
+    logger.error('Error permanently deleting book', { bookId: req.params.id, error: error.message });
+    response.error(res, 'Error permanently deleting book', error);
+  }
+});
+
+// ===== USERS TRASH (Super Admin only) =====
+
+// Get all trashed users/students
+router.get('/users/trash', requireSuperAdmin, async (req, res) => {
+  try {
+    const { search, department, year_level, status } = req.query;
+    
+    let query = `
+      SELECT 
+        id,
+        student_id,
+        fullname,
+        email,
+        department,
+        year_level,
+        student_type,
+        contact_number,
+        status,
+        created_at,
+        deleted_at
+      FROM students
+      WHERE deleted_at IS NOT NULL
+    `;
+    
+    const queryParams = [];
+    
+    if (search) {
+      query += ` AND (fullname LIKE ? OR student_id LIKE ? OR email LIKE ?)`;
+      const searchTerm = `%${search}%`;
+      queryParams.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (department) {
+      query += ` AND department = ?`;
+      queryParams.push(department);
+    }
+    
+    if (year_level) {
+      query += ` AND year_level = ?`;
+      queryParams.push(year_level);
+    }
+    
+    if (status) {
+      query += ` AND status = ?`;
+      queryParams.push(status);
+    }
+    
+    query += ` ORDER BY deleted_at DESC`;
+    
+    const trashedUsers = await db.query(query, queryParams);
+    
+    response.success(res, trashedUsers, `Found ${trashedUsers.length} trashed users`);
+    
+  } catch (error) {
+    logger.error('Error fetching trashed users', { error: error.message });
+    response.error(res, 'Error fetching trashed users', error);
+  }
+});
+
+// Soft delete a user (move to trash)
+router.post('/users/:id/soft-delete', requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    // Check if user exists and is not already deleted
+    const [user] = await db.query(
+      'SELECT id, fullname, student_id, deleted_at FROM students WHERE id = ?',
+      [userId]
+    );
+    
+    if (!user) {
+      return response.notFound(res, 'User not found');
+    }
+    
+    if (user.deleted_at) {
+      return response.validationError(res, 'User is already in trash');
+    }
+    
+    // Check for active borrowings
+    const activeBorrowings = await db.query(
+      'SELECT COUNT(*) as count FROM book_borrowings WHERE student_id = ? AND status IN ("borrowed", "approved")',
+      [user.student_id]
+    );
+    
+    if (activeBorrowings[0].count > 0) {
+      return response.validationError(res, 'Cannot delete user with active borrowings. Please return all books first.');
+    }
+    
+    // Soft delete the user
+    await db.query(
+      'UPDATE students SET deleted_at = NOW(), status = "inactive" WHERE id = ?',
+      [userId]
+    );
+    
+    logger.info('User moved to trash', { 
+      userId, 
+      studentId: user.student_id,
+      fullname: user.fullname,
+      adminId: req.session.user.id 
+    });
+    
+    response.success(res, { id: userId }, 'User moved to trash successfully');
+    
+  } catch (error) {
+    logger.error('Error moving user to trash', { userId: req.params.id, error: error.message });
+    response.error(res, 'Error moving user to trash', error);
+  }
+});
+
+// Restore a user from trash
+router.post('/users/:id/restore', requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    // Check if user exists and is deleted
+    const [user] = await db.query(
+      'SELECT id, fullname, student_id, deleted_at FROM students WHERE id = ?',
+      [userId]
+    );
+    
+    if (!user) {
+      return response.notFound(res, 'User not found');
+    }
+    
+    if (!user.deleted_at) {
+      return response.validationError(res, 'User is not in trash');
+    }
+    
+    // Restore the user
+    await db.query(
+      'UPDATE students SET deleted_at = NULL, status = "active" WHERE id = ?',
+      [userId]
+    );
+    
+    logger.info('User restored from trash', { 
+      userId, 
+      studentId: user.student_id,
+      fullname: user.fullname,
+      adminId: req.session.user.id 
+    });
+    
+    response.success(res, { id: userId }, 'User restored successfully');
+    
+  } catch (error) {
+    logger.error('Error restoring user', { userId: req.params.id, error: error.message });
+    response.error(res, 'Error restoring user', error);
+  }
+});
+
+// Permanently delete a user (Super Admin only)
+router.delete('/users/:id/permanent-delete', requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    // Check if user exists and is in trash
+    const [user] = await db.query(
+      'SELECT id, fullname, student_id, deleted_at FROM students WHERE id = ?',
+      [userId]
+    );
+    
+    if (!user) {
+      return response.notFound(res, 'User not found');
+    }
+    
+    if (!user.deleted_at) {
+      return response.validationError(res, 'User must be in trash before permanent deletion');
+    }
+    
+    // Check for any borrowing history (even returned)
+    const borrowingHistory = await db.query(
+      'SELECT COUNT(*) as count FROM book_borrowings WHERE student_id = ?',
+      [user.student_id]
+    );
+    
+    if (borrowingHistory[0].count > 0) {
+      return response.validationError(res, 'Cannot permanently delete user with borrowing history. Data retention required for records.');
+    }
+    
+    // Permanently delete the user
+    await db.query('DELETE FROM students WHERE id = ?', [userId]);
+    
+    logger.info('User permanently deleted', { 
+      userId, 
+      studentId: user.student_id,
+      fullname: user.fullname,
+      adminId: req.session.user.id 
+    });
+    
+    response.success(res, { id: userId }, 'User permanently deleted');
+    
+  } catch (error) {
+    logger.error('Error permanently deleting user', { userId: req.params.id, error: error.message });
+    response.error(res, 'Error permanently deleting user', error);
+  }
+});
+
+// ===== ADMINS TRASH (Super Admin only) =====
+
+// Get all trashed admins
+router.get('/admins/trash', requireSuperAdmin, async (req, res) => {
+  try {
+    const { search, role } = req.query;
+    
+    let query = `
+      SELECT 
+        id,
+        fullname,
+        email,
+        role,
+        is_active,
+        created_at,
+        deleted_at
+      FROM admins
+      WHERE deleted_at IS NOT NULL
+    `;
+    
+    const queryParams = [];
+    
+    if (search) {
+      query += ` AND (fullname LIKE ? OR email LIKE ?)`;
+      const searchTerm = `%${search}%`;
+      queryParams.push(searchTerm, searchTerm);
+    }
+    
+    if (role) {
+      query += ` AND role = ?`;
+      queryParams.push(role);
+    }
+    
+    query += ` ORDER BY deleted_at DESC`;
+    
+    const trashedAdmins = await db.query(query, queryParams);
+    
+    response.success(res, trashedAdmins, `Found ${trashedAdmins.length} trashed admins`);
+    
+  } catch (error) {
+    logger.error('Error fetching trashed admins', { error: error.message });
+    response.error(res, 'Error fetching trashed admins', error);
+  }
+});
+
+// Soft delete an admin (move to trash)
+router.post('/admins/:id/soft-delete', requireSuperAdmin, async (req, res) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    const currentAdminId = req.session.user.id;
+    
+    // Prevent self-deletion
+    if (adminId === currentAdminId) {
+      return response.validationError(res, 'You cannot delete your own account');
+    }
+    
+    // Check if admin exists and is not already deleted
+    const [admin] = await db.query(
+      'SELECT id, fullname, email, role, deleted_at FROM admins WHERE id = ?',
+      [adminId]
+    );
+    
+    if (!admin) {
+      return response.notFound(res, 'Admin not found');
+    }
+    
+    if (admin.deleted_at) {
+      return response.validationError(res, 'Admin is already in trash');
+    }
+    
+    // Check if this is the last super admin
+    if (admin.role === 'super_admin') {
+      const activeSuperAdmins = await db.query(
+        'SELECT COUNT(*) as count FROM admins WHERE role = "super_admin" AND deleted_at IS NULL AND id != ?',
+        [adminId]
+      );
+      
+      if (activeSuperAdmins[0].count === 0) {
+        return response.validationError(res, 'Cannot delete the last super admin');
+      }
+    }
+    
+    // Soft delete the admin
+    await db.query(
+      'UPDATE admins SET deleted_at = NOW(), is_active = 0 WHERE id = ?',
+      [adminId]
+    );
+    
+    logger.info('Admin moved to trash', { 
+      adminId, 
+      fullname: admin.fullname,
+      email: admin.email,
+      deletedBy: currentAdminId 
+    });
+    
+    response.success(res, { id: adminId }, 'Admin moved to trash successfully');
+    
+  } catch (error) {
+    logger.error('Error moving admin to trash', { adminId: req.params.id, error: error.message });
+    response.error(res, 'Error moving admin to trash', error);
+  }
+});
+
+// Restore an admin from trash
+router.post('/admins/:id/restore', requireSuperAdmin, async (req, res) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    
+    // Check if admin exists and is deleted
+    const [admin] = await db.query(
+      'SELECT id, fullname, email, deleted_at FROM admins WHERE id = ?',
+      [adminId]
+    );
+    
+    if (!admin) {
+      return response.notFound(res, 'Admin not found');
+    }
+    
+    if (!admin.deleted_at) {
+      return response.validationError(res, 'Admin is not in trash');
+    }
+    
+    // Restore the admin
+    await db.query(
+      'UPDATE admins SET deleted_at = NULL, is_active = 1 WHERE id = ?',
+      [adminId]
+    );
+    
+    logger.info('Admin restored from trash', { 
+      adminId, 
+      fullname: admin.fullname,
+      email: admin.email,
+      restoredBy: req.session.user.id 
+    });
+    
+    response.success(res, { id: adminId }, 'Admin restored successfully');
+    
+  } catch (error) {
+    logger.error('Error restoring admin', { adminId: req.params.id, error: error.message });
+    response.error(res, 'Error restoring admin', error);
+  }
+});
+
+// Permanently delete an admin (Super Admin only)
+router.delete('/admins/:id/permanent-delete', requireSuperAdmin, async (req, res) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    const currentAdminId = req.session.user.id;
+    
+    // Prevent self-deletion
+    if (adminId === currentAdminId) {
+      return response.validationError(res, 'You cannot delete your own account');
+    }
+    
+    // Check if admin exists and is in trash
+    const [admin] = await db.query(
+      'SELECT id, fullname, email, role, deleted_at FROM admins WHERE id = ?',
+      [adminId]
+    );
+    
+    if (!admin) {
+      return response.notFound(res, 'Admin not found');
+    }
+    
+    if (!admin.deleted_at) {
+      return response.validationError(res, 'Admin must be in trash before permanent deletion');
+    }
+    
+    // Permanently delete the admin
+    await db.query('DELETE FROM admins WHERE id = ?', [adminId]);
+    
+    logger.info('Admin permanently deleted', { 
+      adminId, 
+      fullname: admin.fullname,
+      email: admin.email,
+      deletedBy: currentAdminId 
+    });
+    
+    response.success(res, { id: adminId }, 'Admin permanently deleted');
+    
+  } catch (error) {
+    logger.error('Error permanently deleting admin', { adminId: req.params.id, error: error.message });
+    response.error(res, 'Error permanently deleting admin', error);
+  }
+});
+
+// GET /api/admin/:id - Get single admin (requires admin authentication)
+// IMPORTANT: This route must be LAST as it catches all /api/admin/* paths
+router.get("/:id", requireAdmin, async (req, res) => {
+  try {
+    const admin = await db.query(
+      "SELECT id, fullname, email, role FROM admins WHERE id = ?",
+      [req.params.id]
+    );
+
+    // Debug log to inspect the query and parameters
+    logger.debug('Executing query to fetch admin', {
+      query: "SELECT id, fullname, email, role FROM admins WHERE id = ?",
+      params: [req.params.id]
+    });
+
+    if (admin.length === 0) {
+      logger.warn('Admin not found', { adminId: req.params.id });
+      return response.notFound(res, 'Admin not found');
+    }
+
+    logger.info('Admin fetched', { adminId: req.params.id });
+    response.success(res, admin[0]);
+  } catch (err) {
+    logger.error('Failed to fetch admin', {
+      adminId: req.params.id,
+      error: err.message,
+      stack: err.stack
+    });
+    response.error(res, 'Failed to fetch admin', err);
+  }
+});
+
+// ===== UNIFIED TRASH BIN =====
+// Combines Books, Users, and Admins trash into a single endpoint
+
+// Get unified trash (all deleted items)
+router.get('/trash', requireAdmin, async (req, res) => {
+  try {
+    const { type = 'all', search = '' } = req.query;
+    const adminRole = req.session.user.adminRole;
+    const isSuperAdmin = adminRole === 'super_admin';
+    
+    const result = {
+      books: [],
+      users: [],
+      admins: []
+    };
+    
+    // Books (both Super Admin and System Admin can view)
+    if (type === 'all' || type === 'book') {
+      let booksQuery = `
+        SELECT 
+          b.id,
+          b.title,
+          b.author,
+          b.isbn,
+          b.category,
+          b.quantity,
+          b.added_date,
+          b.deleted_at,
+          a.fullname as added_by_name,
+          COUNT(DISTINCT bc.id) as total_copies,
+          'book' as item_type
+        FROM books b
+        LEFT JOIN admins a ON b.added_by = a.id
+        LEFT JOIN book_copies bc ON b.id = bc.book_id
+        WHERE b.deleted_at IS NOT NULL
+      `;
+      
+      const booksParams = [];
+      if (search) {
+        booksQuery += ` AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ? OR b.category LIKE ?)`;
+        const searchTerm = `%${search}%`;
+        booksParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      }
+      
+      booksQuery += ` GROUP BY b.id ORDER BY b.deleted_at DESC`;
+      result.books = await db.query(booksQuery, booksParams);
+    }
+    
+    // Users (Super Admin only)
+    if (isSuperAdmin && (type === 'all' || type === 'user')) {
+      let usersQuery = `
+        SELECT 
+          id,
+          student_id,
+          fullname,
+          email,
+          department,
+          year_level,
+          student_type,
+          status,
+          created_at,
+          deleted_at,
+          'user' as item_type
+        FROM students
+        WHERE deleted_at IS NOT NULL
+      `;
+      
+      const usersParams = [];
+      if (search) {
+        usersQuery += ` AND (fullname LIKE ? OR student_id LIKE ? OR email LIKE ? OR department LIKE ?)`;
+        const searchTerm = `%${search}%`;
+        usersParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      }
+      
+      usersQuery += ` ORDER BY deleted_at DESC`;
+      result.users = await db.query(usersQuery, usersParams);
+    }
+    
+    // Admins (Super Admin only)
+    if (isSuperAdmin && (type === 'all' || type === 'admin')) {
+      let adminsQuery = `
+        SELECT 
+          id,
+          fullname,
+          email,
+          role,
+          is_active,
+          created_at,
+          deleted_at,
+          'admin' as item_type
+        FROM admins
+        WHERE deleted_at IS NOT NULL
+      `;
+      
+      const adminsParams = [];
+      if (search) {
+        adminsQuery += ` AND (fullname LIKE ? OR email LIKE ? OR role LIKE ?)`;
+        const searchTerm = `%${search}%`;
+        adminsParams.push(searchTerm, searchTerm, searchTerm);
+      }
+      
+      adminsQuery += ` ORDER BY deleted_at DESC`;
+      result.admins = await db.query(adminsQuery, adminsParams);
+    }
+    
+    // Calculate totals
+    const summary = {
+      total: result.books.length + result.users.length + result.admins.length,
+      books: result.books.length,
+      users: result.users.length,
+      admins: result.admins.length
+    };
+    
+    logger.info('Unified trash fetched', { 
+      summary,
+      adminRole,
+      filter: type,
+      searchTerm: search
+    });
+    
+    response.success(res, { items: result, summary }, 'Trash items retrieved');
+    
+  } catch (error) {
+    logger.error('Error fetching unified trash', { error: error.message });
+    response.error(res, 'Error fetching trash items', error);
+  }
+});
+
+// Unified restore endpoint
+router.post('/trash/:type/:id/restore', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const itemId = parseInt(id);
+    const adminRole = req.session.user.adminRole;
+    const isSuperAdmin = adminRole === 'super_admin';
+    
+    // Permission checks
+    if (!isSuperAdmin && (type === 'admin' || type === 'user')) {
+      return response.forbidden(res, 'Only Super Admins can restore admins and users');
+    }
+    
+    switch (type) {
+      case 'book': {
+        const [book] = await db.query(
+          'SELECT id, title, deleted_at FROM books WHERE id = ?',
+          [itemId]
+        );
+        
+        if (!book) {
+          return response.notFound(res, 'Book not found');
+        }
+        
+        if (!book.deleted_at) {
+          return response.validationError(res, 'Book is not in trash');
+        }
+        
+        await db.query('UPDATE books SET deleted_at = NULL WHERE id = ?', [itemId]);
+        
+        logger.info('Book restored from unified trash', { 
+          bookId: itemId, 
+          title: book.title,
+          adminId: req.session.user.id 
+        });
+        
+        return response.success(res, { id: itemId, type }, 'Book restored successfully');
+      }
+      
+      case 'user': {
+        const [user] = await db.query(
+          'SELECT id, fullname, student_id, deleted_at FROM students WHERE id = ?',
+          [itemId]
+        );
+        
+        if (!user) {
+          return response.notFound(res, 'User not found');
+        }
+        
+        if (!user.deleted_at) {
+          return response.validationError(res, 'User is not in trash');
+        }
+        
+        await db.query(
+          'UPDATE students SET deleted_at = NULL, status = "active" WHERE id = ?',
+          [itemId]
+        );
+        
+        logger.info('User restored from unified trash', { 
+          userId: itemId, 
+          studentId: user.student_id,
+          fullname: user.fullname,
+          adminId: req.session.user.id 
+        });
+        
+        return response.success(res, { id: itemId, type }, 'User restored successfully');
+      }
+      
+      case 'admin': {
+        const [admin] = await db.query(
+          'SELECT id, fullname, email, deleted_at FROM admins WHERE id = ?',
+          [itemId]
+        );
+        
+        if (!admin) {
+          return response.notFound(res, 'Admin not found');
+        }
+        
+        if (!admin.deleted_at) {
+          return response.validationError(res, 'Admin is not in trash');
+        }
+        
+        await db.query(
+          'UPDATE admins SET deleted_at = NULL, is_active = TRUE WHERE id = ?',
+          [itemId]
+        );
+        
+        logger.info('Admin restored from unified trash', { 
+          adminId: itemId, 
+          fullname: admin.fullname,
+          restoredBy: req.session.user.id 
+        });
+        
+        return response.success(res, { id: itemId, type }, 'Admin restored successfully');
+      }
+      
+      default:
+        return response.validationError(res, 'Invalid item type. Must be: book, user, or admin');
+    }
+    
+  } catch (error) {
+    logger.error('Error restoring item from unified trash', { 
+      type: req.params.type,
+      id: req.params.id,
+      error: error.message 
+    });
+    response.error(res, 'Error restoring item', error);
+  }
+});
+
+// Unified permanent delete endpoint
+router.delete('/trash/:type/:id/permanent', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const itemId = parseInt(id);
+    const adminRole = req.session.user.adminRole;
+    const isSuperAdmin = adminRole === 'super_admin';
+    
+    // Permission checks - only Super Admin can permanently delete anything
+    if (!isSuperAdmin) {
+      return response.forbidden(res, 'Only Super Admins can permanently delete items');
+    }
+    
+    switch (type) {
+      case 'book': {
+        const [book] = await db.query(
+          'SELECT id, title, deleted_at FROM books WHERE id = ?',
+          [itemId]
+        );
+        
+        if (!book) {
+          return response.notFound(res, 'Book not found');
+        }
+        
+        if (!book.deleted_at) {
+          return response.validationError(res, 'Book must be in trash before permanent deletion');
+        }
+        
+        // Check for active borrowings
+        const activeBorrowings = await db.query(
+          'SELECT COUNT(*) as count FROM book_borrowings WHERE book_id = ? AND status IN ("borrowed", "approved")',
+          [itemId]
+        );
+        
+        if (activeBorrowings[0].count > 0) {
+          return response.validationError(res, 'Cannot delete book with active borrowings');
+        }
+        
+        // Delete book copies first
+        await db.query('DELETE FROM book_copies WHERE book_id = ?', [itemId]);
+        await db.query('DELETE FROM books WHERE id = ?', [itemId]);
+        
+        logger.info('Book permanently deleted from unified trash', { 
+          bookId: itemId, 
+          title: book.title,
+          adminId: req.session.user.id 
+        });
+        
+        return response.success(res, { id: itemId, type }, 'Book permanently deleted');
+      }
+      
+      case 'user': {
+        const [user] = await db.query(
+          'SELECT id, fullname, student_id, deleted_at FROM students WHERE id = ?',
+          [itemId]
+        );
+        
+        if (!user) {
+          return response.notFound(res, 'User not found');
+        }
+        
+        if (!user.deleted_at) {
+          return response.validationError(res, 'User must be in trash before permanent deletion');
+        }
+        
+        // Check for borrowing history
+        const borrowingHistory = await db.query(
+          'SELECT COUNT(*) as count FROM book_borrowings WHERE student_id = ?',
+          [user.student_id]
+        );
+        
+        if (borrowingHistory[0].count > 0) {
+          return response.validationError(res, 'Cannot permanently delete user with borrowing history. Data retention required for records.');
+        }
+        
+        await db.query('DELETE FROM students WHERE id = ?', [itemId]);
+        
+        logger.info('User permanently deleted from unified trash', { 
+          userId: itemId, 
+          studentId: user.student_id,
+          fullname: user.fullname,
+          adminId: req.session.user.id 
+        });
+        
+        return response.success(res, { id: itemId, type }, 'User permanently deleted');
+      }
+      
+      case 'admin': {
+        const currentAdminId = req.session.user.id;
+        
+        if (itemId === currentAdminId) {
+          return response.validationError(res, 'You cannot delete your own account');
+        }
+        
+        const [admin] = await db.query(
+          'SELECT id, fullname, email, deleted_at FROM admins WHERE id = ?',
+          [itemId]
+        );
+        
+        if (!admin) {
+          return response.notFound(res, 'Admin not found');
+        }
+        
+        if (!admin.deleted_at) {
+          return response.validationError(res, 'Admin must be in trash before permanent deletion');
+        }
+        
+        await db.query('DELETE FROM admins WHERE id = ?', [itemId]);
+        
+        logger.info('Admin permanently deleted from unified trash', { 
+          adminId: itemId, 
+          fullname: admin.fullname,
+          deletedBy: req.session.user.id 
+        });
+        
+        return response.success(res, { id: itemId, type }, 'Admin permanently deleted');
+      }
+      
+      default:
+        return response.validationError(res, 'Invalid item type. Must be: book, user, or admin');
+    }
+    
+  } catch (error) {
+    logger.error('Error permanently deleting item from unified trash', { 
+      type: req.params.type,
+      id: req.params.id,
+      error: error.message 
+    });
+    response.error(res, 'Error permanently deleting item', error);
   }
 });
 

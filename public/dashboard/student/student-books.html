@@ -1956,24 +1956,22 @@
               <input
                 id="searchInput"
                 type="text"
-                placeholder="Search by title, author, accession no., or category..."
+                placeholder="Search by name, ID, email, or course..."
               />
             </div>
-            <div class="filter-dropdown">
-              <select id="statusFilter">
-                <option value="">All Status</option>
-                <option value="available">Available</option>
-                <option value="borrowed">Not Available</option>
-              </select>
-            </div>
-            <div class="filter-dropdown">
-              <select id="categoryFilter">
+            <div class="filter-group">
+              <select id="categoryFilter" class="filter-select">
                 <option value="">All Categories</option>
               </select>
+              <select id="statusFilter" class="filter-select">
+                <option value="">All Status</option>
+                <option value="available">Available</option>
+                <option value="borrowed">Borrowed</option>
+              </select>
+              <button id="clearFiltersBtn" class="clear-btn">
+                <i class="fas fa-filter-circle-xmark"></i> Clear
+              </button>
             </div>
-            <button id="clearFiltersBtn" class="clear-filters-btn">
-              <i class="fas fa-times-circle"></i> Clear Filters
-            </button>
           </div>
 
           <!-- Selection Toolbar -->

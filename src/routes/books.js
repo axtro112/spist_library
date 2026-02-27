@@ -14,7 +14,7 @@ router.get("/", requireAuth, async (req, res) => {
         CASE WHEN b.available_quantity > 0 THEN 1 ELSE 0 END as is_available
       FROM books b
       LEFT JOIN admins a ON b.added_by = a.id
-      WHERE b.status = 'available'
+      WHERE b.status = 'available' AND b.deleted_at IS NULL
     `;
     const params = [];
 
@@ -48,7 +48,7 @@ router.get("/", requireAuth, async (req, res) => {
 router.get("/categories", requireAuth, async (req, res) => {
   try {
     const query =
-      "SELECT DISTINCT category FROM books WHERE status = 'available' AND category IS NOT NULL AND category != '' ORDER BY category ASC";
+      "SELECT DISTINCT category FROM books WHERE status = 'available' AND deleted_at IS NULL AND category IS NOT NULL AND category != '' ORDER BY category ASC";
     const categories = await db.query(query);
     logger.info('Categories fetched successfully', { count: categories.length });
     response.success(res, categories);
@@ -77,7 +77,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         added_date,
         updated_at
       FROM books
-      WHERE id = ? AND status != 'deleted'
+      WHERE id = ? AND status != 'deleted' AND deleted_at IS NULL
       LIMIT 1
     `;
 
@@ -102,7 +102,7 @@ router.post("/borrow", async (req, res) => {
 
   try {
     // Check if book has available copies
-    const books = await db.query("SELECT available_quantity FROM books WHERE id = ? AND status = 'available'", [
+    const books = await db.query("SELECT available_quantity FROM books WHERE id = ? AND status = 'available' AND deleted_at IS NULL", [
       bookId,
     ]);
     if (!books.length || books[0].available_quantity <= 0) {
@@ -123,19 +123,6 @@ router.post("/borrow", async (req, res) => {
   } catch (error) {
     logger.error('Error borrowing book', { error: error.message, bookId, studentId });
     response.error(res, 'Error borrowing book', error);
-  }
-});
-
-// Add logging to debug the 500 error
-router.get('/api/admin/books', async (req, res) => {
-  try {
-    logger.info('Fetching books data');
-    const books = await db.query('SELECT * FROM books');
-    logger.info('Books data fetched successfully', { count: books.length });
-    res.status(200).json({ success: true, data: books });
-  } catch (error) {
-    logger.error('Error fetching books data', { error: error.message });
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 });
 

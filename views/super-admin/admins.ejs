@@ -147,6 +147,24 @@
               <option value="super_admin">Super Admin</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="editPassword">New Password <span style="font-weight:400;color:#888;">(leave blank to keep current)</span></label>
+            <div class="sa-password-wrap">
+              <input type="password" id="editPassword" name="password" placeholder="Enter new password" autocomplete="new-password" />
+              <button type="button" class="sa-eye-toggle" onclick="togglePasswordVisibility('editPassword', this)" tabindex="-1">
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" id="editConfirmPasswordGroup" style="display:none;">
+            <label for="editConfirmPassword">Confirm New Password</label>
+            <div class="sa-password-wrap">
+              <input type="password" id="editConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password" />
+              <button type="button" class="sa-eye-toggle" onclick="togglePasswordVisibility('editConfirmPassword', this)" tabindex="-1">
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+            </div>
+          </div>
           <div class="form-actions">
             <button type="submit">Save Changes</button>
             <button type="button" class="cancel-btn">Cancel</button>

@@ -160,6 +160,19 @@ class AdminManagement {
       editCancelBtn.addEventListener('click', () => this.closeEditModal());
     }
 
+    // Show confirm-password field only when user starts typing a new password
+    const editPasswordInput = document.getElementById('editPassword');
+    if (editPasswordInput) {
+      editPasswordInput.addEventListener('input', () => {
+        const group = document.getElementById('editConfirmPasswordGroup');
+        if (group) group.style.display = editPasswordInput.value ? 'block' : 'none';
+        if (!editPasswordInput.value) {
+          const confirm = document.getElementById('editConfirmPassword');
+          if (confirm) confirm.value = '';
+        }
+      });
+    }
+
     // Delete modal confirm button
     const deleteConfirmBtn = document.querySelector('#modalDelete .delete-confirm-btn');
     if (deleteConfirmBtn) {
@@ -480,8 +493,9 @@ class AdminManagement {
     modal.classList.remove('show');
     document.body.classList.remove('modal-open');
     
-    // Reset form
+    // Reset form and hide confirm password group
     document.getElementById('editAdminForm').reset();
+    document.getElementById('editConfirmPasswordGroup').style.display = 'none';
     this.clearModalError('editAdminError');
   }
 
@@ -495,6 +509,8 @@ class AdminManagement {
     const fullname = document.getElementById('editName').value.trim();
     const email = document.getElementById('editEmail').value.trim();
     const role = document.getElementById('editRole').value;
+    const password = document.getElementById('editPassword').value;
+    const confirmPassword = document.getElementById('editConfirmPassword').value;
 
     // Validation
     if (!fullname) {
@@ -512,22 +528,31 @@ class AdminManagement {
       return;
     }
 
+    if (password) {
+      if (password.length < 6) {
+        this.showModalError('editAdminError', 'Password must be at least 6 characters');
+        return;
+      }
+      if (password !== confirmPassword) {
+        this.showModalError('editAdminError', 'Passwords do not match');
+        return;
+      }
+    }
+
     // Disable save button during request
     const submitBtn = document.querySelector('#editAdminForm button[type="submit"]');
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Saving...';
 
+    const payload = { fullname, email, role, currentAdminId: this.currentAdminId };
+    if (password) payload.password = password;
+
     try {
       const response = await fetchWithCsrf(`/api/admin/${adminId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullname,
-          email,
-          role,
-          currentAdminId: this.currentAdminId
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -713,4 +738,14 @@ if (document.readyState === 'loading') {
   });
 } else {
   window.adminManager = new AdminManagement();
+}
+
+/** Toggle password field visibility (used by eye buttons in modals) */
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isText = input.type === 'text';
+  input.type = isText ? 'password' : 'text';
+  const icon = btn.querySelector('.material-symbols-outlined');
+  if (icon) icon.textContent = isText ? 'visibility' : 'visibility_off';
 }

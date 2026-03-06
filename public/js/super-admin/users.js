@@ -22,6 +22,11 @@
   var allBooksData          = [];
   var selectedBooksForBulk  = [];
 
+  // User CRUD state
+  var _editUserId        = null;
+  var _deleteUserId      = null;
+  var _displayedStudents = [];
+
   // ── Dynamic styles ────────────────────────────────────────────────────────
   function _injectStyles() {
     if (document.getElementById('sa-users-dynamic-css')) return;
@@ -44,6 +49,9 @@
       '.action-btn .material-symbols-outlined{font-size:20px;}',
       '.borrow-btn{background-color:#4CAF50;color:white;}.borrow-btn:hover{background-color:#45a049;}',
       '.bulk-borrow-btn{background-color:#2196F3;color:white;}.bulk-borrow-btn:hover{background-color:#0b7dda;}',
+      '.edit-user-btn{background-color:#2196F3;color:white;}.edit-user-btn:hover{background-color:#1976D2;}',
+      '.delete-user-btn{background-color:#f44336;color:white;}.delete-user-btn:hover{background-color:#d32f2f;}',
+      '.action-cell{white-space:nowrap;}'
       '.borrow-student-info{background:#f5f5f5;padding:15px;border-radius:8px;margin-bottom:20px;}',
       '.borrow-step{margin:20px 0;}.borrow-step h3{color:#0e5e3f;margin-bottom:15px;}',
       '.books-list,.copies-list{border:1px solid #ddd;border-radius:8px;padding:10px;}',
@@ -109,6 +117,7 @@
   }
 
   function _updateTable(students) {
+    _displayedStudents = students;
     var tbody    = document.querySelector('.user-table tbody');
     var countEl  = document.getElementById('usersResultCount');
     if (!tbody) return;
@@ -117,7 +126,7 @@
     if (countEl) countEl.textContent = 'Showing ' + students.length + ' of ' + total + ' users';
 
     if (students.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px 20px;"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#666;"><span class="material-symbols-outlined" style="font-size:48px;color:#ccc;">search_off</span><h3 style="margin:0;color:#333;">No users found</h3><p style="margin:0;">Try adjusting your search or filters</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px 20px;"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#666;"><span class="material-symbols-outlined" style="font-size:48px;color:#ccc;">search_off</span><h3 style="margin:0;color:#333;">No users found</h3><p style="margin:0;">Try adjusting your search or filters</p></div></td></tr>';
       return;
     }
 
@@ -136,9 +145,9 @@
         '<td>' + student.rented_books + '</td>' +
         '<td>' + (student.books_title || '') + '</td>' +
         '<td>' + student.date_to_return + '</td>' +
-        '<td>' +
-          '<button class="action-btn borrow-btn" onclick="event.stopPropagation();openBorrowModal(\u0027' + student.student_id + '\u0027,\u0027' + student.fullname + '\u0027)" title="Borrow Book"><span class="material-symbols-outlined">book</span></button>' +
-          '<button class="action-btn bulk-borrow-btn" onclick="event.stopPropagation();openBulkBorrowModal(\u0027' + student.student_id + '\u0027,\u0027' + student.fullname + '\u0027)" title="Bulk Borrow"><span class="material-symbols-outlined">library_books</span></button>' +
+        '<td class="action-cell">' +
+          '<button class="action-btn edit-user-btn" onclick="event.stopPropagation();openEditUserModal(' + student.id + ')" title="Edit User"><span class="material-symbols-outlined">edit</span></button>' +
+          '<button class="action-btn delete-user-btn" onclick="event.stopPropagation();openDeleteUserModal(' + student.id + ')" title="Delete User"><span class="material-symbols-outlined">delete</span></button>' +
         '</td>';
       tbody.appendChild(row);
     });
@@ -694,6 +703,143 @@
     if (m) m.remove();
   }
 
+  // ── User CRUD ─────────────────────────────────────────────────────────────
+  function openAddUserModal() {
+    var modal = document.getElementById('adminModal');
+    if (!modal) return;
+    var form = document.getElementById('addUserForm');
+    if (form) form.reset();
+    var err = document.getElementById('addUserError');
+    if (err) { err.textContent = ''; err.style.display = 'none'; }
+    modal.classList.add('show');
+  }
+
+  function closeAddUserModal() {
+    var modal = document.getElementById('adminModal');
+    if (modal) modal.classList.remove('show');
+  }
+
+  async function _saveNewUser(e) {
+    e.preventDefault();
+    var fnEl = document.getElementById('addUserFullname');
+    var siEl = document.getElementById('addUserStudentId');
+    var emEl = document.getElementById('addUserEmail');
+    var pwEl = document.getElementById('addUserPassword');
+    var dpEl = document.getElementById('addUserDept');
+    var yrEl = document.getElementById('addUserYear');
+    var fullname   = fnEl ? fnEl.value.trim() : '';
+    var student_id = siEl ? siEl.value.trim() : '';
+    var email      = emEl ? emEl.value.trim() : '';
+    var password   = pwEl ? pwEl.value : '';
+    var department = dpEl ? dpEl.value : '';
+    var year_level = yrEl ? yrEl.value : '1';
+    var errEl = document.getElementById('addUserError');
+    var showErr = function (msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } else { alert(msg); }
+    };
+    if (!fullname || !student_id || !email || !password) { return showErr('Full Name, Student ID, Email and Password are required.'); }
+    if (password.length < 6) { return showErr('Password must be at least 6 characters.'); }
+    try {
+      var res = await fetchWithCsrf('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullname: fullname, student_id: student_id, email: email, password: password, department: department, year_level: year_level }),
+      });
+      var result = await res.json();
+      if (!res.ok) { return showErr(result.message || 'Failed to create user.'); }
+      closeAddUserModal();
+      fetchStudentsData(currentFilters);
+    } catch (err) {
+      console.error('[UsersPage] saveNewUser:', err);
+      showErr('Error creating user. Please try again.');
+    }
+  }
+
+  function openEditUserModal(id) {
+    _editUserId = id;
+    var student = _displayedStudents.find(function (s) { return String(s.id) === String(id); });
+    if (!student) { console.warn('[UsersPage] openEditUserModal: student not found', id); return; }
+    var modal = document.getElementById('adminEdit');
+    if (!modal) return;
+    var err = document.getElementById('editUserError');
+    if (err) { err.textContent = ''; err.style.display = 'none'; }
+    var fnEl = document.getElementById('editUserFullname'); if (fnEl) fnEl.value = student.fullname || '';
+    var emEl = document.getElementById('editUserEmail');    if (emEl) emEl.value = student.email    || '';
+    var dpEl = document.getElementById('editUserDept');     if (dpEl) dpEl.value = student.department || '';
+    var yrEl = document.getElementById('editUserYear');     if (yrEl) yrEl.value = student.year_level  || '1';
+    var stEl = document.getElementById('editUserStatus');   if (stEl) stEl.value = student.status    || 'active';
+    modal.classList.add('show');
+  }
+
+  function closeEditUserModal() {
+    var modal = document.getElementById('adminEdit');
+    if (modal) modal.classList.remove('show');
+    _editUserId = null;
+  }
+
+  async function _saveEditUser(e) {
+    e.preventDefault();
+    if (!_editUserId) return;
+    var fnEl = document.getElementById('editUserFullname');
+    var emEl = document.getElementById('editUserEmail');
+    var dpEl = document.getElementById('editUserDept');
+    var yrEl = document.getElementById('editUserYear');
+    var stEl = document.getElementById('editUserStatus');
+    var fullname   = fnEl ? fnEl.value.trim() : '';
+    var email      = emEl ? emEl.value.trim() : '';
+    var department = dpEl ? dpEl.value : '';
+    var year_level = yrEl ? yrEl.value : '';
+    var status     = stEl ? stEl.value : 'active';
+    var errEl = document.getElementById('editUserError');
+    var showErr = function (msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } else { alert(msg); }
+    };
+    if (!fullname || !email) { return showErr('Full Name and Email are required.'); }
+    try {
+      var res = await fetchWithCsrf('/api/admin/users/' + _editUserId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullname: fullname, email: email, department: department, year_level: year_level, status: status }),
+      });
+      var result = await res.json();
+      if (!res.ok) { return showErr(result.message || 'Failed to update user.'); }
+      closeEditUserModal();
+      fetchStudentsData(currentFilters);
+    } catch (err) {
+      console.error('[UsersPage] saveEditUser:', err);
+      showErr('Error updating user. Please try again.');
+    }
+  }
+
+  function openDeleteUserModal(id) {
+    _deleteUserId = id;
+    var student = _displayedStudents.find(function (s) { return String(s.id) === String(id); });
+    var nameEl = document.getElementById('deleteUserName');
+    if (nameEl) nameEl.textContent = student ? student.fullname : 'this user';
+    var modal = document.getElementById('modalDelete');
+    if (modal) modal.classList.add('show');
+  }
+
+  function closeDeleteUserModal() {
+    var modal = document.getElementById('modalDelete');
+    if (modal) modal.classList.remove('show');
+    _deleteUserId = null;
+  }
+
+  async function _confirmDeleteUser() {
+    if (!_deleteUserId) return;
+    try {
+      var res = await fetchWithCsrf('/api/admin/users/' + _deleteUserId + '/soft-delete', { method: 'POST' });
+      var result = await res.json();
+      if (!res.ok) { alert(result.message || 'Failed to delete user.'); return; }
+      closeDeleteUserModal();
+      fetchStudentsData(currentFilters);
+    } catch (err) {
+      console.error('[UsersPage] confirmDeleteUser:', err);
+      alert('Error deleting user. Please try again.');
+    }
+  }
+
   // ── init ─────────────────────────────────────────────────────────────────
   async function init() {
     if (!SA.utils.guardSuperAdmin()) return;
@@ -712,9 +858,16 @@
     window.addBookToBulkCart      = addBookToBulkCart;
     window.removeFromBulkCart     = removeFromBulkCart;
     window.confirmBulkBorrowing   = confirmBulkBorrowing;
-    window.closeCopySelectionModal = closeCopySelectionModal;
-    window.fetchStudentsData      = fetchStudentsData;
+    window.closeCopySelectionModal  = closeCopySelectionModal;
+    window.fetchStudentsData         = fetchStudentsData;
     window.handleBulkEditUsersSubmit = _handleBulkEditSubmit;
+    window.openAddUserModal          = openAddUserModal;
+    window.closeAddUserModal         = closeAddUserModal;
+    window.openEditUserModal         = openEditUserModal;
+    window.closeEditUserModal        = closeEditUserModal;
+    window.openDeleteUserModal       = openDeleteUserModal;
+    window.closeDeleteUserModal      = closeDeleteUserModal;
+    window.confirmDeleteUser         = _confirmDeleteUser;
 
     await SA.utils.loadAdminHeader(session.adminId);
 
@@ -722,6 +875,12 @@
     _initFilters();
     _initRowClick();
     _initDeepLink();
+
+    var addUserForm  = document.getElementById('addUserForm');
+    var editUserForm = document.getElementById('editUserForm');
+    if (addUserForm)  addUserForm.addEventListener('submit', _saveNewUser);
+    if (editUserForm) editUserForm.addEventListener('submit', _saveEditUser);
+
     fetchStudentsData();
   }
 

@@ -1976,6 +1976,62 @@ router.delete('/books/:id/permanent-delete', requireSuperAdmin, async (req, res)
   }
 });
 
+// ===== USERS CRUD (Super Admin only) =====
+
+// Create new student/user
+router.post('/users', requireSuperAdmin, async (req, res) => {
+  try {
+    const { student_id, fullname, email, password, department, year_level, student_type, contact_number, status } = req.body;
+    if (!student_id || !fullname || !email || !password) {
+      return response.validationError(res, 'Student ID, Full Name, Email and Password are required');
+    }
+    const existing = await db.query('SELECT id FROM students WHERE student_id = ? OR email = ?', [student_id, email]);
+    if (existing.length > 0) {
+      return response.validationError(res, 'Student ID or email already exists');
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await db.query(
+      'INSERT INTO students (student_id, fullname, email, password, department, year_level, student_type, contact_number, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [student_id, fullname, email, hashedPassword, department || '', year_level || 1, student_type || 'regular', contact_number || '', status || 'active']
+    );
+    logger.info('Student created', { id: result.insertId, student_id });
+    response.success(res, { id: result.insertId }, 'Student created successfully', 201);
+  } catch (err) {
+    logger.error('Failed to create student', { error: err.message });
+    response.error(res, 'Failed to create student', err);
+  }
+});
+
+// Update student/user
+router.put('/users/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { fullname, email, department, year_level, student_type, contact_number, status } = req.body;
+    const existing = await db.query('SELECT id FROM students WHERE id = ? AND deleted_at IS NULL', [userId]);
+    if (existing.length === 0) return response.notFound(res, 'Student not found');
+    if (email) {
+      const dup = await db.query('SELECT id FROM students WHERE email = ? AND id != ?', [email, userId]);
+      if (dup.length > 0) return response.validationError(res, 'Email already in use');
+    }
+    const updates = [], params = [];
+    if (fullname)                    { updates.push('fullname = ?');        params.push(fullname); }
+    if (email)                       { updates.push('email = ?');           params.push(email); }
+    if (department !== undefined)    { updates.push('department = ?');      params.push(department); }
+    if (year_level !== undefined)    { updates.push('year_level = ?');      params.push(year_level); }
+    if (student_type !== undefined)  { updates.push('student_type = ?');    params.push(student_type); }
+    if (contact_number !== undefined){ updates.push('contact_number = ?');  params.push(contact_number); }
+    if (status)                      { updates.push('status = ?');          params.push(status); }
+    if (updates.length === 0) return response.validationError(res, 'No fields to update');
+    params.push(userId);
+    await db.query('UPDATE students SET ' + updates.join(', ') + ' WHERE id = ?', params);
+    logger.info('Student updated', { userId });
+    response.success(res, null, 'Student updated successfully');
+  } catch (err) {
+    logger.error('Failed to update student', { userId: req.params.id, error: err.message });
+    response.error(res, 'Failed to update student', err);
+  }
+});
+
 // ===== USERS TRASH (Super Admin only) =====
 
 // Get all trashed users/students

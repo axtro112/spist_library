@@ -284,15 +284,19 @@ const importBooks = async (books) => {
 
       if (existingBook.length > 0) {
         // ISBN exists → UPDATE the book (upsert)
+        // Cap available_quantity so it never exceeds the new quantity (respects chk_available_quantity constraint)
         const status = await determineBookStatus(quantity, existingBook[0].id);
         await queryDB(
           `UPDATE books
-             SET title = ?, author = ?, category = ?, quantity = ?, status = ?
+             SET title = ?, author = ?, category = ?, quantity = ?,
+                 available_quantity = LEAST(available_quantity, ?),
+                 status = ?
            WHERE isbn = ?`,
           [
             book.title.trim(),
             book.author.trim(),
             book.category.trim(),
+            quantity,
             quantity,
             status,
             book.isbn.trim(),

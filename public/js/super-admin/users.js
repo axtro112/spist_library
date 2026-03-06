@@ -51,7 +51,7 @@
       '.bulk-borrow-btn{background-color:#2196F3;color:white;}.bulk-borrow-btn:hover{background-color:#0b7dda;}',
       '.edit-user-btn{background-color:#2196F3;color:white;}.edit-user-btn:hover{background-color:#1976D2;}',
       '.delete-user-btn{background-color:#f44336;color:white;}.delete-user-btn:hover{background-color:#d32f2f;}',
-      '.action-cell{white-space:nowrap;}'
+      '.action-cell{white-space:nowrap;}',
       '.borrow-student-info{background:#f5f5f5;padding:15px;border-radius:8px;margin-bottom:20px;}',
       '.borrow-step{margin:20px 0;}.borrow-step h3{color:#0e5e3f;margin-bottom:15px;}',
       '.books-list,.copies-list{border:1px solid #ddd;border-radius:8px;padding:10px;}',

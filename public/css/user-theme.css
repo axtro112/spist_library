@@ -1,0 +1,554 @@
+/*
+ * user-theme.css
+ * Green glass theme for the student/user dashboard.
+ * All selectors are namespaced with .ud- to avoid collisions with existing CSS.
+ */
+
+/* ──────────────────────────────────────────────
+   BASE
+────────────────────────────────────────────── */
+.ud-body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Open Sans', sans-serif;
+  background: url('/img/schoolppp.png') no-repeat center center fixed;
+  background-size: cover;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.ud-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ──────────────────────────────────────────────
+   TOP NAVBAR
+────────────────────────────────────────────── */
+.ud-navbar {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 40px);
+  max-width: 1360px;
+  background: #2e7d32;
+  border-radius: 50px;
+  padding: 10px 22px;
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  gap: 12px;
+}
+
+/* Brand */
+.ud-navbar-brand {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  flex-shrink: 0;
+  min-width: 70px;
+}
+
+/* Centre links */
+.ud-navbar-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ud-nav-link {
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none !important;
+  padding: 7px 16px;
+  border-radius: 30px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+}
+
+.ud-nav-link:hover,
+.ud-nav-link.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+/* Right section */
+.ud-navbar-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Profile chip */
+.ud-profile-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.ud-profile-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.82rem;
+  font-weight: 600;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────
+   NOTIFICATION BELL
+────────────────────────────────────────────── */
+.ud-notif-wrap {
+  position: relative;
+}
+
+.ud-notif-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 7px 9px;
+  border-radius: 50%;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background 0.18s;
+}
+
+.ud-notif-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ud-notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  padding: 0 3px;
+}
+
+/* Notification panel drop-down */
+.ud-notif-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 360px;
+  max-height: 480px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.22);
+  z-index: 2000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ──────────────────────────────────────────────
+   MAIN CONTENT AREA
+────────────────────────────────────────────── */
+.ud-main {
+  /* push content below fixed navbar */
+  padding-top: calc(58px + 28px);
+  padding-bottom: 36px;
+  padding-left: 20px;
+  padding-right: 20px;
+  max-width: 1360px;
+  width: 100%;
+  margin: 0 auto;
+  flex: 1;
+  box-sizing: border-box;
+}
+
+/* ──────────────────────────────────────────────
+   STAT CARDS ROW
+────────────────────────────────────────────── */
+.ud-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.ud-stat-card {
+  background: #388e3c;
+  border-radius: 20px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s;
+}
+
+.ud-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.ud-stat-icon {
+  font-size: 2rem;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.ud-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.ud-stat-num {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.ud-stat-label {
+  font-size: 0.82rem;
+  opacity: 0.82;
+  margin-top: 4px;
+}
+
+/* ──────────────────────────────────────────────
+   TWO-COLUMN GRID ROW
+────────────────────────────────────────────── */
+.ud-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+/* ──────────────────────────────────────────────
+   PANELS (glass cards)
+────────────────────────────────────────────── */
+.ud-panel {
+  background: #388e3c;
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.ud-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ud-panel-title {
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 14px 0;
+}
+
+/* when the header has a sibling title inside panel-header */
+.ud-panel-header .ud-panel-title {
+  margin-bottom: 0;
+}
+
+.ud-see-all {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.ud-see-all:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* ──────────────────────────────────────────────
+   TABLE
+────────────────────────────────────────────── */
+.ud-table-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.ud-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.ud-table thead tr {
+  background: #f0faf0;
+}
+
+.ud-table th {
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1b5e20;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.ud-table td {
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+}
+
+.ud-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ud-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ud-table .text-center {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ──────────────────────────────────────────────
+   CALENDAR PLACEHOLDER
+────────────────────────────────────────────── */
+.ud-calendar-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+
+.ud-calendar-placeholder {
+  flex: 1;
+  min-height: 160px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+/* ──────────────────────────────────────────────
+   BOOK-LIST PANEL
+────────────────────────────────────────────── */
+.ud-booklist-panel {
+  margin-bottom: 20px;
+}
+
+/* ──────────────────────────────────────────────
+   MODALS
+────────────────────────────────────────────── */
+/* The modal overlay is controlled by JS via style.display = 'flex' / 'none' */
+.ud-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+/* Helper: when JS sets display:flex */
+.ud-modal-overlay[style*="flex"] {
+  display: flex !important;
+}
+
+.ud-modal-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+
+.ud-modal-box h2 {
+  color: #1b5e20;
+  margin: 0 0 10px 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.ud-modal-box p {
+  color: #374151;
+  margin-bottom: 4px;
+  font-size: 0.92rem;
+}
+
+.ud-form-group {
+  margin: 16px 0;
+}
+
+.ud-form-group label {
+  font-size: 0.88rem;
+  color: #374151;
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.ud-date-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.ud-date-input:focus {
+  outline: none;
+  border-color: #388e3c;
+}
+
+.ud-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.ud-btn-confirm {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 22px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.ud-btn-confirm:hover {
+  background: #1b5e20;
+}
+
+.ud-btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 22px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.ud-btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+/* ──────────────────────────────────────────────
+   STATUS PILLS (reused by dashboard.js markup)
+────────────────────────────────────────────── */
+.status-pill {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.status-pill.borrowed  { background: #fef9c3; color: #854d0e; }
+.status-pill.returned  { background: #dcfce7; color: #166534; }
+.status-pill.overdue   { background: #fee2e2; color: #991b1b; }
+.status-pill.available { background: #dcfce7; color: #166534; }
+.status-pill.pending   { background: #e0f2fe; color: #075985; }
+
+/* ──────────────────────────────────────────────
+   BORROW ACTION BUTTON (used in recommended table)
+────────────────────────────────────────────── */
+.book-borrow-btn {
+  background: #fff;
+  color: #1b5e20;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.book-borrow-btn:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.book-borrow-btn:disabled {
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────
+   RESPONSIVE
+────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ud-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ud-navbar {
+    width: calc(100% - 20px);
+    top: 8px;
+    padding: 8px 14px;
+    border-radius: 16px;
+  }
+
+  .ud-nav-link span {
+    display: none;
+  }
+
+  .ud-nav-link {
+    padding: 8px 10px;
+  }
+
+  .ud-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ud-profile-chip {
+    display: none;
+  }
+
+  .ud-main {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ud-navbar-center {
+    display: none;
+  }
+
+  .ud-navbar-brand {
+    font-size: 1.1rem;
+  }
+}

@@ -344,17 +344,16 @@ Object.entries(superAdminPageRoutes).forEach(([route, view]) => {
   });
 });
 
-const studentPages = [
-  "student",
-  "student-dashboard",
-  "student-books",
-  "student-borrowed",
-];
+// Student dashboard — rendered as EJS with new layout
+app.get("/student-dashboard", (req, res) => {
+  res.render("student/dashboard", {});
+});
+app.get("/student", (req, res) => res.redirect("/student-dashboard"));
 
-studentPages.forEach((page) => {
+// Other student pages still served as static HTML
+["student-books", "student-borrowed"].forEach((page) => {
   app.get(`/${page}`, (req, res) => {
-    const destination = page === "student" ? "student-dashboard" : page;
-    res.redirect(`/dashboard/student/${destination}.html`);
+    res.redirect(`/dashboard/student/${page}.html`);
   });
 });
 

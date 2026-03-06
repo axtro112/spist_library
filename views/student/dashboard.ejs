@@ -1,154 +1,107 @@
-<%
-  var extraHead =
-    '<script src="/js/student/dashboard.js" defer><\/script>';
-  var extraScripts =
-    '<script>' +
-      'document.addEventListener("DOMContentLoaded", function () {' +
-        'Student.Dashboard.init();' +
-      '});' +
-    '<\/script>';
-%>
-<%- include('../partials/user-layout', {
-  title: 'Dashboard – SPIST Library',
+<%- include('../partials/user-sidebar-top', {
+  pageTitle: 'Dashboard - SPIST Library',
   activePage: 'dashboard',
-  extraHead: extraHead,
-  extraScripts: extraScripts,
-  body: `
+  extraHead: '<script src="/js/core/utils.js"><\/script><script src="/js/student/dashboard.js" defer><\/script><script>document.addEventListener("DOMContentLoaded",function(){if(window.Student&&Student.Dashboard)Student.Dashboard.init();});<\/script>'
+}) %>
 
-  <!-- ══════════════════════════════════════════
-       Hidden compatibility spans – JS (dashboard.js) sets text on these.
-       userNameHeading and userID are unused visually in new layout but
-       kept so existing JS setText() calls don't throw on null.
-  ══════════════════════════════════════════ -->
-  <span id="userNameHeading" style="display:none;"></span>
-  <span id="userID"          style="display:none;"></span>
+<!-- Hidden compat spans — dashboard.js uses Core.utils.setText() on these -->
+<span id="userNameHeading" style="display:none;"></span>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      Student.Dashboard.init();
-    });
-  <\/script>
-
-  <!-- ══════════════════════════════════════════
-       STAT CARDS
-  ══════════════════════════════════════════ -->
-  <div class="ud-stats-row">
-    <div class="ud-stat-card">
-      <div class="ud-stat-icon"><i class="bi bi-book-fill"></i></div>
-      <div class="ud-stat-info">
-        <div class="ud-stat-num"   id="availableBooksCount">—</div>
-        <div class="ud-stat-label">Available Books</div>
-      </div>
-    </div>
-    <div class="ud-stat-card">
-      <div class="ud-stat-icon"><i class="bi bi-bookmark-fill"></i></div>
-      <div class="ud-stat-info">
-        <div class="ud-stat-num"   id="borrowedBooksCount">—</div>
-        <div class="ud-stat-label">Borrowed Books</div>
-      </div>
-    </div>
-    <div class="ud-stat-card">
-      <div class="ud-stat-icon"><i class="bi bi-clock-history"></i></div>
-      <div class="ud-stat-info">
-        <div class="ud-stat-num"   id="dueSoonCount">—</div>
-        <div class="ud-stat-label">Due Books</div>
-      </div>
+<!-- ═══ Stat Cards ═══ -->
+<div class="u-stats-row">
+  <div class="u-stat-card">
+    <div class="u-stat-icon"><i class="bi bi-book-fill"></i></div>
+    <div>
+      <div class="u-stat-num" id="availableBooksCount">—</div>
+      <div class="u-stat-label">Available Books</div>
     </div>
   </div>
-
-  <!-- ══════════════════════════════════════════
-       TOP CHOICES (Recommended) + CALENDAR
-  ══════════════════════════════════════════ -->
-  <div class="ud-grid-2col">
-
-    <!-- Top Choices — populated by updateRecommendedBooks() -->
-    <div class="ud-panel">
-      <h3 class="ud-panel-title">Top Choices</h3>
-      <div class="ud-table-wrap">
-        <table class="ud-table">
-          <thead>
-            <tr>
-              <th>Book Title</th>
-              <th>Author</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="recommendedBooksTableBody">
-            <tr><td colspan="5" class="text-center">Loading recommendations…</td></tr>
-          </tbody>
-        </table>
-      </div>
+  <div class="u-stat-card">
+    <div class="u-stat-icon"><i class="bi bi-bookmark-fill"></i></div>
+    <div>
+      <div class="u-stat-num" id="borrowedBooksCount">—</div>
+      <div class="u-stat-label">Borrowed Books</div>
     </div>
-
-    <!-- Calendar placeholder -->
-    <div class="ud-panel ud-calendar-panel">
-      <h3 class="ud-panel-title">Calendar</h3>
-      <div class="ud-calendar-placeholder" id="calendarPlaceholder"></div>
-    </div>
-
   </div>
-
-  <!-- ══════════════════════════════════════════
-       BOOK LIST (Currently Borrowed)
-  ══════════════════════════════════════════ -->
-  <div class="ud-panel ud-booklist-panel">
-    <div class="ud-panel-header">
-      <h3 class="ud-panel-title">Book list</h3>
-      <a class="ud-see-all" href="/student-borrowed">see all</a>
+  <div class="u-stat-card">
+    <div class="u-stat-icon"><i class="bi bi-exclamation-triangle-fill" style="color:#fbbf24;"></i></div>
+    <div>
+      <div class="u-stat-num" id="dueSoonCount">—</div>
+      <div class="u-stat-label">Due Soon</div>
     </div>
-    <div class="ud-table-wrap">
-      <table class="ud-table">
+  </div>
+</div>
+
+<!-- ═══ Top Choices + Calendar ═══ -->
+<div class="u-grid-2col">
+
+  <!-- Top Choices — populated by dashboard.js updateRecommendedBooks() -->
+  <div class="u-panel">
+    <h3 class="u-panel-title">Top Choices</h3>
+    <div class="u-table-wrap">
+      <table class="u-table">
         <thead>
           <tr>
             <th>Book Title</th>
             <th>Author</th>
-            <th>Borrowed Date</th>
-            <th>Due Date</th>
+            <th>Category</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
-        <tbody id="borrowedBooksTableBody">
-          <tr><td colspan="5" class="text-center">Loading borrowed books…</td></tr>
+        <tbody id="recommendedBooksTableBody">
+          <tr><td colspan="5" class="text-center">Loading recommendations…</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════
-       BORROW CONFIRMATION MODAL
-       ID "modal-user" — required by dashboard.js showBorrowModal()
-  ══════════════════════════════════════════ -->
-  <div id="modal-user" class="ud-modal-overlay" style="display:none;">
-    <div class="ud-modal-box">
-      <h2>Confirm Book Borrowing</h2>
-      <p id="borrowConfirmMessage">Are you sure you want to borrow this book?</p>
-      <div class="ud-form-group">
-        <label for="returnDate">Select Return Date:</label>
-        <input type="date" id="returnDate" class="ud-date-input" required />
-      </div>
-      <div class="ud-modal-actions">
-        <button type="button" class="ud-btn-confirm" onclick="handleBorrow()">Confirm</button>
-        <button type="button" class="ud-btn-cancel"  onclick="closeModal()">Cancel</button>
-      </div>
-    </div>
+  <!-- Calendar -->
+  <div class="u-panel">
+    <h3 class="u-panel-title">Calendar</h3>
+    <div class="u-calendar-placeholder" id="calendarPlaceholder">Calendar coming soon</div>
   </div>
 
-  <!-- ══════════════════════════════════════════
-       LOGOUT MODAL
-       ID "logoutModal" — required by dashboard.js showLogoutModal()
-  ══════════════════════════════════════════ -->
-  <div id="logoutModal" class="ud-modal-overlay" style="display:none;">
-    <div class="ud-modal-box">
-      <h2>Confirm Logout</h2>
-      <p>Are you sure you want to log out?</p>
-      <div class="ud-modal-actions">
-        <button class="ud-btn-confirm" onclick="logout()">Logout</button>
-        <button class="ud-btn-cancel"  onclick="closeLogoutModal()">Cancel</button>
-      </div>
+</div>
+
+<!-- ═══ Currently Borrowed Books ═══ -->
+<div class="u-panel">
+  <div class="u-panel-header">
+    <h3 class="u-panel-title">Book List</h3>
+    <a class="u-see-all" href="/student-borrowed">see all</a>
+  </div>
+  <div class="u-table-wrap">
+    <table class="u-table">
+      <thead>
+        <tr>
+          <th>Book Title</th>
+          <th>Author</th>
+          <th>Borrowed Date</th>
+          <th>Due Date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="borrowedBooksTableBody">
+        <tr><td colspan="5" class="text-center">Loading borrowed books…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ Borrow Confirmation Modal (ID "modal-user" — required by dashboard.js) ═══ -->
+<div id="modal-user" class="u-modal-overlay" style="display:none;">
+  <div class="u-modal-box">
+    <h2>Confirm Book Borrowing</h2>
+    <p id="borrowConfirmMessage">Are you sure you want to borrow this book?</p>
+    <div class="u-form-group">
+      <label for="returnDate">Select Return Date:</label>
+      <input type="date" id="returnDate" class="u-date-input" required />
+    </div>
+    <div class="u-modal-actions">
+      <button type="button" class="u-btn-confirm" onclick="handleBorrow()">Confirm</button>
+      <button type="button" class="u-btn-cancel" onclick="closeModal()">Cancel</button>
     </div>
   </div>
+</div>
 
-  `
-}) %>
+<%- include('../partials/user-sidebar-bottom') %>

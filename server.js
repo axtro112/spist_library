@@ -350,16 +350,19 @@ app.get("/student-dashboard", (req, res) => {
 });
 app.get("/student", (req, res) => res.redirect("/student-dashboard"));
 
-// Other student pages still served as static HTML
-["student-books", "student-borrowed"].forEach((page) => {
-  app.get(`/${page}`, (req, res) => {
-    res.redirect(`/dashboard/student/${page}.html`);
-  });
-});
+// Student content pages — rendered as EJS with sidebar layout
+app.get("/student-books", (req, res) => res.render("user/browse-books", {}));
+app.get("/student-borrowed", (req, res) => res.render("user/borrowed-books", {}));
+app.get("/student-available", (req, res) => res.render("user/available-books", {}));
 
 // Handle Chrome DevTools / browser well-known probes cleanly
+// Return 200 JSON for the DevTools config probe so Chrome doesn't log a 404 error.
+// Return 204 (no content, silent) for any other /.well-known/* probe.
+app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => {
+  res.json([]);
+});
 app.get("/.well-known/*", (req, res) => {
-  res.status(404).end();
+  res.status(204).end();
 });
 
 app.get("*", (req, res) => {

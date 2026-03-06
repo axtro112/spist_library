@@ -1,0 +1,121 @@
+<%- include('../partials/user-sidebar-top', {
+  pageTitle: 'Borrowed Books - SPIST Library',
+  activePage: 'borrowed-books',
+  extraHead: '<link rel="stylesheet" href="/css/borrowing-details-modal.css"><script src="/js/student-borrowed.js" defer><\/script>'
+}) %>
+
+<script>
+  // Authentication check
+  document.addEventListener("DOMContentLoaded", function () {
+    const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+    const userRole = sessionStorage.getItem("userRole");
+    const adminRole = sessionStorage.getItem("adminRole");
+
+    const isStudent = userRole === "student";
+    const isAdmin = adminRole === "super_admin" || adminRole === "admin";
+
+    if (!isLoggedIn || (!isStudent && !isAdmin)) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const userNameEl = document.getElementById("userName");
+    if (userNameEl) {
+      userNameEl.textContent = sessionStorage.getItem("userName") || (isAdmin ? "Admin" : "Student");
+    }
+    const userIDEl = document.getElementById("userID");
+    if (userIDEl) {
+      userIDEl.textContent = sessionStorage.getItem("userID") || "STD-0000-000";
+    }
+  });
+
+  function showLogoutModal() {
+    document.getElementById("logoutModal").style.display = "flex";
+  }
+  function closeLogoutModal() {
+    document.getElementById("logoutModal").style.display = "none";
+  }
+  function logout() {
+    sessionStorage.clear();
+    window.location.href = "/login";
+  }
+  function closeModal() {
+    document.getElementById("modal-user").style.display = "none";
+  }
+</script>
+
+<!-- ═══ Section Header ═══ -->
+<div class="u-section-header">
+  <h2>Borrowed Books</h2>
+  <p>View and manage your borrowed books</p>
+</div>
+
+<!-- ═══ Borrowing History Card ═══ -->
+<div class="u-section-card">
+  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #e8f5e9;">
+    <span class="material-symbols-outlined" style="color: #2e7d32; font-size: 22px;">history</span>
+    <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #1b5e20;">Borrowing History</h3>
+  </div>
+
+  <div class="u-table-wrapper">
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Book Title</th>
+          <th>Author</th>
+          <th>Borrowed Date</th>
+          <th>Due Date</th>
+          <th>Returned Date</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated by student-borrowed.js -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ Return Book Modal ═══ -->
+<div id="modal-user" class="modal" style="display: none;">
+  <div class="modal-content">
+    <h2>Return Book</h2>
+    <form>
+      <div class="form-group">
+        <label for="bookTitle">Book Title</label>
+        <input type="text" id="bookTitle" value="Introduction to Programming" readonly />
+      </div>
+      <div class="form-group">
+        <label for="author">Author</label>
+        <input type="text" id="author" value="John Smith" readonly />
+      </div>
+      <div class="form-group">
+        <label for="borrowDate">Borrowed Date</label>
+        <input type="text" id="borrowDate" value="Nov 10, 2023" readonly />
+      </div>
+      <div class="form-group">
+        <label for="returnDate">Return Date</label>
+        <input type="date" id="returnDate" value="2023-11-30" />
+      </div>
+      <div class="form-group">
+        <label for="condition">Book Condition</label>
+        <select id="condition" required>
+          <option value="excellent">Excellent</option>
+          <option value="good" selected>Good</option>
+          <option value="fair">Fair</option>
+          <option value="damaged">Damaged</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="notes">Notes (Optional)</label>
+        <textarea id="notes" rows="3" placeholder="Any additional information about the book condition..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="submit-btn">Confirm Return</button>
+        <button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<%- include('../partials/user-sidebar-bottom') %>

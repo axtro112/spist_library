@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= pageTitle || 'SPIST Library' %></title>
+  <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <!-- Student base styles -->
+  <link rel="stylesheet" href="/css/common.css" />
+  <link rel="stylesheet" href="/css/student.css" />
+  <link rel="stylesheet" href="/css/backup.css" />
+  <link rel="stylesheet" href="/css/notifications.css" />
+  <!-- User sidebar layout (overrides student.css body/layout) -->
+  <link rel="stylesheet" href="/css/user/user-layout.css" />
+  <!-- Shared books/table styles -->
+  <link rel="stylesheet" href="/css/user/user-books.css" />
+
+  <!-- Extra head content (per-page CSS/JS) -->
+  <%- extraHead || '' %>
+
+  <!-- Shared JS -->
+  <script src="/js/csrf-helper.js"></script>
+  <script src="/js/session-timeout.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script src="/js/user.js" defer></script>
+  <script src="/js/sidebar-toggle.js" defer></script>
+  <!-- Shared logout/modal utilities available on EVERY user page -->
+  <script>
+    function showLogoutModal() {
+      const m = document.getElementById('logoutModal');
+      if (m) m.style.display = 'flex';
+    }
+    function closeLogoutModal() {
+      const m = document.getElementById('logoutModal');
+      if (m) m.style.display = 'none';
+    }
+    function logout() {
+      sessionStorage.clear();
+      window.location.href = '/login';
+    }
+  </script>
+</head>
+<body>
+<div class="u-wrapper">
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <aside class="u-sidebar" id="uSidebar">
+    <div class="u-sidebar-brand">
+      <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+      <div class="u-brand-text">
+        <strong>SPIST</strong>
+        <span>Library System</span>
+      </div>
+    </div>
+
+    <nav class="u-nav">
+      <a href="/student-dashboard" class="<%= activePage === 'dashboard' ? 'active' : '' %>">
+        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+      </a>
+      <a href="/student-available" class="<%= activePage === 'available-books' ? 'active' : '' %>">
+        <i class="bi bi-book-half"></i><span>Available Books</span>
+      </a>
+      <a href="/student-borrowed" class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
+        <i class="bi bi-journal-bookmark-fill"></i><span>Borrowed Books</span>
+      </a>
+      <a href="/student-books" class="<%= activePage === 'browse-books' ? 'active' : '' %>">
+        <i class="bi bi-search"></i><span>Browse Books</span>
+      </a>
+      <a href="#" onclick="showLogoutModal(); return false;" style="margin-top: auto;">
+        <i class="bi bi-box-arrow-right"></i><span>Logout</span>
+      </a>
+    </nav>
+
+    <div class="u-sidebar-footer">
+      <div class="u-user-info">
+        <div class="u-user-avatar">
+          <i class="bi bi-person-fill"></i>
+        </div>
+        <div>
+          <div class="u-user-name" id="userName">Student</div>
+          <div class="u-user-id" id="userID">STD-0000-000</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════ MAIN ═══════════════ -->
+  <div class="u-main">
+
+    <!-- Top Header -->
+    <header class="u-topbar">
+      <div class="u-topbar-left">
+        <div class="u-topbar-title">SPIST Library</div>
+      </div>
+      <div class="u-topbar-right">
+        <!-- Notification Bell -->
+        <div class="u-notif-container" id="studentNotificationContainer">
+          <button class="u-notif-btn" id="studentNotifBell"
+                  title="Notifications" aria-label="Notifications"
+                  aria-expanded="false" role="button">
+            <i class="bi bi-bell-fill"></i>
+            <span class="u-notif-badge" id="studentNotifBadge" style="display:none;">0</span>
+          </button>
+
+          <div class="notif-panel" id="studentNotifPanel" style="display:none;" role="menu">
+            <div class="notif-header">
+              <h3>Notifications</h3>
+              <div class="notif-header-actions">
+                <button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read">
+                  <span class="material-symbols-outlined">done_all</span>
+                </button>
+                <button class="notif-action-btn" id="notifSettingsBtn" title="Settings">
+                  <span class="material-symbols-outlined">settings</span>
+                </button>
+              </div>
+            </div>
+            <div class="notif-tabs">
+              <button class="notif-tab active" data-tab="all" id="tabAll">All</button>
+              <button class="notif-tab" data-tab="unread" id="tabUnread">Unread</button>
+            </div>
+            <div class="notif-list-container" id="notifListContainer">
+              <div class="notif-loading">Loading notifications...</div>
+            </div>
+            <div class="notif-footer">
+              <button class="notif-see-more" id="notifSeeMore">See previous notifications</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="u-content">

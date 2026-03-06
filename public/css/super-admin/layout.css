@@ -466,7 +466,7 @@ input.sa-filter-select {
   transition: all 0.18s ease;
 }
 .sa-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.sa-btn-success  { background: var(--sa-green); color: #fff; }
+.sa-btn-success  { background: var(--sa-green); color: #fff; background: #489255; }
 .sa-btn-success:hover:not(:disabled)  { background: var(--sa-green-dark); }
 .sa-btn-danger   { background: #ef4444; color: #fff; }
 .sa-btn-danger:hover:not(:disabled)   { background: #dc2626; }

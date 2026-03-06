@@ -58,7 +58,8 @@
       const res = await fetch("/api/students/" + studentId + "/dashboard-stats");
       if (!res.ok) throw new Error("Failed to fetch dashboard stats: " + res.status);
 
-      const stats = await res.json();
+      const result = await res.json();
+      const stats  = result.data || result;
       Core.utils.setText("availableBooksCount", stats.availableBooks);
       Core.utils.setText("borrowedBooksCount",  stats.borrowedBooks);
       Core.utils.setText("dueSoonCount",         stats.dueSoon);

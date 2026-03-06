@@ -127,47 +127,52 @@
     </div>
 
     <!-- Edit Admin Modal -->
-    <div id="modalEdit" class="modal">
-      <div class="modal-content">
-        <h2>Edit Admin</h2>
-        <form id="editAdminForm">
-          <div id="editAdminError" class="modal-error"></div>
-          <div class="form-group">
-            <label for="editName">Full Name *</label>
-            <input type="text" id="editName" name="fullname" required placeholder="Enter full name" />
-          </div>
-          <div class="form-group">
-            <label for="editEmail">Email Address *</label>
-            <input type="email" id="editEmail" name="email" required placeholder="Enter email address" />
-          </div>
-          <div class="form-group">
-            <label for="editRole">Role *</label>
-            <select id="editRole" name="role" required>
-              <option value="system_admin">System Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="editPassword">New Password <span style="font-weight:400;color:#888;">(leave blank to keep current)</span></label>
-            <div class="sa-password-wrap">
-              <input type="password" id="editPassword" name="password" placeholder="Enter new password" autocomplete="new-password" />
-              <button type="button" class="sa-eye-toggle" onclick="togglePasswordVisibility('editPassword', this)" tabindex="-1">
-                <span class="material-symbols-outlined">visibility</span>
-              </button>
+    <div id="modalEdit" class="modal sa-modal" role="dialog" aria-modal="true" aria-labelledby="editAdminModalTitle">
+      <div class="sa-modal-content">
+        <div class="sa-modal-header">
+          <h2 id="editAdminModalTitle"><span class="material-symbols-outlined">manage_accounts</span> Edit Admin</h2>
+          <button type="button" class="sa-modal-close-btn" onclick="adminManager.closeEditModal()" aria-label="Close">&times;</button>
+        </div>
+        <form id="editAdminForm" novalidate>
+          <div class="sa-modal-body">
+            <div id="editAdminError" class="sa-modal-error" role="alert"></div>
+            <div class="sa-form-group">
+              <label for="editName">Full Name <span class="req">*</span></label>
+              <input type="text" id="editName" name="fullname" required autocomplete="name" placeholder="Enter full name" maxlength="80" />
+            </div>
+            <div class="sa-form-group">
+              <label for="editEmail">Email Address <span class="req">*</span></label>
+              <input type="email" id="editEmail" name="email" required autocomplete="email" placeholder="Enter email address" />
+            </div>
+            <div class="sa-form-group">
+              <label for="editRole">Role <span class="req">*</span></label>
+              <select id="editRole" name="role" required>
+                <option value="system_admin">System Admin</option>
+                <option value="super_admin">Super Admin</option>
+              </select>
+            </div>
+            <div class="sa-form-group">
+              <label for="editPassword">New Password <span style="font-weight:400;color:#9ca3af;font-size:.8rem;">(leave blank to keep current)</span></label>
+              <div class="sa-password-wrap">
+                <input type="password" id="editPassword" name="password" placeholder="Enter new password" autocomplete="new-password" maxlength="72" />
+                <button type="button" class="sa-eye-toggle" onclick="togglePasswordVisibility('editPassword', this)" tabindex="-1" aria-label="Toggle password visibility">
+                  <span class="material-symbols-outlined">visibility</span>
+                </button>
+              </div>
+            </div>
+            <div class="sa-form-group" id="editConfirmPasswordGroup" style="display:none;">
+              <label for="editConfirmPassword">Confirm New Password <span class="req">*</span></label>
+              <div class="sa-password-wrap">
+                <input type="password" id="editConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password" maxlength="72" />
+                <button type="button" class="sa-eye-toggle" onclick="togglePasswordVisibility('editConfirmPassword', this)" tabindex="-1" aria-label="Toggle confirm password visibility">
+                  <span class="material-symbols-outlined">visibility</span>
+                </button>
+              </div>
             </div>
           </div>
-          <div class="form-group" id="editConfirmPasswordGroup" style="display:none;">
-            <label for="editConfirmPassword">Confirm New Password</label>
-            <div class="sa-password-wrap">
-              <input type="password" id="editConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password" />
-              <button type="button" class="sa-eye-toggle" onclick="togglePasswordVisibility('editConfirmPassword', this)" tabindex="-1">
-                <span class="material-symbols-outlined">visibility</span>
-              </button>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="submit">Save Changes</button>
-            <button type="button" class="cancel-btn">Cancel</button>
+          <div class="sa-modal-footer">
+            <button type="submit" class="sa-btn sa-btn-success">Save Changes</button>
+            <button type="button" class="sa-btn sa-btn-outline cancel-btn">Cancel</button>
           </div>
         </form>
       </div>

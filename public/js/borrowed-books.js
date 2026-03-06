@@ -6,6 +6,7 @@
 // Global variables
 let allBorrowings = [];
 let filteredBorrowings = [];
+let selectedBorrowingIds = new Set();
 
 // ===========================
 // INITIALIZATION
@@ -161,6 +162,129 @@ function updateResultCount() {
 }
 
 // ===========================
+// BULK SELECTION
+// ===========================
+
+function initBulkSelection() {
+  const selectAll = document.getElementById('selectAllBorrowings');
+  const rowCheckboxes = document.querySelectorAll('.borrowing-row-cb');
+  const bulkPickupBtn = document.getElementById('bulkConfirmPickupBtn');
+  const bulkReturnBtn = document.getElementById('bulkConfirmReturnBtn');
+
+  if (!selectAll) return;
+
+  // Reset selectAll state
+  selectAll.checked = false;
+  selectAll.indeterminate = false;
+
+  selectAll.onclick = () => {
+    const checked = selectAll.checked;
+    rowCheckboxes.forEach(cb => {
+      cb.checked = checked;
+      const id = Number(cb.dataset.borrowingId);
+      if (checked) selectedBorrowingIds.add(id);
+      else selectedBorrowingIds.delete(id);
+    });
+    updateBorrowingsBulkBar();
+  };
+
+  rowCheckboxes.forEach(cb => {
+    cb.onclick = () => {
+      const id = Number(cb.dataset.borrowingId);
+      if (cb.checked) selectedBorrowingIds.add(id);
+      else selectedBorrowingIds.delete(id);
+
+      const total = rowCheckboxes.length;
+      const checked = [...rowCheckboxes].filter(c => c.checked).length;
+      selectAll.checked = checked === total;
+      selectAll.indeterminate = checked > 0 && checked < total;
+
+      updateBorrowingsBulkBar();
+    };
+  });
+
+  if (bulkPickupBtn) bulkPickupBtn.onclick = handleBulkConfirmPickup;
+  if (bulkReturnBtn) bulkReturnBtn.onclick = handleBulkConfirmReturn;
+
+  updateBorrowingsBulkBar();
+}
+
+function updateBorrowingsBulkBar() {
+  const count = selectedBorrowingIds.size;
+  const countSpan = document.getElementById('borrowingsSelectedCount');
+  const bulkPickupBtn = document.getElementById('bulkConfirmPickupBtn');
+  const bulkReturnBtn = document.getElementById('bulkConfirmReturnBtn');
+
+  if (countSpan) {
+    countSpan.textContent = count > 0 ? `${count} selected` : '';
+  }
+
+  // Enable both buttons whenever any rows are selected (same as users page pattern)
+  if (bulkPickupBtn) bulkPickupBtn.disabled = count === 0;
+  if (bulkReturnBtn) bulkReturnBtn.disabled = count === 0;
+}
+
+async function handleBulkConfirmPickup() {
+  const ids = allBorrowings
+    .filter(b => selectedBorrowingIds.has(Number(b.id)) && b.display_status === 'pending_pickup')
+    .map(b => b.id);
+
+  if (ids.length === 0) {
+    showToast('None of the selected records are pending pickup', 'warning');
+    return;
+  }
+
+  if (!confirm(`Confirm pickup for ${ids.length} record(s)?`)) return;
+
+  let success = 0, failed = 0;
+  for (const id of ids) {
+    try {
+      const res = await fetchWithCsrf(`/api/admin/borrowings/${id}/confirm-pickup`, { method: 'POST' });
+      if (res.ok) success++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+
+  showToast(`Pickup confirmed for ${success} record(s)${failed ? ` (${failed} failed)` : ''}.`, failed ? 'warning' : 'success');
+  selectedBorrowingIds.clear();
+  loadBorrowings();
+}
+
+async function handleBulkConfirmReturn() {
+  const ids = allBorrowings
+    .filter(b => selectedBorrowingIds.has(Number(b.id)) && ['picked_up', 'overdue'].includes(b.display_status))
+    .map(b => b.id);
+
+  if (ids.length === 0) {
+    showToast('None of the selected records are ready to return (must be Picked Up or Overdue)', 'warning');
+    return;
+  }
+
+  if (!confirm(`Confirm return for ${ids.length} record(s)?`)) return;
+
+  let success = 0, failed = 0;
+  for (const id of ids) {
+    try {
+      const res = await fetchWithCsrf(`/api/admin/borrowings/${id}/confirm-return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ condition: 'good' })
+      });
+      if (res.ok) success++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+
+  showToast(`Return confirmed for ${success} record(s)${failed ? ` (${failed} failed)` : ''}.`, failed ? 'warning' : 'success');
+  selectedBorrowingIds.clear();
+  loadBorrowings();
+}
+
+// ===========================
 // DISPLAY
 // ===========================
 
@@ -177,7 +301,7 @@ function displayBorrowings(borrowings) {
   if (borrowings.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="11" style="text-align: center; padding: 40px;">
+        <td colspan="12" style="text-align: center; padding: 40px;">
           <span class="material-symbols-outlined" style="font-size: 48px; color: #9ca3af;">inbox</span>
           <p style="margin-top: 10px; color: #6b7280;">No borrowing records found</p>
         </td>
@@ -186,29 +310,47 @@ function displayBorrowings(borrowings) {
     return;
   }
   
+  selectedBorrowingIds.clear();
   borrowings.forEach(record => {
     const row = createBorrowingRow(record);
     tbody.appendChild(row);
   });
+  initBulkSelection();
 }
 
 function createBorrowingRow(record) {
   const tr = document.createElement('tr');
   tr.dataset.borrowingId = record.id;
-  
+
+  // [ORPHAN FIX] Treat MySQL tinyint(1) 1 or JS true both as missing
+  const bookMissing = record.book_missing === 1 || record.book_missing === true;
+
   const statusBadge = getStatusBadge(record.display_status);
-  const actionButtons = getActionButtons(record);
-  
+  const actionButtons = getActionButtons(record, bookMissing);
+
+  // [ORPHAN FIX] Build book cell — show "Removed" badge when book is gone
+  const bookCell = bookMissing
+    ? `<div style="font-weight:500;color:#9ca3af;">${
+        escapeHtml(record.book_title || '(Removed from system)')
+      }</div>
+       <span style="
+         display:inline-block;padding:2px 8px;border-radius:8px;
+         font-size:11px;font-weight:600;color:#b45309;background:#fef3c7;
+         margin-top:2px;
+       ">Removed</span>`
+    : `<div style="font-weight:500;">${escapeHtml(record.book_title)}</div>
+       <div style="font-size:12px;color:#6b7280;">${escapeHtml(record.book_author)}</div>`;
+
   tr.innerHTML = `
+    <td style="text-align:center;">
+      <input type="checkbox" class="borrowing-row-cb" data-borrowing-id="${record.id}" style="width:16px;height:16px;cursor:pointer;">
+    </td>
     <td>${record.id}</td>
     <td>
       <div style="font-weight: 500;">${escapeHtml(record.student_name)}</div>
       <div style="font-size: 12px; color: #6b7280;">${escapeHtml(record.student_id)}</div>
     </td>
-    <td>
-      <div style="font-weight: 500;">${escapeHtml(record.book_title)}</div>
-      <div style="font-size: 12px; color: #6b7280;">${escapeHtml(record.book_author)}</div>
-    </td>
+    <td>${bookCell}</td>
     <td><code style="font-size: 12px;">${escapeHtml(record.accession_number || 'N/A')}</code></td>
     <td>${formatDate(record.borrow_date)}</td>
     <td>${formatDate(record.due_date)}</td>
@@ -222,7 +364,7 @@ function createBorrowingRow(record) {
       </div>
     </td>
   `;
-  
+
   return tr;
 }
 
@@ -249,38 +391,41 @@ function getStatusBadge(status) {
   `;
 }
 
-function getActionButtons(record) {
+function getActionButtons(record, bookMissing = false) {
   const buttons = [];
-  
-  // Confirm Pickup button
-  if (record.display_status === 'pending_pickup') {
-    buttons.push(`
-      <button 
-        class="btn btn-sm btn-success" 
-        onclick="showPickupModal(${record.id})"
-        title="Confirm Pickup"
-      >
-        <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
-        Pickup
-      </button>
-    `);
+
+  // [ORPHAN FIX] Suppress book-dependent actions when the book no longer exists
+  if (!bookMissing) {
+    // Confirm Pickup button
+    if (record.display_status === 'pending_pickup') {
+      buttons.push(`
+        <button 
+          class="btn btn-sm btn-success" 
+          onclick="showPickupModal(${record.id})"
+          title="Confirm Pickup"
+        >
+          <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
+          Pickup
+        </button>
+      `);
+    }
+
+    // Mark Returned button
+    if (['picked_up', 'overdue'].includes(record.display_status)) {
+      buttons.push(`
+        <button 
+          class="btn btn-sm btn-primary" 
+          onclick="showReturnModal(${record.id})"
+          title="Mark as Returned"
+        >
+          <span class="material-symbols-outlined" style="font-size: 16px;">assignment_return</span>
+          Return
+        </button>
+      `);
+    }
   }
-  
-  // Mark Returned button
-  if (['picked_up', 'overdue'].includes(record.display_status)) {
-    buttons.push(`
-      <button 
-        class="btn btn-sm btn-primary" 
-        onclick="showReturnModal(${record.id})"
-        title="Mark as Returned"
-      >
-        <span class="material-symbols-outlined" style="font-size: 16px;">assignment_return</span>
-        Return
-      </button>
-    `);
-  }
-  
-  // View Details button (always available)
+
+  // View Details button (always available, even for orphan records)
   buttons.push(`
     <button 
       class="btn btn-sm btn-secondary" 
@@ -290,7 +435,7 @@ function getActionButtons(record) {
       <span class="material-symbols-outlined" style="font-size: 16px;">info</span>
     </button>
   `);
-  
+
   return buttons.join('');
 }
 

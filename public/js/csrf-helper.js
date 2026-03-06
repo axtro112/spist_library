@@ -89,11 +89,11 @@ async function fetchWithCsrf(url, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') {
     const token = await getCsrfToken();
-    
+
     if (!options.headers) {
       options.headers = {};
     }
-    
+
     if (token) {
       options.headers['x-csrf-token'] = token;
       console.log(`[CSRF] Adding token to ${method} ${url}`);
@@ -101,45 +101,43 @@ async function fetchWithCsrf(url, options = {}) {
       console.error('[CSRF] No token available for request!');
     }
   }
-  
+
   try {
+    console.log(`[CSRF] Sending request to ${url} with options:`, options);
     const response = await fetch(url, options);
     console.log(`[CSRF] Response: ${response.status} for ${method} ${url}`);
-    
+
     // If CSRF token is invalid, fetch new one and retry
     if (response.status === 403) {
       const contentType = response.headers.get("content-type");
-      
+
       // Only try to parse as JSON if content-type indicates JSON
       if (contentType && contentType.includes("application/json")) {
         try {
           const data = await response.clone().json();
+          console.log('[CSRF] Response JSON:', data);
           if (data.code === 'EBADCSRFTOKEN' || data.error === 'CSRF_TOKEN_INVALID') {
             console.log('[CSRF] Token expired, fetching new token and retrying...');
             csrfToken = null;
             const newToken = await getCsrfToken();
-            
-            if (!options.headers) {
-              options.headers = {};
-            }
-            
+
             if (newToken) {
               options.headers['x-csrf-token'] = newToken;
+              console.log(`[CSRF] Retrying request to ${url} with new token`);
+              return await fetch(url, options);
+            } else {
+              console.error('[CSRF] Failed to fetch new token, cannot retry request');
             }
-            
-            return fetch(url, options);
           }
         } catch (e) {
-          console.error('[CSRF] Error parsing 403 JSON response:', e);
+          console.error('[CSRF] Error parsing 403 response JSON:', e);
         }
-      } else {
-        console.log('[CSRF] 403 response is HTML/non-JSON - likely authentication issue');
       }
     }
-    
+
     return response;
   } catch (error) {
-    console.error('[CSRF] Fetch error:', error);
+    console.error(`[CSRF] Error during fetch: ${error.message}`);
     throw error;
   }
 }

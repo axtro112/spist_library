@@ -42,7 +42,7 @@ class NotificationDeepLink {
           if (isStudent) {
             return `/dashboard/student/student-books.html?bookId=${notif.link_id || notif.related_id}`;
           } else if (isSuperAdmin) {
-            return `/dashboard/super-admin/super-admin-books.html?bookId=${notif.link_id || notif.related_id}`;
+            return `/super-admin-books?bookId=${notif.link_id || notif.related_id}`;
           } else {
             return `/dashboard/admin/admin-books.html?bookId=${notif.link_id || notif.related_id}`;
           }
@@ -54,7 +54,7 @@ class NotificationDeepLink {
         types: ['NEW_USER', 'USER_UPDATED', 'USER_SUSPENDED'],
         getUrl: (notif) => {
           if (isSuperAdmin) {
-            return `/dashboard/super-admin/super-admin-users.html?userId=${notif.link_id}`;
+            return `/super-admin-users?userId=${notif.link_id}`;
           } else {
             return `/dashboard/admin/admin-users.html?userId=${notif.link_id}`;
           }
@@ -66,7 +66,7 @@ class NotificationDeepLink {
         types: ['NEW_ADMIN', 'ADMIN_UPDATED'],
         getUrl: (notif) => {
           if (isSuperAdmin) {
-            return `/dashboard/super-admin/super-admin-admins.html?adminId=${notif.link_id}`;
+            return `/super-admin-admins?adminId=${notif.link_id}`;
           } else {
             return `/dashboard/admin/admin-admins.html?adminId=${notif.link_id}`;
           }
@@ -77,7 +77,7 @@ class NotificationDeepLink {
       'audit': {
         types: ['AUDIT_EVENT', 'SECURITY_ALERT'],
         getUrl: (notif) => {
-          return `/dashboard/super-admin/super-admin-audit-logs.html?logId=${notif.link_id}`;
+          return `/super-admin-audit-logs?logId=${notif.link_id}`;
         }
       },
       
@@ -86,7 +86,7 @@ class NotificationDeepLink {
         types: ['SYSTEM_UPDATE', 'MAINTENANCE', 'BACKUP_COMPLETE'],
         getUrl: (notif) => {
           if (isSuperAdmin) {
-            return `/dashboard/super-admin/super-admin-settings.html`;
+            return `/super-admin-settings`;
           } else {
             return `/dashboard/admin/admin-dashboard.html`;
           }

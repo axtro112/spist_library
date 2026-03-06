@@ -332,19 +332,35 @@ router.get(
     const user = req.user;
     
     if (user.userType === "admin") {
-      // Set admin session data
+      // Populate req.session.user so requireAdmin middleware passes (same shape as email/password login)
+      req.session.user = {
+        id: user.userId,
+        email: user.email,
+        userRole: "admin",
+        role: user.role,
+      };
+
+      // Set admin cookies for client-side use
       res.cookie("adminRole", user.role, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       res.cookie("adminEmail", user.email, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       res.cookie("adminName", user.fullname, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       
       // Redirect based on role
       if (user.role === "super_admin") {
-        res.redirect("/dashboard/super-admin/super-admin-dashboard.html");
+        res.redirect("/super-admin-dashboard");
       } else {
-        res.redirect("/dashboard/admin/admin-dashboard.html");
+        res.redirect("/admin-dashboard");
       }
     } else {
-      // Set student session data
+      // Populate session for student too
+      req.session.user = {
+        id: user.userId,
+        studentId: user.userId,
+        email: user.email,
+        userRole: "student",
+      };
+
+      // Set student cookies for client-side use
       res.cookie("studentId", user.userId, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       res.cookie("studentEmail", user.email, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       res.cookie("studentName", user.fullname, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
@@ -361,6 +377,17 @@ router.get("/csrf-token", (req, res) => {
   res.json({
     success: true,
     csrfToken: "no-csrf",
+  });
+});
+
+// POST /auth/logout  — destroys the server-side session
+router.post("/logout", (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      logger.error("Session destroy error on logout", { error: err.message });
+    }
+    res.clearCookie("spist_library_session");
+    res.json({ success: true, message: "Logged out successfully" });
   });
 });
 

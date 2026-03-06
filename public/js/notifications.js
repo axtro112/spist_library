@@ -321,10 +321,7 @@ class NotificationManager {
     bellContainer.id = 'notification-bell';
     bellContainer.className = 'notification-bell';
     bellContainer.innerHTML = `
-      <button class="notification-btn" id="notification-btn" title="Notifications">
-        <span class="material-symbols-outlined">notifications</span>
-        <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
-      </button>
+
       <div class="notification-dropdown" id="notification-dropdown" style="display: none;">
         <div class="notification-header">
           <h3>Notifications</h3>

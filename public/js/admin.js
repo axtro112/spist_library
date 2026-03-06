@@ -56,7 +56,7 @@ function showModal(modalId) {
 const showAdminModal = () => showModal("adminModal");
 const showAdminEditModal = () => showModal("adminEdit");
 const showDeleteModal = () => showModal("modalDelete");
-const showLogoutModal = () => showModal("logoutModal");
+function showLogoutModal() { showModal("logoutModal"); }
 
 
 function closeModal() {

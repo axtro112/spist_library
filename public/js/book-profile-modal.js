@@ -17,31 +17,31 @@ let currentBookData = {
  * @param {number} bookId - The book ID to load
  */
 function openBookProfileModal(bookId) {
-  console.log('[Book Profile Modal] Opening modal for book ID:', bookId);
-  
-  // Check if Bootstrap is available
-  if (typeof bootstrap === 'undefined') {
-    console.error('[Book Profile Modal] Bootstrap is not loaded!');
-    alert('Bootstrap library is not loaded. Please refresh the page.');
-    return;
-  }
-  
-  const modalElement = document.getElementById('bookProfileModal');
-  if (!modalElement) {
-    console.error('[Book Profile Modal] Modal element not found!');
-    alert('Modal element not found. Please refresh the page.');
-    return;
-  }
-  
-  const modal = new bootstrap.Modal(modalElement);
-  
-  // Reset state
+  var el = document.getElementById('bookProfileModal');
+  if (!el) { alert('Modal element not found. Please refresh the page.'); return; }
+
+  // Reset state first
   resetModalState();
-  
-  // Show modal immediately with loading state
-  modal.show();
-  console.log('[Book Profile Modal] Modal shown, loading data...');
-  
+
+  // Manually show modal (no Bootstrap JS dependency)
+  el.style.display = 'block';
+  el.removeAttribute('aria-hidden');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('role', 'dialog');
+  document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+
+  // Create backdrop if not present
+  if (!document.getElementById('bookProfileBackdrop')) {
+    var bd = document.createElement('div');
+    bd.id = 'bookProfileBackdrop';
+    bd.className = 'modal-backdrop fade show';
+    document.body.appendChild(bd);
+  }
+
+  // Trigger fade-in
+  requestAnimationFrame(function() { el.classList.add('show'); });
+
   // Load data
   loadBookProfileData(bookId);
 }
@@ -49,6 +49,26 @@ function openBookProfileModal(bookId) {
 /**
  * Reset modal to initial state
  */
+
+/**
+ * Close the Book Profile Modal - pure DOM, no Bootstrap JS dependency
+ */
+function closeBookProfileModal() {
+  var el = document.getElementById('bookProfileModal');
+  if (!el) return;
+  el.classList.remove('show');
+  el.style.display = 'none';
+  el.setAttribute('aria-hidden', 'true');
+  el.removeAttribute('aria-modal');
+  el.removeAttribute('role');
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('overflow');
+  document.body.style.removeProperty('padding-right');
+  // Remove backdrop
+  var bd = document.getElementById('bookProfileBackdrop');
+  if (bd) bd.remove();
+  document.querySelectorAll('.modal-backdrop').forEach(function(b) { b.remove(); });
+}
 function resetModalState() {
   // Show loading, hide content and error
   document.getElementById('bookProfileLoading').classList.remove('d-none');
@@ -350,10 +370,11 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   
   // Reset on modal close
-  const modalElement = document.getElementById('bookProfileModal');
-  if (modalElement) {
-    modalElement.addEventListener('hidden.bs.modal', function() {
-      resetModalState();
-    });
-  }
+  // Close when clicking outside the dialog box
+    const modalElement = document.getElementById('bookProfileModal');
+    if (modalElement) {
+      modalElement.addEventListener('mousedown', function(e) {
+        if (e.target === modalElement) { closeBookProfileModal(); }
+      });
+    }
 });

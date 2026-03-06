@@ -9,6 +9,7 @@ class AdminManagement {
     this.currentAdminRole = null;
     this.currentAdminId = null;
     this.admins = [];
+    this.selectedAdminIds = new Set();
     this.init();
   }
 
@@ -33,6 +34,89 @@ class AdminManagement {
     
     // Setup modal event listeners
     this.setupModalListeners();
+  }
+
+  /**
+   * Initialize bulk selection
+   */
+  initBulkSelection() {
+    const selectAll = document.getElementById('selectAllAdmins');
+    const rowCheckboxes = document.querySelectorAll('.admin-row-cb:not(:disabled)');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteAdminsBtn');
+
+    if (!selectAll) return;
+
+    // Reset state
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    this.selectedAdminIds.clear();
+
+    selectAll.onclick = () => {
+      const checked = selectAll.checked;
+      rowCheckboxes.forEach(cb => {
+        cb.checked = checked;
+        const id = parseInt(cb.dataset.adminId);
+        if (checked) this.selectedAdminIds.add(id);
+        else this.selectedAdminIds.delete(id);
+      });
+      this.updateBulkBar();
+    };
+
+    rowCheckboxes.forEach(cb => {
+      cb.onclick = () => {
+        const id = parseInt(cb.dataset.adminId);
+        if (cb.checked) this.selectedAdminIds.add(id);
+        else this.selectedAdminIds.delete(id);
+
+        const total = rowCheckboxes.length;
+        const checked = [...rowCheckboxes].filter(c => c.checked).length;
+        selectAll.checked = checked === total;
+        selectAll.indeterminate = checked > 0 && checked < total;
+
+        this.updateBulkBar();
+      };
+    });
+
+    if (bulkDeleteBtn) bulkDeleteBtn.onclick = () => this.handleBulkDelete();
+
+    this.updateBulkBar();
+  }
+
+  /**
+   * Update bulk action bar state
+   */
+  updateBulkBar() {
+    const count = this.selectedAdminIds.size;
+    const countSpan = document.getElementById('adminsSelectedCount');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteAdminsBtn');
+    if (countSpan) countSpan.textContent = count > 0 ? `${count} selected` : '';
+    if (bulkDeleteBtn) bulkDeleteBtn.disabled = count === 0;
+  }
+
+  /**
+   * Bulk soft-delete selected admins
+   */
+  async handleBulkDelete() {
+    const ids = Array.from(this.selectedAdminIds);
+    if (ids.length === 0) return;
+
+    if (!confirm(`Move ${ids.length} admin(s) to trash? You can restore them later.`)) return;
+
+    let success = 0, failed = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetchWithCsrf(`/api/admin/admins/${id}/soft-delete`, { method: 'POST' });
+        if (res.ok) success++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    const msg = `Moved ${success} admin(s) to trash${failed ? ` (${failed} failed)` : ''}.`;
+    this.showSuccessMessage(msg);
+    this.selectedAdminIds.clear();
+    await this.loadAdmins();
   }
 
   /**
@@ -190,13 +274,15 @@ class AdminManagement {
     tbody.innerHTML = '';
 
     if (this.admins.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No admins found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No admins found</td></tr>';
       return;
     }
 
     this.admins.forEach((admin) => {
       const tr = document.createElement('tr');
       tr.setAttribute('data-admin-id', admin.id);
+      tr.dataset.overviewType = 'admin';
+      tr.dataset.overviewId   = String(admin.id);
       
       // Convert role to display format
       const roleDisplay = admin.role === 'super_admin' ? 'Super Admin' : 'System Admin';
@@ -209,6 +295,11 @@ class AdminManagement {
       });
 
       tr.innerHTML = `
+        <td style="text-align:center;">
+          <input type="checkbox" class="admin-row-cb" data-admin-id="${admin.id}"
+            ${admin.id === parseInt(this.currentAdminId) ? 'disabled title="Cannot select yourself"' : ''}
+            style="width:16px;height:16px;cursor:pointer;">
+        </td>
         <td>${admin.id}</td>
         <td>${this.escapeHtml(admin.fullname || 'N/A')}</td>
         <td>${roleDisplay}</td>
@@ -221,6 +312,8 @@ class AdminManagement {
       
       tbody.appendChild(tr);
     });
+
+    this.initBulkSelection();
   }
 
   /**
@@ -477,7 +570,7 @@ class AdminManagement {
 
     // Update modal content
     const modalContent = document.querySelector('#modalDelete .modal-content p');
-    modalContent.innerHTML = `Are you sure you want to delete <strong>${this.escapeHtml(admin.fullname)}</strong> (${this.escapeHtml(admin.email)})?<br><br>This action cannot be undone.`;
+    modalContent.innerHTML = `Are you sure you want to move <strong>${this.escapeHtml(admin.fullname)}</strong> (${this.escapeHtml(admin.email)}) to trash? You can restore them later.`;
 
     // Store admin ID in modal dataset
     const modal = document.getElementById('modalDelete');
@@ -511,8 +604,8 @@ class AdminManagement {
     deleteBtn.textContent = 'Deleting...';
 
     try {
-      const response = await fetchWithCsrf(`/api/admin/${adminId}?currentAdminId=${this.currentAdminId}`, {
-        method: 'DELETE'
+      const response = await fetchWithCsrf(`/api/admin/admins/${adminId}/soft-delete`, {
+        method: 'POST'
       });
 
       const data = await response.json();
@@ -521,10 +614,10 @@ class AdminManagement {
         throw new Error(data.message || 'Failed to delete admin');
       }
 
-      console.log('[AdminManagement] Admin deleted successfully');
+      console.log('[AdminManagement] Admin moved to trash successfully');
       
       // Show success message
-      this.showSuccessMessage('Admin deleted successfully');
+      this.showSuccessMessage('Admin moved to trash');
       
       // Close modal
       this.closeDeleteModal();

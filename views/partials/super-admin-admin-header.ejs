@@ -1,0 +1,42 @@
+        <div class="admin-header">
+          <div class="admin-info">
+            <div class="admin-avatar">
+              <span id="adminInitial">S</span>
+            </div>
+            <div class="admin-details">
+              <h3 id="adminName">Super Admin</h3>
+              <p id="adminEmail"><%= adminEmail %></p>
+              <p id="adminRole">Super Admin</p>
+            </div>
+          </div>
+          <div class="admin-notification-container" id="superAdminNotificationContainer">
+ 
+            <div class="student-notif-panel" id="superAdminNotifPanel" style="display: none;">
+              <div class="notif-header">
+                <h3>Notifications</h3>
+                <div class="notif-actions">
+                  <button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read" aria-label="Mark all as read">
+                    <span class="material-symbols-outlined">done_all</span>
+                  </button>
+                  <button class="notif-action-btn" id="notifSettingsBtn" title="Notification settings" aria-label="Notification settings">
+                    <span class="material-symbols-outlined">settings</span>
+                  </button>
+                </div>
+              </div>
+              <div class="notif-tabs">
+                <button class="notif-tab active" id="tabAll" data-tab="all">
+                  <span class="material-symbols-outlined">list</span>All
+                </button>
+                <button class="notif-tab" id="tabUnread" data-tab="unread">
+                  <span class="material-symbols-outlined">mark_as_unread</span>Unread
+                </button>
+              </div>
+              <div class="notif-list" id="notifList">
+                <div class="notif-loading">Loading notifications...</div>
+              </div>
+              <div class="notif-footer">
+                <button class="notif-see-more" id="notifSeeMore">See previous notifications</button>
+              </div>
+            </div>
+          </div>
+        </div>

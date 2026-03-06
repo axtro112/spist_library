@@ -115,7 +115,18 @@ router.post("/borrow", async (req, res) => {
         "INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, approved_by, notes, status) VALUES (?, ?, ?, ?, ?, ?, 'borrowed')",
         [bookId, studentId, borrowDate, returnDate, adminId || null, notes]
       );
-      await conn.queryAsync("UPDATE books SET available_quantity = available_quantity - 1 WHERE id = ?", [bookId]);
+      // [ORPHAN FIX] Recalculate from ground truth to prevent counter drift
+      await conn.queryAsync(
+        `UPDATE books
+         SET available_quantity = GREATEST(0,
+           quantity - (
+             SELECT COUNT(*) FROM book_borrowings
+             WHERE book_id = ? AND status IN ('borrowed','overdue') AND return_date IS NULL
+           )
+         )
+         WHERE id = ?`,
+        [bookId, bookId]
+      );
     });
 
     logger.info('Book borrowed successfully', { bookId, studentId });

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title || 'SPIST Library' %></title>
+  <link rel="icon" type="image/png" href="/img/school-logo-large.png" />
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <!-- Open Sans -->
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Existing CSS -->
+  <link rel="stylesheet" href="/css/common.css" />
+  <link rel="stylesheet" href="/css/notifications.css" />
+  <link rel="stylesheet" href="/css/responsive.css" />
+  <!-- Super Admin layout styles -->
+  <link rel="stylesheet" href="/css/super-admin/layout.css" />
+
+  <!-- Extra head content (per-page CSS, etc.) -->
+  <%- extraHead || '' %>
+
+  <!-- Common JS -->
+  <script src="/js/csrf-helper.js"></script>
+  <!-- Super Admin shared utilities — must load before any SA page module -->
+  <script src="/js/super-admin/utils.js"></script>
+  <script src="/js/session-timeout.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script src="/js/super-admin-guard.js" defer></script>
+</head>
+<body>
+<div class="sa-wrapper">
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <aside class="sa-sidebar" id="saSidebar">
+    <div class="sa-sidebar-brand">
+      <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+      <div class="sa-brand-text">
+        <strong>SPIST</strong>
+        <span>Library System</span>
+      </div>
+    </div>
+    <nav class="sa-nav">
+      <a href="/super-admin-dashboard"          class="<%= activePage === 'dashboard'      ? 'active' : '' %>">
+        <i class="bi bi-speedometer2"></i><span class="nav-label">Dashboard</span>
+      </a>
+      <a href="/super-admin-admins"             class="<%= activePage === 'admins'         ? 'active' : '' %>">
+        <i class="bi bi-person-badge"></i><span class="nav-label">Manage Admins</span>
+      </a>
+      <a href="/super-admin-books"              class="<%= activePage === 'books'          ? 'active' : '' %>">
+        <i class="bi bi-book"></i><span class="nav-label">Books</span>
+      </a>
+      <a href="/super-admin-users"              class="<%= activePage === 'users'          ? 'active' : '' %>">
+        <i class="bi bi-people"></i><span class="nav-label">Users</span>
+      </a>
+      <a href="/super-admin-borrowed-books"     class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
+        <i class="bi bi-journal-bookmark"></i><span class="nav-label">Borrowed Books</span>
+      </a>
+      <div class="sa-nav-divider"></div>
+      <a href="/super-admin-trash"              class="<%= activePage === 'trash'         ? 'active' : '' %>">
+        <i class="bi bi-trash2"></i><span class="nav-label">Trash Bin</span>
+      </a>
+      <div class="sa-nav-divider"></div>
+      <a href="#" onclick="showLogoutModal(); return false;">
+        <i class="bi bi-box-arrow-right"></i><span class="nav-label">Log out</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- ═══════════════ MAIN ═══════════════ -->
+  <div class="sa-main">
+
+    <!-- TOP BAR -->
+    <header class="sa-topbar">
+      <div class="sa-topbar-left">
+        <div class="sa-admin-avatar" id="adminInitial">S</div>
+        <div class="sa-admin-info">
+          <div class="name" id="adminName">Super Admin</div>
+          <div class="email" id="adminEmail"><%= adminEmail || '' %></div>
+          <div class="role" id="adminRole">Super Admin</div>
+        </div>
+      </div>
+      <!-- spacer pushes bell to far right -->
+      
+      <div class="sa-topbar-right">
+        <!-- Notification bell (reuses existing notification system) -->
+        <div class="sa-notif-wrap" id="superAdminNotificationContainer">
+          <button class="sa-notif-btn" id="superAdminNotifBell" title="Notifications" aria-label="Notifications" aria-expanded="false">
+            <i class="bi bi-bell"></i>
+            <span class="sa-notif-badge" id="superAdminNotifBadge" style="display:none;">0</span>
+          </button>
+          <div class="sa-notif-panel" id="superAdminNotifPanel" style="display:none;">
+            <div class="notif-header">
+              <h3>Notifications</h3>
+              <div class="notif-actions">
+                <button class="notif-action-btn" id="notifMarkAllBtn" title="Mark all as read">
+                  <span class="material-symbols-outlined">done_all</span>
+                </button>
+              </div>
+            </div>
+            <div class="notif-tabs">
+              <button class="notif-tab active" id="tabAll" data-tab="all"><span class="material-symbols-outlined">list</span>All</button>
+              <button class="notif-tab"        id="tabUnread" data-tab="unread"><span class="material-symbols-outlined">mark_as_unread</span>Unread</button>
+            </div>
+            <div class="notif-list" id="notifList">
+              <div class="notif-loading">Loading notifications...</div>
+            </div>
+            <div class="notif-footer">
+              <button class="notif-see-more" id="notifSeeMore">See previous notifications</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <main class="sa-content">
+      <%- body %>
+    </main>
+
+  </div><!-- /.sa-main -->
+</div><!-- /.sa-wrapper -->
+
+<!-- LOGOUT MODAL -->
+<div id="logoutModal" class="modal">
+  <div class="modal-content" style="max-width:380px;">
+    <h2>Confirm Logout</h2>
+    <p>Are you sure you want to log out?</p>
+    <div class="form-actions">
+      <button class="sa-btn sa-btn-outline" onclick="closeLogoutModal()">Cancel</button>
+      <button class="sa-btn sa-btn-danger"  onclick="logout()">Log Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/sidebar-toggle.js" defer></script>
+<script src="/js/notification-deeplink.js"></script>
+<script src="/js/notification-highlight.js"></script>
+
+<script>
+  // ── LOGOUT HELPERS ──
+  function showLogoutModal()  { document.getElementById('logoutModal').classList.add('show'); }
+  function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('show'); }
+  function hideLogoutModal()  { closeLogoutModal(); }
+  function confirmLogout()    { logout(); }
+  async function logout() {
+    try { await fetch('/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+    sessionStorage.clear(); localStorage.clear();
+    window.location.href = '/login';
+  }
+
+  // ── NOTIFICATION BELL ──
+  (function() {
+    const bell  = document.getElementById('superAdminNotifBell');
+    const panel = document.getElementById('superAdminNotifPanel');
+    const badge = document.getElementById('superAdminNotifBadge');
+    if (!bell || !panel) return;
+    bell.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const open = panel.style.display === 'block';
+      panel.style.display = open ? 'none' : 'block';
+      bell.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', function(e) {
+      if (!bell.contains(e.target) && !panel.contains(e.target)) panel.style.display = 'none';
+    });
+    async function loadBadge() {
+      try {
+        const r = await fetch('/api/notifications/unread-count');
+        if (r.ok) {
+          const d = await r.json();
+          const c = d.count || 0;
+          badge.textContent = c;
+          badge.style.display = c > 0 ? 'flex' : 'none';
+        }
+      } catch(e) {}
+    }
+    loadBadge();
+    setInterval(loadBadge, 30000);
+  })();
+</script>
+<%- include('./overview-panel') %>
+</body>
+</html>

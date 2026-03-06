@@ -29,18 +29,22 @@
     <script src="/js/ui.js"></script>
     <script src="/js/notifications.js"></script>
     <script src="/js/user.js" defer></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/student/dashboard.js" defer></script>
     <script src="/js/sidebar-toggle.js" defer></script>
     <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        Student.Dashboard.init();
+      });
+      /* ── LEGACY CODE BELOW – neutralised; logic now lives in student/dashboard.js ── */
+      if (false) {
       // Authentication check - redirect if not logged in as student
-      document.addEventListener("DOMContentLoaded", async function () {
+      (async function () { // scope wrapper — legacy, never runs
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
-        const userRole = sessionStorage.getItem("userRole");
-        const studentId = sessionStorage.getItem("studentId");
-
-        console.log("Auth Check:", { isLoggedIn, userRole, studentId }); // Debug log
+        const userRole   = sessionStorage.getItem("userRole");
+        const studentId  = sessionStorage.getItem("studentId");
 
         if (!isLoggedIn || !userRole || userRole !== "student" || !studentId) {
-          console.log("Redirecting to login - missing auth info"); // Debug log
           window.location.href = "/login";
           return;
         }
@@ -388,17 +392,8 @@
       }
 
       // Call the functions when the page loads
-      document.addEventListener("DOMContentLoaded", () => {
-        updateDashboardStats();
-        updateBorrowedBooks();
-        updateRecommendedBooks();
-        // Refresh data every 5 minutes
-        setInterval(() => {
-          updateDashboardStats();
-          updateBorrowedBooks();
-          updateRecommendedBooks();
-        }, 300000);
-      });
+      void 0; // stub
+      } // end if(false) legacy block
     </script>
 
     <title>Student Dashboard - SPIST Library</title>

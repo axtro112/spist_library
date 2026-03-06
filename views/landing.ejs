@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>SPiST Library Management System</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+
+  <%- include('partials/navbar') %>
+
+  <!-- ===== HOME ===== -->
+  <section class="spist-section" id="home">
+    <div class="spist-content reveal">
+      <h2 sclass="spist-welcome">Welcome to</h2>
+      <h1 class="spist-title">Southern Philippines Institute <br>Institute of Science & Technology</h1>
+      <div class="spist-buttons">
+        <a href="/login" class="btn-spist btn-login">
+          <i class="fas fa-sign-in-alt"></i> Log In
+        </a>
+        <a href="/signup" class="btn-spist btn-signup">
+          <i class="fas fa-user-plus"></i> Sign Up
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== VISION ===== -->
+  <section class="content-section section-alt" id="vision">
+    
+    <div class="section-inner reveal">
+      <h2 class="section-title">VISION</h2>
+      <div class="section-divider"></div>
+      <div class="section-body">
+        <p>
+          The SPiST Library envisions itself as a dynamic learning hub that empowers
+          students, faculty, and researchers with seamless access to knowledge and
+          information resources.
+        </p>
+        <p>
+          We are committed to fostering a culture of reading, lifelong learning, and
+          academic excellence by providing a well-organized, technology-enabled
+          environment that supports the intellectual growth of the entire SPiST community.
+        </p>
+        <p>
+          Through continuous innovation and responsive library services, we strive to be
+          an indispensable partner in the educational journey of every learner within the
+          Southern Philippines Institute of Science and Technology.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ABOUT US ===== -->
+  <section class="content-section" id="about">
+    
+    <div class="section-inner reveal">
+      <h2 class="section-title">ABOUT US</h2>
+      <div class="section-divider"></div>
+      <div class="section-body">
+        <p>
+          The SPiST Library Management System is the official digital platform of the
+          Southern Philippines Institute of Science and Technology Library. It is
+          designed to streamline borrowing, returning, and managing library resources
+          for students, faculty, and staff.
+        </p>
+        <p>
+          Our system offers features such as book search and browsing, real-time
+          borrowing records, account management, and automated notifications — all
+          aimed at making your library experience faster and more convenient.
+        </p>
+        <p>
+          The library is staffed by dedicated librarians and support personnel who are
+          always ready to assist you in finding the resources you need for your academic
+          and research endeavors.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CONTACT US ===== -->
+  <section class="content-section section-alt contact-sticky" id="contact">
+    
+    <div class="section-inner reveal">
+      <h2 class="section-title">CONTACT US</h2>
+      <div class="section-divider"></div>
+      <div class="contact-grid">
+
+        <div class="contact-item">
+          <i class="fas fa-map-marker-alt contact-icon"></i>
+          <div>
+            <p class="contact-label">Address</p>
+            <p class="contact-value">Tia Maria Bldg,<br>Southern Philippines Institute<br>of Science and Technology</p>
+          </div>
+        </div>
+
+        <div class="contact-item">
+          <i class="fas fa-phone-alt contact-icon"></i>
+          <div>
+            <p class="contact-label">Phone</p>
+            <p class="contact-value">
+              <a href="tel:+639171328042" class="contact-link">0917 132 8042</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="contact-item">
+          <i class="fas fa-envelope contact-icon"></i>
+          <div>
+            <p class="contact-label">Email</p>
+            <p class="contact-value">
+              <a href="mailto:spistmarketing@spist.edu.ph" class="contact-link">spistmarketing@spist.edu.ph</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="contact-item">
+          <i class="fas fa-clock contact-icon"></i>
+          <div>
+            <p class="contact-label">Library Hours</p>
+            <p class="contact-value">
+              Mon – Fri: 8:00 AM – 8:00 PM<br>
+              Saturday: 9:00 AM – 5:00 PM
+            </p>
+          </div>
+        </div>
+
+        <div class="contact-item">
+          <i class="fab fa-facebook contact-icon"></i>
+          <div>
+            <p class="contact-label">Facebook</p>
+            <p class="contact-value">
+              <a href="https://www.facebook.com/spistofficial" target="_blank" rel="noopener noreferrer" class="contact-link">
+                facebook.com/spistofficial
+              </a>
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <%- include('partials/footer') %>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Landing JS -->
+  <script src="/js/landing.js"></script>
+
+</body>
+</html>

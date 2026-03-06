@@ -14,61 +14,23 @@ const {
   exportBooksToExcel,
   cleanupFile,
 } = require("../utils/csvParser");
-const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
+const { createAdminRules, validate } = require('../validators/admin.validators');
+const { addAdmin } = require('../controllers/admin.controller');
+
+// 10 create attempts per IP per 15 minutes
+const addAdminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many admin creation attempts. Please try again in 15 minutes.' },
+});
 
 // =============================
 // Add Admin (Super Admin Only)
 // =============================
-router.post(
-  '/admins',
-  requireSuperAdmin,
-  [
-    body('fullname').trim().notEmpty().withMessage('Full name is required'),
-    body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('role').optional().isIn(['system_admin', 'super_admin']).withMessage('Role must be system_admin or super_admin'),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
-    const { fullname, email, password, role } = req.body;
-    const adminRole = role && ['system_admin', 'super_admin'].includes(role) ? role : 'system_admin';
-    // Validate fullname
-    if (!fullname || fullname.trim() === '') {
-      return response.validationError(res, 'Fullname is required');
-    }
-
-    const trimmedFullname = fullname.trim();
-
-    const existingAdmin = await db.query(
-      "SELECT id FROM admins WHERE email = ?",
-      [email]
-    );
-
-    if (existingAdmin.length > 0) {
-      return res.status(409).json({ success: false, message: 'Email already exists' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const result = await db.query(
-      'INSERT INTO admins (fullname, email, password, role, created_at) VALUES (?, ?, ?, ?, NOW())',
-      [trimmedFullname, email, hashedPassword, adminRole]
-    );
-
-    const newAdmin = {
-      id: result.insertId,
-      fullname,
-      email,
-      role: adminRole,
-      created_at: new Date().toISOString(),
-    };
-    return res.status(201).json({ success: true, data: newAdmin });
-  }
-);
+router.post('/admins', requireSuperAdmin, addAdminLimiter, createAdminRules, validate, addAdmin);
 
 
 // Middleware to log all admin API requests
@@ -324,14 +286,14 @@ router.delete("/books/:id", requireAdmin, async (req, res) => {
       return response.notFound(res, 'Book not found');
     }
 
-    // Check if book is borrowed
+    // [ORPHAN FIX] Check for active borrowings using correct ENUM values
     const borrowStatus = await db.query(
-      "SELECT status FROM book_borrowings WHERE book_id = ? AND status = 'active'",
+      "SELECT id FROM book_borrowings WHERE book_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL",
       [bookId]
     );
     if (borrowStatus.length > 0) {
       logger.warn('Book delete attempt - currently borrowed', { bookId });
-      return response.validationError(res, 'Cannot delete book that is currently borrowed');
+      return response.validationError(res, 'Cannot move book to trash: it has active borrowings that must be returned first');
     }
 
     // Soft delete the book (move to trash)
@@ -1120,7 +1082,7 @@ router.post("/books/bulk-delete", requireAdmin, async (req, res) => {
     for (const bookId of ids) {
       try {
         // Check if book exists
-        const book = await db.query("SELECT id, title FROM books WHERE id = ?", [bookId]);
+        const book = await db.query("SELECT id, title, deleted_at FROM books WHERE id = ?", [bookId]);
         if (book.length === 0) {
           errors.push(`Book ID ${bookId} not found`);
           logger.warn('Book not found in bulk delete', { bookId });
@@ -1134,19 +1096,22 @@ router.post("/books/bulk-delete", requireAdmin, async (req, res) => {
         );
         
         if (borrowStatus[0].count > 0) {
-          errors.push(`Cannot delete "${book[0].title}" (ID: ${bookId}) - currently borrowed`);
-          logger.warn('Cannot delete borrowed book', { bookId, title: book[0].title, activeLoans: borrowStatus[0].count });
+          errors.push(`Cannot move "${book[0].title}" (ID: ${bookId}) to trash - currently borrowed`);
+          logger.warn('Cannot bulk-delete borrowed book', { bookId, title: book[0].title, activeLoans: borrowStatus[0].count });
           continue;
         }
         
-        // Delete book's borrowing history
-        await db.query("DELETE FROM book_borrowings WHERE book_id = ?", [bookId]);
+        // Skip if already in trash
+        if (book[0].deleted_at) {
+          errors.push(`"${book[0].title}" (ID: ${bookId}) is already in trash`);
+          continue;
+        }
         
-        // Delete book
-        await db.query("DELETE FROM books WHERE id = ?", [bookId]);
+        // Soft delete — move to trash
+        await db.query("UPDATE books SET deleted_at = NOW() WHERE id = ?", [bookId]);
         
         deletedCount++;
-        logger.info('Book deleted in bulk operation', { bookId, title: book[0].title });
+        logger.info('Book moved to trash in bulk operation', { bookId, title: book[0].title });
         
       } catch (err) {
         logger.error('Error deleting book in bulk operation', { bookId, error: err.message });
@@ -1161,10 +1126,10 @@ router.post("/books/bulk-delete", requireAdmin, async (req, res) => {
     };
     
     const message = errors.length > 0
-      ? `Deleted ${deletedCount} out of ${ids.length} books. ${errors.length} error(s) occurred.`
-      : `Successfully deleted ${deletedCount} book(s)`;
+      ? `Moved ${deletedCount} out of ${ids.length} books to trash. ${errors.length} error(s) occurred.`
+      : `Successfully moved ${deletedCount} book(s) to trash`;
     
-    logger.info('Bulk delete completed', { deletedCount, requested: ids.length, errorCount: errors.length });
+    logger.info('Bulk move-to-trash completed', { deletedCount, requested: ids.length, errorCount: errors.length });
     response.success(res, responseData, message);
     
   } catch (err) {
@@ -1357,10 +1322,13 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
         s.email AS student_email,
         s.department AS student_department,
         s.year_level AS student_year_level,
-        b.title AS book_title,
-        b.author AS book_author,
-        b.isbn AS book_isbn,
-        b.category AS book_category,
+        -- [ORPHAN FIX] COALESCE so soft/hard deleted books show a safe placeholder
+        COALESCE(b.title, '(Removed from system)') AS book_title,
+        COALESCE(b.author, '') AS book_author,
+        COALESCE(b.isbn, '') AS book_isbn,
+        COALESCE(b.category, '') AS book_category,
+        -- [ORPHAN FIX] book_missing = 1 when book row is gone or trashed
+        IF(b.id IS NULL OR b.deleted_at IS NOT NULL, 1, 0) AS book_missing,
         a_approved.fullname AS approved_by_name,
         a_picked.fullname AS picked_up_by_name,
         a_returned.fullname AS returned_by_name,
@@ -1373,7 +1341,8 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
         END AS display_status
       FROM book_borrowings bb
       INNER JOIN students s ON bb.student_id = s.student_id
-      INNER JOIN books b ON bb.book_id = b.id
+      -- [ORPHAN FIX] LEFT JOIN so records survive even when book was hard-deleted
+      LEFT JOIN books b ON bb.book_id = b.id
       LEFT JOIN admins a_approved ON bb.approved_by = a_approved.id
       LEFT JOIN admins a_picked ON bb.picked_up_by_admin_id = a_picked.id
       LEFT JOIN admins a_returned ON bb.returned_by_admin_id = a_returned.id
@@ -1541,10 +1510,18 @@ router.post("/borrowings/:id/confirm-return", requireAdmin, async (req, res) => 
         logger.info('Book copy marked as available', { accession_number: record.accession_number });
       }
       
-      // Update book available quantity
+      // [ORPHAN FIX] Recalculate available_quantity from ground truth instead of
+      // incrementing, so counter drift can never cause a CHECK constraint violation.
       await db.query(
-        "UPDATE books SET available_quantity = available_quantity + 1 WHERE id = ?",
-        [record.book_id]
+        `UPDATE books
+         SET available_quantity = GREATEST(0,
+           quantity - (
+             SELECT COUNT(*) FROM book_borrowings
+             WHERE book_id = ? AND status IN ('borrowed','overdue') AND return_date IS NULL
+           )
+         )
+         WHERE id = ?`,
+        [record.book_id, record.book_id]
       );
       
       await db.query('COMMIT');
@@ -1879,7 +1856,17 @@ router.post('/books/:id/soft-delete', requireAdmin, async (req, res) => {
     if (book.deleted_at) {
       return response.validationError(res, 'Book is already in trash');
     }
-    
+
+    // [ORPHAN FIX] Block trash if book has active borrowings
+    const [activeBorrow] = await db.query(
+      `SELECT COUNT(*) AS count FROM book_borrowings
+       WHERE book_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL`,
+      [bookId]
+    );
+    if (activeBorrow.count > 0) {
+      return response.validationError(res, 'Cannot move book to trash: it has active borrowings that must be returned first');
+    }
+
     // Soft delete the book
     await db.query(
       'UPDATE books SET deleted_at = NOW() WHERE id = ?',
@@ -1958,14 +1945,15 @@ router.delete('/books/:id/permanent-delete', requireSuperAdmin, async (req, res)
       return response.validationError(res, 'Book must be in trash before permanent deletion');
     }
     
-    // Check for active borrowings
+    // [ORPHAN FIX] Check all active statuses including overdue
     const activeBorrowings = await db.query(
-      'SELECT COUNT(*) as count FROM book_borrowings WHERE book_id = ? AND status IN ("borrowed", "approved")',
+      `SELECT COUNT(*) AS count FROM book_borrowings
+       WHERE book_id = ? AND status IN ('borrowed', 'overdue', 'approved') AND return_date IS NULL`,
       [bookId]
     );
-    
+
     if (activeBorrowings[0].count > 0) {
-      return response.validationError(res, 'Cannot delete book with active borrowings');
+      return response.validationError(res, 'Cannot permanently delete book with active borrowings');
     }
     
     // Permanently delete book copies first (foreign key constraint)
@@ -2769,6 +2757,204 @@ router.delete('/trash/:type/:id/permanent', requireAdmin, async (req, res) => {
       error: error.message 
     });
     response.error(res, 'Error permanently deleting item', error);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// UNIFIED TRASH MANAGER — clean entity-based endpoints
+// Used by views/super-admin/trash.ejs  +  public/js/admin/trash/
+// ─────────────────────────────────────────────────────────────────
+
+// GET /api/admin/trash/:entity   — list trashed items by entity
+// entity = 'books' | 'users' | 'admins'
+router.get('/trash/:entity', requireAdmin, async (req, res) => {
+  const { entity } = req.params;
+  const role = req.session?.user?.role;
+  const VALID = ['books', 'users', 'admins'];
+  if (!VALID.includes(entity)) return response.validationError(res, 'Invalid entity. Must be: books, users, or admins');
+  if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') {
+    return response.forbidden(res, 'Super Admin access required');
+  }
+  const { search = '', category, year_level, department, role: filterRole } = req.query;
+  try {
+    if (entity === 'books') {
+      let q = `SELECT b.*, a.fullname AS added_by_name, COUNT(DISTINCT bc.id) AS total_copies
+               FROM books b
+               LEFT JOIN admins a ON b.added_by = a.id
+               LEFT JOIN book_copies bc ON b.id = bc.book_id
+               WHERE b.deleted_at IS NOT NULL`;
+      const p = [];
+      if (search)   { q += ' AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ?)'; const s = `%${search}%`; p.push(s, s, s); }
+      if (category) { q += ' AND b.category = ?'; p.push(category); }
+      q += ' GROUP BY b.id ORDER BY b.deleted_at DESC';
+      const rows = await db.query(q, p);
+      return response.success(res, rows, `Found ${rows.length} trashed books`);
+    }
+    if (entity === 'users') {
+      let q = `SELECT id, student_id, fullname, email, department, year_level, student_type, status, created_at, deleted_at
+               FROM students WHERE deleted_at IS NOT NULL`;
+      const p = [];
+      if (search)     { q += ' AND (fullname LIKE ? OR student_id LIKE ? OR email LIKE ?)'; const s = `%${search}%`; p.push(s, s, s); }
+      if (department) { q += ' AND department = ?'; p.push(department); }
+      if (year_level) { q += ' AND year_level = ?'; p.push(year_level); }
+      q += ' ORDER BY deleted_at DESC';
+      const rows = await db.query(q, p);
+      return response.success(res, rows, `Found ${rows.length} trashed users`);
+    }
+    if (entity === 'admins') {
+      let q = `SELECT id, fullname, email, role, is_active, created_at, deleted_at
+               FROM admins WHERE deleted_at IS NOT NULL`;
+      const p = [];
+      if (search)     { q += ' AND (fullname LIKE ? OR email LIKE ?)'; const s = `%${search}%`; p.push(s, s); }
+      if (filterRole) { q += ' AND role = ?'; p.push(filterRole); }
+      q += ' ORDER BY deleted_at DESC';
+      const rows = await db.query(q, p);
+      return response.success(res, rows, `Found ${rows.length} trashed admins`);
+    }
+  } catch (err) {
+    logger.error(`[UnifiedTrash] GET ${entity} error`, { error: err.message });
+    return response.error(res, `Error listing ${entity} trash`, err);
+  }
+});
+
+// POST /api/admin/trash/:entity/restore   — restore single item (id in body)
+router.post('/trash/:entity/restore', requireAdmin, async (req, res) => {
+  const { entity } = req.params;
+  const { id } = req.body;
+  const role = req.session?.user?.role;
+  if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
+  const itemId = parseInt(id, 10);
+  if (!itemId || itemId <= 0) return response.validationError(res, 'Invalid id');
+  if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') return response.forbidden(res, 'Super Admin access required');
+  try {
+    if (entity === 'books') {
+      const [book] = await db.query('SELECT id, deleted_at FROM books WHERE id = ?', [itemId]);
+      if (!book)            return response.notFound(res, 'Book not found');
+      if (!book.deleted_at) return response.validationError(res, 'Book is not in trash');
+      await db.query('UPDATE books SET deleted_at = NULL WHERE id = ?', [itemId]);
+      return response.success(res, { id: itemId }, 'Book restored');
+    }
+    if (entity === 'users') {
+      const [user] = await db.query('SELECT id, deleted_at FROM students WHERE id = ?', [itemId]);
+      if (!user)            return response.notFound(res, 'User not found');
+      if (!user.deleted_at) return response.validationError(res, 'User is not in trash');
+      await db.query("UPDATE students SET deleted_at = NULL, status = 'active' WHERE id = ?", [itemId]);
+      return response.success(res, { id: itemId }, 'User restored');
+    }
+    if (entity === 'admins') {
+      const [admin] = await db.query('SELECT id, deleted_at FROM admins WHERE id = ?', [itemId]);
+      if (!admin)            return response.notFound(res, 'Admin not found');
+      if (!admin.deleted_at) return response.validationError(res, 'Admin is not in trash');
+      await db.query('UPDATE admins SET deleted_at = NULL, is_active = TRUE WHERE id = ?', [itemId]);
+      return response.success(res, { id: itemId }, 'Admin restored');
+    }
+  } catch (err) {
+    logger.error(`[UnifiedTrash] POST restore ${entity}/${id} error`, { error: err.message });
+    return response.error(res, `Error restoring ${entity}`, err);
+  }
+});
+
+// DELETE /api/admin/trash/:entity/permanent   — permanent delete single item (id in body)
+router.delete('/trash/:entity/permanent', requireSuperAdmin, async (req, res) => {
+  const { entity } = req.params;
+  const { id } = req.body;
+  if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
+  const itemId = parseInt(id, 10);
+  if (!itemId || itemId <= 0) return response.validationError(res, 'Invalid id');
+  try {
+    if (entity === 'books') {
+      const [book] = await db.query('SELECT id, title, deleted_at FROM books WHERE id = ?', [itemId]);
+      if (!book)            return response.notFound(res, 'Book not found');
+      if (!book.deleted_at) return response.validationError(res, 'Book must be in trash first');
+      const [{ cnt }] = await db.query("SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id = ? AND status IN ('borrowed','overdue','approved') AND return_date IS NULL", [itemId]);
+      if (cnt > 0) return response.validationError(res, 'Cannot delete book with active borrowings');
+      await db.query('DELETE FROM book_copies WHERE book_id = ?', [itemId]);
+      await db.query('DELETE FROM books WHERE id = ?', [itemId]);
+      return response.success(res, { id: itemId }, 'Book permanently deleted');
+    }
+    if (entity === 'users') {
+      const [user] = await db.query('SELECT id, student_id, deleted_at FROM students WHERE id = ?', [itemId]);
+      if (!user)            return response.notFound(res, 'User not found');
+      if (!user.deleted_at) return response.validationError(res, 'User must be in trash first');
+      await db.query('DELETE FROM students WHERE id = ?', [itemId]);
+      return response.success(res, { id: itemId }, 'User permanently deleted');
+    }
+    if (entity === 'admins') {
+      if (itemId === req.session.user.id) return response.validationError(res, 'Cannot delete your own account');
+      const [admin] = await db.query('SELECT id, deleted_at FROM admins WHERE id = ?', [itemId]);
+      if (!admin)            return response.notFound(res, 'Admin not found');
+      if (!admin.deleted_at) return response.validationError(res, 'Admin must be in trash first');
+      await db.query('DELETE FROM admins WHERE id = ?', [itemId]);
+      return response.success(res, { id: itemId }, 'Admin permanently deleted');
+    }
+  } catch (err) {
+    logger.error(`[UnifiedTrash] DELETE permanent ${entity}/${id} error`, { error: err.message });
+    return response.error(res, `Error permanently deleting ${entity}`, err);
+  }
+});
+
+// POST /api/admin/trash/:entity/bulk-restore
+router.post('/trash/:entity/bulk-restore', requireAdmin, async (req, res) => {
+  const { entity } = req.params;
+  const { ids } = req.body;
+  const role = req.session?.user?.role;
+  if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
+  if (!Array.isArray(ids) || ids.length === 0) return response.validationError(res, 'ids must be a non-empty array');
+  if (ids.length > 100) return response.validationError(res, 'Cannot bulk restore more than 100 items at once');
+  if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') return response.forbidden(res, 'Super Admin access required');
+  const safeIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+  if (safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
+  const ph = safeIds.map(() => '?').join(',');
+  try {
+    let result;
+    if (entity === 'books')  result = await db.query(`UPDATE books    SET deleted_at = NULL                        WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+    if (entity === 'users')  result = await db.query(`UPDATE students SET deleted_at = NULL, status = 'active'  WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+    if (entity === 'admins') result = await db.query(`UPDATE admins   SET deleted_at = NULL, is_active = TRUE   WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+    const restoredCount = result?.affectedRows || 0;
+    logger.info(`[UnifiedTrash] Bulk restore ${entity}`, { ids: safeIds, restoredCount, adminId: req.session.user.id });
+    return response.success(res, { restoredCount }, `${restoredCount} ${entity} restored`);
+  } catch (err) {
+    logger.error(`[UnifiedTrash] Bulk restore ${entity} error`, { error: err.message });
+    return response.error(res, `Error bulk restoring ${entity}`, err);
+  }
+});
+
+// DELETE /api/admin/trash/:entity/bulk-permanent  (Super Admin only)
+router.delete('/trash/:entity/bulk-permanent', requireSuperAdmin, async (req, res) => {
+  const { entity } = req.params;
+  const { ids } = req.body;
+  if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
+  if (!Array.isArray(ids) || ids.length === 0) return response.validationError(res, 'ids must be a non-empty array');
+  if (ids.length > 50) return response.validationError(res, 'Cannot bulk delete more than 50 items at once');
+  const safeIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+  if (safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
+  const ph = safeIds.map(() => '?').join(',');
+  try {
+    let deletedCount = 0;
+    if (entity === 'books') {
+      const [{ cnt }] = await db.query(`SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id IN (${ph}) AND status IN ('borrowed','overdue','approved') AND return_date IS NULL`, safeIds);
+      if (cnt > 0) return response.validationError(res, 'Cannot delete: some selected books have active borrowings');
+      await db.query(`DELETE FROM book_copies WHERE book_id IN (${ph})`, safeIds);
+      const r = await db.query(`DELETE FROM books WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+      deletedCount = r?.affectedRows || 0;
+    }
+    if (entity === 'users') {
+      const r = await db.query(`DELETE FROM students WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+      deletedCount = r?.affectedRows || 0;
+    }
+    if (entity === 'admins') {
+      const currentId = req.session.user.id;
+      const filteredIds = safeIds.filter(id => id !== currentId);
+      if (filteredIds.length === 0) return response.validationError(res, 'Cannot delete your own account');
+      const ph2 = filteredIds.map(() => '?').join(',');
+      const r = await db.query(`DELETE FROM admins WHERE id IN (${ph2}) AND deleted_at IS NOT NULL`, filteredIds);
+      deletedCount = r?.affectedRows || 0;
+    }
+    logger.info(`[UnifiedTrash] Bulk permanent delete ${entity}`, { ids: safeIds, deletedCount, adminId: req.session.user.id });
+    return response.success(res, { deletedCount }, `${deletedCount} ${entity} permanently deleted`);
+  } catch (err) {
+    logger.error(`[UnifiedTrash] Bulk permanent delete ${entity} error`, { error: err.message });
+    return response.error(res, `Error bulk deleting ${entity}`, err);
   }
 });
 

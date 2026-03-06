@@ -27,7 +27,7 @@ html {
 
 /* Login container with background image */
 .login-container {
-  background: url(/img/schoolppp.png) no-repeat center center;
+  background: url(/img/schoolppp1.png) no-repeat center center;
   background-size: cover;
   min-height: 100vh;
   display: flex;

@@ -12,7 +12,8 @@
 body {
   background: url("/img/schoolppp.png") no-repeat center center fixed;
   background-size: cover;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   position: relative;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -39,7 +40,8 @@ body.modal-open {
 
 .main-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   position: relative;
   z-index: 1;
   padding: 20px;
@@ -48,7 +50,8 @@ body.modal-open {
 .container {
   flex: 1;
   margin-left: 240px;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   max-width: 1400px;
@@ -741,27 +744,31 @@ body.modal-open {
   vertical-align: middle;
 }
 
+/* Three-dot kebab button */
 .btn-actions {
-  background-color: #4caf50;
-  color: white;
+  background: transparent;
+  color: #555;
+  border: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
 .btn-actions:hover {
-  background-color: #43a047;
+  background-color: #e8f5e9;
+  color: #2e7d32;
 }
 
-.btn-actions .caret-icon {
-  font-size: 12px;
+.btn-actions .kebab-icon {
+  font-size: 20px;
   line-height: 1;
-  transition: transform 0.2s ease;
-}
-
-.actions-dropdown.show .caret-icon {
-  transform: rotate(180deg);
+  letter-spacing: -1px;
 }
 
 .actions-menu {
@@ -786,10 +793,11 @@ body.modal-open {
 .actions-menu .dropdown-item {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 8px 16px;
   color: #333;
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   white-space: nowrap;
   transition: background-color 0.15s ease;
   cursor: pointer;
@@ -800,37 +808,22 @@ body.modal-open {
   color: #2e7d32;
 }
 
+.actions-menu .dropdown-item.action-delete:hover {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.actions-menu .dropdown-item.action-delete-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .actions-menu .dropdown-item .material-symbols-outlined {
-  font-size: 18px;
-  margin-right: 6px;
+  font-size: 17px;
+  flex-shrink: 0;
 }
 /* ── /Actions Dropdown ────────────────────────────────────── */
-
-.edit-btn {
-  background-color: #4caf50;
-  color: white;
-}
-
-.delete-btn {
-  background-color: #f44336;
-  color: white;
-}
-
-.btn:hover {
-  opacity: 0.9;
-  transform: scale(1.05);
-}
-
-.btn.delete-btn[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #ccc;
-}
-
-.btn.delete-btn[disabled]:hover {
-  background: #ccc;
-  transform: none;
-}
 
 .submit-btn,
 .cancel-btn {
@@ -911,10 +904,9 @@ body.modal-open {
 }
 
 .modern-search-container {
-  flex: 1;
   position: relative;
-  display: flex;
-  align-items: center;
+  flex: 1;
+  min-width: 200px;
 }
 
 .modern-search-container .search-icon {
@@ -1279,7 +1271,7 @@ body.modal-open {
    Description: Modal dialogs, overlay, modal content
    ============================ */
 
-.modal {
+.modal:not(.fade) {
   display: none;
   position: fixed;
   top: 0;
@@ -1293,11 +1285,11 @@ body.modal-open {
   overflow: hidden;
 }
 
-.modal.show {
+.modal:not(.fade).show {
   display: flex !important;
 }
 
-.modal-content {
+.modal:not(.fade) > .modal-content {
   background: white;
   padding: 2rem;
   border-radius: 12px;
@@ -1307,11 +1299,11 @@ body.modal-open {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
-.modal-content-wide {
+.modal:not(.fade) > .modal-content-wide {
   max-width: 600px;
 }
 
-.modal-content h2 {
+.modal:not(.fade) > .modal-content h2 {
   color: #1b5e20;
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
@@ -1597,7 +1589,7 @@ body.modal-open {
 }
 
 .user-table tbody tr:hover td {
-  color: #1b5e20;
+  color: #160f36;
 }
 
 .user-table tbody tr:hover td:first-child {

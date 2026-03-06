@@ -46,6 +46,12 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ============================================
+// EJS VIEW ENGINE
+// ============================================
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// ============================================
 // SECURITY MIDDLEWARE
 // ============================================
 
@@ -57,9 +63,10 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
       scriptSrcAttr: ["'unsafe-inline'"],  // Allow inline event handlers (onclick, onsubmit, etc.)
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"]
+      connectSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+      frameSrc: ["'self'"] // Added frameSrc for iframes
     }
   },
   crossOriginEmbedderPolicy: false
@@ -250,8 +257,34 @@ app.use("/api", (err, req, res, next) => {
   });
 });
 
+// Error-handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err.stack || err);
+  res.status(err.status || 500).json({
+    error: {
+      message: err.message || 'Internal Server Error',
+    },
+  });
+});
+
+// ============================================
+// LANDING PAGE ROUTE (role-aware)
+// ============================================
+app.get('/', (req, res) => {
+  // If user is already authenticated, redirect to their dashboard
+  if (req.session && req.session.adminId) {
+    const role = req.session.adminRole;
+    if (role === 'super_admin') return res.redirect('/super-admin-dashboard');
+    if (role === 'system_admin') return res.redirect('/admin-dashboard');
+  }
+  if (req.session && req.session.userId) {
+    return res.redirect('/student-dashboard');
+  }
+  // Not logged in – render landing page
+  res.render('landing', { pageContent: null });
+});
+
 const authPages = {
-  "/": "home.html",
   "/login": "login.html",
   "/signup": "signup.html",
   "/login-verification": "login-verification.html",
@@ -282,26 +315,32 @@ adminPages.forEach((page) => {
   });
 });
 
-// Super Admin routes
-const superAdminPages = [
-  "super-admin",
-  "super-admin-dashboard",
-  "super-admin-admins",
-  "super-admin-books",  
-  "super-admin-borrowed-books",
-  "super-admin-books-trash",
-  "super-admin-users",
-  "super-admin-users-trash",
-  "super-admin-admins-trash",
-  "super-admin-trash-bin",
-  "super-admin-audit-logs",
-  "super-admin-settings",
-];
+// Super Admin routes - EJS rendering
+const superAdminPageRoutes = {
+  "super-admin": "super-admin/dashboard",
+  "super-admin-dashboard": "super-admin/dashboard",
+  "super-admin-admins": "super-admin/admins",
+  "super-admin-books": "super-admin/books",
+  "super-admin-borrowed-books": "super-admin/borrowed-books",
+  "super-admin-books-trash": "super-admin/books-trash",
+  "super-admin-users": "super-admin/users",
+  "super-admin-users-trash": "super-admin/users-trash",
+  "super-admin-admins-trash": "super-admin/admins-trash",
+  "super-admin-trash-bin": "super-admin/users-trash",
+  "super-admin-trash": "super-admin/trash",
+  "super-admin-audit-logs": "super-admin/audit-logs",
+  "super-admin-settings": "super-admin/settings",
+};
 
-superAdminPages.forEach((page) => {
-  app.get(`/${page}`, (req, res) => {
-    const destination = page === "super-admin" ? "super-admin-dashboard" : page;
-    res.redirect(`/dashboard/super-admin/${destination}.html`);
+Object.entries(superAdminPageRoutes).forEach(([route, view]) => {
+  app.get(`/${route}`, (req, res) => {
+    // Basic server-side guard: must be logged in as any admin.
+    // Fine-grained role enforcement happens at the API endpoint level.
+    const user = req.session && req.session.user;
+    if (!user || user.userRole !== 'admin') {
+      return res.redirect('/login');
+    }
+    res.render(view, { adminEmail: user.email || '', adminRole: user.role || '' });
   });
 });
 
@@ -317,6 +356,11 @@ studentPages.forEach((page) => {
     const destination = page === "student" ? "student-dashboard" : page;
     res.redirect(`/dashboard/student/${destination}.html`);
   });
+});
+
+// Handle Chrome DevTools / browser well-known probes cleanly
+app.get("/.well-known/*", (req, res) => {
+  res.status(404).end();
 });
 
 app.get("*", (req, res) => {

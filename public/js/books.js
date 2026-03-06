@@ -234,25 +234,36 @@ function displayBooks(books) {
   if (typeof clearSelection === 'function') {
     clearSelection();
   }
+  // Re-apply row selectability after every render
+  if (typeof applyRowSelectability === 'function') {
+    applyRowSelectability();
+  }
 }
 
 function createBookRow(book) {
   const row = document.createElement("tr");
   
-  // Add data attribute for highlighting
+  // Add data attributes for highlighting and availability tracking
   if (book.id) {
     row.setAttribute('data-book-id', book.id);
+    row.dataset.overviewType = 'book';
+    row.dataset.overviewId   = String(book.id);
   }
   
   // Make row clickable - cursor pointer
   row.style.cursor = 'pointer';
   
   // Determine availability status
-  const availableQty = book.available_quantity !== undefined ? book.available_quantity : book.quantity;
+  // Treat null available_quantity as all copies available (= total quantity)
   const totalQty = book.quantity || 1;
+  const availableQty = (book.available_quantity !== undefined && book.available_quantity !== null)
+    ? book.available_quantity
+    : totalQty;
+  row.dataset.available = String(availableQty);
+  row.dataset.quantity  = String(totalQty);
   let statusText = `Available (${availableQty}/${totalQty})`;
   let statusClass = "status-available";
-  
+
   if (availableQty === 0) {
     statusText = "All Borrowed";
     statusClass = "status-borrowed";
@@ -285,17 +296,15 @@ function createBookRow(book) {
   }</td>
     <td>
       <div class="actions-dropdown">
-        <button class="btn btn-actions dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true" data-book-id="${book.id}">
-          Actions <span class="caret-icon">&#9662;</span>
+        <button class="btn btn-actions dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true" data-book-id="${book.id}" title="Actions">
+          <span class="kebab-icon">&#8942;</span><span class="caret-icon">&#9662;</span>
         </button>
         <ul class="actions-menu" role="menu">
-          <li role="none"><a href="#" class="dropdown-item action-scan-qr" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;margin-right:6px;">qr_code_2</span>Scan QR</a></li>
-          <li role="none"><a href="#" class="dropdown-item action-edit" role="menuitem" data-book='${JSON.stringify(book)}'><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;margin-right:6px;">edit</span>Edit</a></li>
+          <li role="none"><a href="#" class="dropdown-item action-scan-qr" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined">qr_code_2</span>Scan QR</a></li>
+          <li role="none"><a href="#" class="dropdown-item action-edit" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined">edit</span>Edit</a></li>
+          <li role="none"><a href="#" class="dropdown-item action-delete ${isBorrowed ? 'action-delete-disabled' : ''}" role="menuitem" data-book-id="${book.id}" ${isBorrowed ? 'aria-disabled="true"' : ''}><span class="material-symbols-outlined">delete</span>Delete</a></li>
         </ul>
       </div>
-      <button class="btn delete-btn" data-book-id="${book.id}" ${
-    isBorrowed ? "disabled" : ""
-  }>Delete</button>
     </td>
   `;
 
@@ -305,45 +314,7 @@ function createBookRow(book) {
 }
 
 function attachRowEventListeners(row) {
-  // Scan QR and Edit are handled by document-level event delegation (Actions dropdown)
-  const deleteBtn = row.querySelector(".delete-btn");
-  const bookId = row.getAttribute('data-book-id');
-
-  deleteBtn.addEventListener("click", function (e) {
-    e.stopPropagation(); // Prevent row click
-    const bookId = this.dataset.bookId;
-    const modalDelete = document.getElementById("modalDelete");
-    modalDelete.dataset.bookId = bookId;
-    showModal("modalDelete");
-  });
-  
-  // Add click handler to row to open Book Profile Modal
-  row.addEventListener('click', function(e) {
-    // Don't trigger if clicking on:
-    // - Checkbox
-    // - Actions button/menu
-    // - Delete button
-    if (e.target.closest('.checkbox-col') || 
-        e.target.closest('.actions-dropdown') || 
-        e.target.closest('.delete-btn')) {
-      return;
-    }
-    
-    console.log('[Books] Row clicked, bookId:', bookId);
-    
-    // Open the Book Profile Modal
-    if (bookId) {
-      if (typeof openBookProfileModal === 'function') {
-        console.log('[Books] Calling openBookProfileModal...');
-        openBookProfileModal(bookId);
-      } else {
-        console.error('[Books] openBookProfileModal function not found!');
-        alert('Book profile modal is not available. Please refresh the page.');
-      }
-    } else {
-      console.error('[Books] No bookId found for this row');
-    }
-  });
+  // All actions handled by document-level event delegation
 }
 
 // ── Actions Dropdown: Event Delegation ──────────────────────────────────────
@@ -360,9 +331,10 @@ function closeAllActionDropdowns() {
 /**
  * Single document-level click listener that handles:
  *  1) Toggling the Actions dropdown open / closed
- *  2) "Scan QR" item  → bookCopyManager.showCopies()
- *  3) "Edit" item     → handleEditClick()
- *  4) Closing dropdowns when clicking anywhere else
+ *  2) "Scan QR" item  → bookCopyManager.showCopies() (copies/accession modal)
+ *  3) "Edit" item     → openBookEditor({ bookId }) (edit metadata modal)
+ *  4) "Delete" item   → opens #modalDelete
+ *  5) Closing dropdowns when clicking anywhere else
  */
 document.addEventListener('click', function (e) {
 
@@ -400,24 +372,74 @@ document.addEventListener('click', function (e) {
   var editItem = e.target.closest('.action-edit');
   if (editItem) {
     e.preventDefault();
-    var bookDataStr = editItem.dataset.book;
-    if (!bookDataStr) { console.error('Actions dropdown: missing book data for Edit'); return; }
+    var bookId = editItem.dataset.bookId;
+    if (!bookId) { console.error('Actions dropdown: missing book ID for Edit'); return; }
     closeAllActionDropdowns();
-    try {
-      var bookData = JSON.parse(bookDataStr);
-      handleEditClick(bookData);
-    } catch (err) {
-      console.error('Actions dropdown: failed to parse book data', err);
-      alert('Error loading book data. Please try again.');
+    openBookEditor({ bookId });
+    return;
+  }
+
+  /* ── 4. Delete action ─────────────────────────────────────────────── */
+  var deleteItem = e.target.closest('.action-delete');
+  if (deleteItem) {
+    e.preventDefault();
+    if (deleteItem.classList.contains('action-delete-disabled')) return;
+    var bookId = deleteItem.dataset.bookId;
+    if (!bookId) { console.error('Actions dropdown: missing book ID for Delete'); return; }
+    closeAllActionDropdowns();
+    var modalDelete = document.getElementById('modalDelete');
+    if (modalDelete) {
+      modalDelete.dataset.bookId = bookId;
+      showModal('modalDelete');
     }
     return;
   }
 
-  /* ── 4. Click outside → close all ─────────────────────────────────── */
+  /* ── 5. Click outside → close all ─────────────────────────────────── */
   if (!e.target.closest('.actions-dropdown')) {
     closeAllActionDropdowns();
   }
 });
+
+// ── Unified Book Editor ─────────────────────────────────────────────────────
+
+/**
+ * Single entry point for opening the edit modal.
+ * Works identically whether triggered by the Edit or Scan QR menu item.
+ */
+async function openBookEditor({ bookId }) {
+  const book = await loadBookForEdit(bookId);
+  if (!book) {
+    alert('Book not found. Please refresh the page and try again.');
+    return;
+  }
+  populateEditModal(book);
+}
+
+/** Fetches a single book's latest data from the API by ID. */
+async function loadBookForEdit(bookId) {
+  try {
+    const response = await fetchWithCsrf('/api/admin/books');
+    if (!response.ok) return null;
+    const result = await response.json();
+    const books = result.data || [];
+    return books.find(b => String(b.id) === String(bookId)) || null;
+  } catch (err) {
+    console.error('loadBookForEdit error:', err);
+    return null;
+  }
+}
+
+/** Sends the PUT request to save book changes. Returns the fetch Response. */
+function saveBookChanges(bookId, payload) {
+  return fetchWithCsrf(`/api/admin/books/${bookId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function handleEditClick(book) {
   if (!book?.id) {
@@ -425,7 +447,10 @@ function handleEditClick(book) {
     alert("Error loading book data. Please try again.");
     return;
   }
+  populateEditModal(book);
+}
 
+function populateEditModal(book) {
   const formElements = {
     title: document.getElementById("titleEdit"),
     author: document.getElementById("authorEdit"),
@@ -568,11 +593,7 @@ async function handleEditBook(e) {
   try {
     console.log("Sending update request with data:", formData);
     console.log("Quantity being sent:", formData.quantity, "Type:", typeof formData.quantity);
-    const response = await fetchWithCsrf(`/api/admin/books/${bookId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
+    const response = await saveBookChanges(bookId, formData);
 
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || "Failed to update book");

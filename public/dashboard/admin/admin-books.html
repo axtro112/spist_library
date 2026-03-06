@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,7 +10,7 @@
     
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/admin.css" />
-    <link rel="stylesheet" href="/css/bulk-operations.css" />
+    <link rel="stylesheet" href="/css/super-admin/bulk-operations.css" />
 
     <!-- Icons -->
     <link
@@ -30,8 +30,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/css/backup.css" />
     <link rel="stylesheet" href="/css/notifications.css" />
-    <link rel="stylesheet" href="/css/book-details-modal.css" />
-    <link rel="stylesheet" href="/css/book-profile-modal.css" />
+    <link rel="stylesheet" href="/css/super-admin/book-details-modal.css" />
+    <link rel="stylesheet" href="/css/super-admin/book-profile-modal.css" />
     <link rel="stylesheet" href="/css/responsive.css" />
 
     <!-- Bootstrap 5 JavaScript -->
@@ -606,7 +606,7 @@
             <h5 class="modal-title" id="bookProfileModalLabel">
               <i class="fas fa-book me-2"></i>Book Profile & Borrowing Overview
             </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white" aria-label="Close" onclick="closeBookProfileModal()"></button>
           </div>
           <div class="modal-body" id="bookProfileModalBody" style="min-height: 400px;">
             <!-- Loading Skeleton -->
@@ -739,7 +739,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-secondary" onclick="closeBookProfileModal()">Close</button>
           </div>
         </div>
       </div>

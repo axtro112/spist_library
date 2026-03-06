@@ -1,0 +1,707 @@
+<%
+  var extraHead = '<link rel="stylesheet" href="/css/notification-user-modal.css"><link rel="stylesheet" href="/css/user-violations-modal.css"><link rel="stylesheet" href="/css/user-details-modal.css"><link rel="stylesheet" href="/css/super-admin/components/overview.css"><script src="/js/notification-user-modal.js"><\/script><script src="/js/user-violations-modal.js"><\/script><script src="/js/user-details-modal.js"><\/script><script src="/js/super-admin/users.js"><\/script><script src="/js/admin.js" defer><\/script><script src="/js/user.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script><style>html,body{overflow:hidden!important;height:100%!important;}.sa-wrapper{height:100vh;overflow:hidden;}.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}<\/style>';
+%>
+<%- include('../partials/super-admin-layout', {
+  title: 'User Management - SPIST Library',
+  adminEmail: adminEmail,
+  activePage: 'users',
+  extraHead: extraHead,
+  body: `
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.SuperAdmin && window.SuperAdmin.UsersPage) SuperAdmin.UsersPage.init();
+      });
+    <\/script>
+
+    <!-- BEGIN legacy inline script (kept for reference, not executed) -->
+    <script id="_users_inline_unused" type="text/x-disabled">
+      document.addEventListener("DOMContentLoaded", async function () {
+        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+        const userRole = sessionStorage.getItem("userRole");
+        const adminRole = sessionStorage.getItem("adminRole");
+        const adminId = sessionStorage.getItem("adminId");
+        if (isLoggedIn !== "true" || userRole !== "admin" || adminRole !== "super_admin") {
+          alert("Access denied. Super Admin privileges required.");
+          window.location.href = "/login";
+          return;
+        }
+        try {
+          const adminResponse = await fetch("/api/admin/" + adminId);
+          if (!adminResponse.ok) throw new Error("Failed to fetch admin information");
+          const result = await adminResponse.json();
+          const adminData = result.data || result;
+          if (adminData && adminData.fullname) {
+            document.getElementById("adminName").textContent = adminData.fullname;
+            document.getElementById("adminEmail").textContent = adminData.email || "N/A";
+            document.getElementById("adminRole").textContent = adminData.role || "N/A";
+            document.getElementById("adminInitial").textContent = adminData.fullname.charAt(0).toUpperCase();
+          } else {
+            document.getElementById("adminName").textContent = "Unknown";
+            document.getElementById("adminEmail").textContent = "N/A";
+            document.getElementById("adminRole").textContent = "N/A";
+            document.getElementById("adminInitial").textContent = "?";
+          }
+        } catch (error) { console.error("Error fetching admin data:", error); }
+        let allStudentsData = [];
+        let currentFilters = { search: '', course: 'All', year: 'All', status: 'All' };
+        let filterDebounceTimer = null;
+        async function fetchStudentsData(filters = {}) {
+          try {
+            const params = new URLSearchParams();
+            if (filters.search && filters.search.trim()) params.append('search', filters.search.trim());
+            if (filters.course && filters.course !== 'All') params.append('department', filters.course);
+            if (filters.year && filters.year !== 'All') params.append('year_level', filters.year);
+            if (filters.status && filters.status !== 'All') params.append('status', filters.status);
+            const url = "/api/students" + (params.toString() ? '?' + params.toString() : '');
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Failed to fetch students data: " + response.statusText);
+            const result = await response.json();
+            const students = result.data || result || [];
+            if (!filters.search && !filters.course && !filters.year && !filters.status) allStudentsData = students;
+            const studentsWithBooks = await Promise.all(students.map(async (student) => {
+              try {
+                const borrowingsResponse = await fetch("/api/book-borrowings/" + student.student_id);
+                if (!borrowingsResponse.ok) return {...student, rented_books: 0, books_title: "", date_to_return: "No active rentals"};
+                const borrowingsResult = await borrowingsResponse.json();
+                const borrowings = borrowingsResult.data || borrowingsResult;
+                return { ...student, rented_books: borrowings.total_borrowed || 0, books_title: (borrowings.books && borrowings.books.length > 0) ? borrowings.books.map((b) => b.title).join(", ") : "", date_to_return: (borrowings.total_borrowed && borrowings.total_borrowed > 0 && borrowings.books) ? new Date(Math.min(...borrowings.books.map((b) => new Date(b.due_date)))).toLocaleDateString() : "No active rentals" };
+              } catch (error) { return {...student, rented_books: 0, books_title: "", date_to_return: "Error fetching data"}; }
+            }));
+            updateTable(studentsWithBooks);
+          } catch (error) {
+            console.error("Error:", error);
+            const tbody = document.querySelector(".user-table tbody");
+            tbody.innerHTML = '<tr><td colspan="7" class="table-error-message">Failed to load student data. Please try refreshing the page.<br>Error: ' + error.message + '</td></tr>';
+          }
+        }
+        function updateTable(students) {
+          const tbody = document.querySelector(".user-table tbody");
+          tbody.innerHTML = "";
+          const countEl = document.getElementById('usersResultCount');
+          const totalCount = allStudentsData.length || students.length;
+          countEl.textContent = "Showing " + students.length + " of " + totalCount + " users";
+          if (students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px 20px;"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#666;"><span class="material-symbols-outlined" style="font-size:48px;color:#ccc;">search_off</span><h3 style="margin:0;color:#333;">No users found</h3><p style="margin:0;">Try adjusting your search or filters</p></div></td></tr>';
+            return;
+          }
+          students.forEach((student) => {
+            const row = document.createElement("tr");
+            row.dataset.studentId = student.student_id;
+            row.setAttribute('data-user-id', student.student_id);
+            row.innerHTML = '<td><input type="checkbox" class="row-select" data-student-id="' + student.student_id + '"></td><td>' + student.fullname + '</td><td>' + student.student_id + '</td><td>' + student.department + '</td><td>' + student.year_level + '</td><td>' + student.rented_books + '</td><td>' + (student.books_title || "") + '</td><td>' + student.date_to_return + '</td><td><button class="action-btn borrow-btn" onclick="event.stopPropagation(); openBorrowModal(\'' + student.student_id + '\', \'' + student.fullname + '\')" title="Borrow Book"><span class="material-symbols-outlined">book</span></button><button class="action-btn bulk-borrow-btn" onclick="event.stopPropagation(); openBulkBorrowModal(\'' + student.student_id + '\', \'' + student.fullname + '\')" title="Bulk Borrow"><span class="material-symbols-outlined">library_books</span></button></td>';
+            tbody.appendChild(row);
+          });
+          initBulkSelection();
+          const urlParams = new URLSearchParams(window.location.search);
+          const highlightStudentId = urlParams.get('highlight');
+          if (highlightStudentId) {
+            const targetRow = tbody.querySelector('tr[data-student-id="' + highlightStudentId + '"]');
+            if (targetRow) {
+              targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              targetRow.classList.add('selected-row');
+              targetRow.style.animation = 'highlightPulse 2s ease-out';
+              setTimeout(() => targetRow.click(), 500);
+              setTimeout(() => { const newUrl = window.location.pathname; window.history.replaceState({}, document.title, newUrl); }, 3000);
+            }
+          }
+        }
+        function initializeUsersFilters() {
+          const searchInput = document.getElementById('usersSearchInput');
+          const courseFilter = document.getElementById('usersCourseFilter');
+          const yearFilter = document.getElementById('usersYearFilter');
+          const statusFilter = document.getElementById('usersStatusFilter');
+          const clearBtn = document.getElementById('usersClearFilters');
+          loadUniqueCourses();
+          searchInput.addEventListener('input', function() { clearTimeout(filterDebounceTimer); filterDebounceTimer = setTimeout(() => { currentFilters.search = this.value; fetchStudentsData(currentFilters); }, 300); });
+          courseFilter.addEventListener('change', function() { currentFilters.course = this.value; fetchStudentsData(currentFilters); });
+          yearFilter.addEventListener('change', function() { currentFilters.year = this.value; fetchStudentsData(currentFilters); });
+          statusFilter.addEventListener('change', function() { currentFilters.status = this.value; fetchStudentsData(currentFilters); });
+          clearBtn.addEventListener('click', function() { searchInput.value = ''; courseFilter.value = 'All'; yearFilter.value = 'All'; statusFilter.value = 'All'; currentFilters = { search: '', course: 'All', year: 'All', status: 'All' }; fetchStudentsData(); });
+        }
+        async function loadUniqueCourses() {
+          try {
+            const response = await fetch('/api/students');
+            if (!response.ok) return;
+            const result = await response.json();
+            const students = result.data || result || [];
+            const courses = [...new Set(students.map(s => s.department).filter(Boolean))].sort();
+            const courseFilter = document.getElementById('usersCourseFilter');
+            courseFilter.innerHTML = '<option value="All">All Courses</option>';
+            courses.forEach(course => { const option = document.createElement('option'); option.value = course; option.textContent = course; courseFilter.appendChild(option); });
+          } catch (error) { console.error('[Users Filter] Error loading courses:', error); }
+        }
+        const userTable = document.querySelector(".user-table tbody");
+        userTable.addEventListener("click", async function (e) {
+          if (e.target.type === 'checkbox') return;
+          const row = e.target.closest("tr");
+          if (!row) return;
+          const allRows = userTable.querySelectorAll("tr");
+          allRows.forEach((r) => r.classList.remove("selected-row"));
+          row.classList.add("selected-row");
+          const cells = row.cells;
+          const studentId = cells[2].textContent;
+          if (window.openUserModal) { openUserModal(studentId); return; }
+          try {
+            const studentResponse = await fetch("/api/students/" + studentId);
+            if (!studentResponse.ok) throw new Error("Failed to fetch student details: " + studentResponse.statusText);
+            const studentData = await studentResponse.json();
+            const userData = { name: cells[1].textContent, studentId: cells[2].textContent, department: cells[3].textContent, yearLevel: cells[4].textContent, email: studentData.email, contactNumber: studentData.contact_number, rentedBooksCount: cells[5].textContent, bookTitles: cells[6].textContent, returnDate: cells[7].textContent };
+            await updateUserInfoCard(userData);
+          } catch (error) { console.error("Error fetching student details:", error); }
+        });
+        async function updateUserInfoCard(userData) {
+          document.querySelector(".profile-details h2").textContent = userData.name;
+          document.querySelector(".student-id").textContent = "Student ID: " + userData.studentId;
+          const detailItems = document.querySelectorAll(".detail-item");
+          detailItems[0].querySelector(".detail-value").textContent = userData.department;
+          detailItems[1].querySelector(".detail-value").textContent = userData.yearLevel;
+          detailItems[2].querySelector(".detail-value").textContent = userData.email;
+          detailItems[3].querySelector(".detail-value").textContent = userData.contactNumber || "Not provided";
+          const bookList = document.querySelector(".book-list");
+          try {
+            const borrowingsResponse = await fetch("/api/book-borrowings/" + userData.studentId);
+            if (!borrowingsResponse.ok) throw new Error("Failed to fetch borrowings");
+            const borrowingsResult = await borrowingsResponse.json();
+            const borrowingsData = borrowingsResult.data || borrowingsResult;
+            if (borrowingsData.total_borrowed === 0 || !borrowingsData.books || borrowingsData.books.length === 0) {
+              bookList.innerHTML = '<div class="book-placeholder">No books currently rented</div>';
+            } else {
+              const bookItems = borrowingsData.books.map(book => '<div class="book-item"><div class="book-title">' + book.title + '</div><div class="book-details"><span class="due-date">Due: ' + new Date(book.due_date).toLocaleDateString() + '</span><span class="status ' + book.status.toLowerCase() + '">' + book.status + '</span></div></div>').join("");
+              bookList.innerHTML = bookItems;
+            }
+            const visitInfo = document.querySelector(".visit-info");
+            if (borrowingsData.total_borrowed > 0 && borrowingsData.books && borrowingsData.books.length > 0) {
+              const nextDueDate = new Date(Math.min(...borrowingsData.books.map((b) => new Date(b.due_date)))).toLocaleDateString();
+              visitInfo.innerHTML = '<label>Next Return Due:</label><span class="visit-value">' + nextDueDate + '</span>';
+            } else {
+              visitInfo.innerHTML = '<label>Status:</label><span class="visit-value">No active rentals</span>';
+            }
+          } catch (error) {
+            console.error("Error updating book information:", error);
+            bookList.innerHTML = '<div class="book-placeholder">Error loading book information</div>';
+            const visitInfo = document.querySelector(".visit-info");
+            visitInfo.innerHTML = '<label>Status:</label><span class="visit-value">Error loading data</span>';
+          }
+        }
+        const dynStyle = document.createElement("style");
+        dynStyle.textContent = '.book-item{background:rgba(255,255,255,0.1);padding:12px;border-radius:8px;margin-bottom:8px;}.book-item:last-child{margin-bottom:0;}.book-title{font-weight:500;margin-bottom:4px;}.book-details{font-size:0.9em;display:flex;justify-content:space-between;color:rgba(255,255,255,0.8);}.status{padding:2px 8px;border-radius:4px;font-size:0.8em;}.status.borrowed{background:rgba(76,175,80,0.2);}.status.overdue{background:rgba(244,67,54,0.2);color:#f44336;}.bulk-actions-bar{background:linear-gradient(135deg,#4f8a42 0%,#3a6b31 100%);padding:12px 20px;border-radius:8px;margin-bottom:15px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.1);}.bulk-actions-content{display:flex;align-items:center;justify-content:space-between;width:100%;}.selected-count{color:white;font-weight:500;font-size:14px;}.bulk-actions-buttons{display:flex;gap:10px;}.bulk-action-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.3s ease;}.bulk-action-btn .material-symbols-outlined{font-size:18px;}.bulk-delete-btn{background:rgba(244,67,54,0.9);color:white;}.bulk-delete-btn:hover{background:rgba(244,67,54,1);}.action-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:none;border-radius:8px;cursor:pointer;transition:all 0.2s ease;margin:0 4px;}.action-btn .material-symbols-outlined{font-size:20px;}.borrow-btn{background-color:#4CAF50;color:white;}.borrow-btn:hover{background-color:#45a049;}.bulk-borrow-btn{background-color:#2196F3;color:white;}.bulk-borrow-btn:hover{background-color:#0b7dda;}.borrow-student-info{background:#f5f5f5;padding:15px;border-radius:8px;margin-bottom:20px;}.borrow-student-info p{margin:5px 0;}.borrow-step{margin:20px 0;}.borrow-step h3{color:#0e5e3f;margin-bottom:15px;}.books-list,.copies-list{border:1px solid #ddd;border-radius:8px;padding:10px;}.book-item-select{background:white;border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;cursor:pointer;transition:all 0.2s;}.book-item-select:hover{border-color:#4CAF50;}.book-item-select h4{margin:0 0 8px 0;color:#333;}.book-item-select p{margin:4px 0;font-size:14px;color:#666;}.copy-item{background:white;border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}.copy-info{flex:1;}.btn-select-copy{background:#4CAF50;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;}.btn-select-copy:hover{background:#45a049;}.borrow-summary{background:#e8f5e9;padding:15px;border-radius:8px;margin-bottom:20px;}.borrow-summary p{margin:8px 0;}.btn-primary{background:#4CAF50;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:16px;}.btn-primary:hover{background:#45a049;}.btn-secondary{background:#666;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;}.btn-secondary:hover{background:#555;}.bulk-borrow-container{display:grid;grid-template-columns:350px 1fr;gap:20px;}.selected-books-cart{background:#f9f9f9;padding:20px;border-radius:8px;position:sticky;top:20px;max-height:600px;overflow-y:auto;}.cart-items{max-height:300px;overflow-y:auto;}.cart-item{background:white;padding:12px;border-radius:6px;margin-bottom:10px;border:1px solid #ddd;}.cart-item-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;}.cart-item-title{font-weight:500;color:#333;flex:1;}.cart-item-remove{background:#f44336;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:12px;}.cart-item-details{font-size:13px;color:#666;}.empty-cart{text-align:center;color:#999;padding:40px 20px;}.available-books-section{background:white;padding:20px;border-radius:8px;border:1px solid #ddd;}.loading-text{text-align:center;color:#666;padding:20px;}';
+        document.head.appendChild(dynStyle);
+        let selectedStudentIds = new Set();
+        function initBulkSelection() {
+          selectedStudentIds.clear();
+          updateBulkActionsBar();
+          const selectAllCheckbox = document.getElementById('selectAllUsers');
+          if (selectAllCheckbox) { selectAllCheckbox.checked = false; selectAllCheckbox.addEventListener('change', handleSelectAll); }
+          const rowCheckboxes = document.querySelectorAll('.row-select');
+          rowCheckboxes.forEach(checkbox => checkbox.addEventListener('change', handleRowSelect));
+          const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+          if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', handleBulkDelete);
+          const bulkEditUsersBtn = document.getElementById('bulkEditUsersBtn');
+          if (bulkEditUsersBtn) bulkEditUsersBtn.addEventListener('click', handleBulkEditUsers);
+        }
+        function handleSelectAll(e) {
+          const isChecked = e.target.checked;
+          const rowCheckboxes = document.querySelectorAll('.row-select');
+          rowCheckboxes.forEach(checkbox => { checkbox.checked = isChecked; const studentId = checkbox.dataset.studentId; if (isChecked) selectedStudentIds.add(studentId); else selectedStudentIds.delete(studentId); });
+          updateBulkActionsBar();
+        }
+        function handleRowSelect(e) {
+          const checkbox = e.target;
+          const studentId = checkbox.dataset.studentId;
+          if (checkbox.checked) selectedStudentIds.add(studentId); else selectedStudentIds.delete(studentId);
+          const selectAllCheckbox = document.getElementById('selectAllUsers');
+          const allCheckboxes = document.querySelectorAll('.row-select');
+          const checkedCheckboxes = document.querySelectorAll('.row-select:checked');
+          if (selectAllCheckbox) selectAllCheckbox.checked = allCheckboxes.length === checkedCheckboxes.length && allCheckboxes.length > 0;
+          updateBulkActionsBar();
+        }
+        function updateBulkActionsBar() {
+          const selectedCount = document.getElementById('selectedCount');
+          const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+          const bulkEditUsersBtn = document.getElementById('bulkEditUsersBtn');
+          const count = selectedStudentIds.size;
+          if (selectedCount) selectedCount.textContent = count > 0 ? 'Selected: ' + count : '';
+          if (bulkDeleteBtn) bulkDeleteBtn.disabled = count === 0;
+          if (bulkEditUsersBtn) bulkEditUsersBtn.disabled = count === 0;
+        }
+        function handleBulkEditUsers() {
+          if (selectedStudentIds.size === 0) { alert('No students selected'); return; }
+          const modal = document.getElementById('bulkEditUsersModal');
+          if (modal) {
+            const title = modal.querySelector('h2');
+            if (title) title.textContent = 'Edit ' + selectedStudentIds.size + ' Selected Student' + (selectedStudentIds.size > 1 ? 's' : '');
+            modal.querySelector('form').reset();
+            modal.style.display = 'block';
+          }
+        }
+        async function handleBulkEditUsersSubmit(e) {
+          e.preventDefault();
+          const update = {};
+          const dept = document.getElementById('bulkUserDept')?.value.trim();
+          const year = document.getElementById('bulkUserYear')?.value;
+          const status = document.getElementById('bulkUserStatus')?.value;
+          if (dept) update.department = dept;
+          if (year) update.year_level = year;
+          if (status) update.status = status;
+          if (Object.keys(update).length === 0) { alert('Please fill in at least one field to update'); return; }
+          try {
+            const res = await fetchWithCsrf('/api/students/bulk-update', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentIds: Array.from(selectedStudentIds), update }) });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message || 'Failed to update students');
+            alert('Successfully updated ' + result.updatedCount + ' student(s)');
+            document.getElementById('bulkEditUsersModal').style.display = 'none';
+            selectedStudentIds.clear();
+            const selectAllCheckbox = document.getElementById('selectAllUsers');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            await fetchStudentsData();
+            updateBulkActionsBar();
+          } catch (err) { console.error('Bulk edit error:', err); alert('Failed to update students: ' + err.message); }
+        }
+        async function handleBulkDelete() {
+          if (selectedStudentIds.size === 0) { alert('No students selected'); return; }
+          const confirmed = confirm('Are you sure you want to move ' + selectedStudentIds.size + ' student(s) to trash?\n\nNote: Any active book borrowings will be automatically returned. You can restore them from the Trash later.');
+          if (!confirmed) return;
+          try {
+            const response = await fetchWithCsrf('/api/students/bulk', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentIds: Array.from(selectedStudentIds) }) });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || 'Failed to move students to trash');
+            const data = result.data || result;
+            let message = 'Successfully moved ' + data.successCount + ' student(s) to trash';
+            if (data.failureCount > 0) {
+              message += '\n\nFailed to move ' + data.failureCount + ' student(s):';
+              data.failedDeletes.forEach(fail => { message += '\n- ' + fail.studentId + ': ' + fail.reason; });
+            }
+            alert(message);
+            selectedStudentIds.clear();
+            const selectAllCheckbox = document.getElementById('selectAllUsers');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            await fetchStudentsData();
+            updateBulkActionsBar();
+          } catch (error) { console.error('Bulk delete error:', error); alert('Failed to delete students: ' + error.message); }
+        }
+        initBulkSelection();
+        initializeUsersFilters();
+        fetchStudentsData();
+        initDeepLinkFromURL();
+        function initDeepLinkFromURL() {
+          const urlParams = new URLSearchParams(window.location.search);
+          const openUserId = urlParams.get('openUser');
+          const openViolationsId = urlParams.get('openViolations');
+          const isValidParam = (param) => param && param !== 'undefined' && param !== 'null' && param.trim() !== '';
+          if (isValidParam(openViolationsId)) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setTimeout(() => { if (window.userViolationsModal) window.userViolationsModal.open(openViolationsId); }, 500);
+          } else if (isValidParam(openUserId) && window.openUserModal) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setTimeout(() => openUserModal(openUserId), 500);
+          }
+        }
+      });
+      let currentBorrowStudent = { id: '', name: '' };
+      let currentSelectedBook = null;
+      let currentSelectedCopy = null;
+      let allBooksData = [];
+      let selectedBooksForBulk = [];
+      async function openBorrowModal(studentId, studentName) {
+        currentBorrowStudent = { id: studentId, name: studentName };
+        document.getElementById('borrowStudentName').textContent = studentName;
+        document.getElementById('borrowStudentId').textContent = studentId;
+        showBorrowStep(1);
+        await loadBooksForBorrowing();
+        const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+        document.getElementById('borrowDueDate').value = dueDate.toISOString().split('T')[0];
+        document.getElementById('borrowModal').style.display = 'block';
+      }
+      function closeBorrowModal() { document.getElementById('borrowModal').style.display = 'none'; currentSelectedBook = null; currentSelectedCopy = null; }
+      function showBorrowStep(step) {
+        document.getElementById('borrowStep1').style.display = step === 1 ? 'block' : 'none';
+        document.getElementById('borrowStep2').style.display = step === 2 ? 'block' : 'none';
+        document.getElementById('borrowStep3').style.display = step === 3 ? 'block' : 'none';
+      }
+      async function loadBooksForBorrowing() {
+        const listEl = document.getElementById('borrowBooksList');
+        listEl.innerHTML = '<p class="loading-text">Loading books...</p>';
+        try {
+          const response = await fetch('/api/books');
+          const result = await response.json();
+          allBooksData = result.data || result || [];
+          const availableBooks = allBooksData.filter(book => book.available_quantity > 0);
+          if (availableBooks.length === 0) { listEl.innerHTML = '<p class="loading-text">No books available for borrowing</p>'; return; }
+          renderBooksList(availableBooks);
+          document.getElementById('borrowBookSearch').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filtered = availableBooks.filter(book => book.title.toLowerCase().includes(searchTerm) || book.author.toLowerCase().includes(searchTerm) || book.isbn.toLowerCase().includes(searchTerm));
+            renderBooksList(filtered);
+          });
+        } catch (error) { listEl.innerHTML = '<p class="loading-text">Error loading books</p>'; }
+      }
+      function renderBooksList(books) {
+        const listEl = document.getElementById('borrowBooksList');
+        if (books.length === 0) { listEl.innerHTML = '<p class="loading-text">No books found</p>'; return; }
+        listEl.innerHTML = books.map(book => '<div class="book-item-select" onclick="selectBookForBorrow(' + book.id + ', \'' + book.title.replace(/\x27/g, "\\\x27") + '\', \'' + book.author.replace(/\x27/g, "\\\x27") + '\')"><h4>' + book.title + '</h4><p><strong>Author:</strong> ' + book.author + '</p><p><strong>ISBN:</strong> ' + book.isbn + '</p><p><strong>Available:</strong> ' + book.available_quantity + ' of ' + book.quantity + '</p></div>').join('');
+      }
+      async function selectBookForBorrow(bookId, title, author) {
+        currentSelectedBook = { id: bookId, title, author };
+        document.getElementById('selectedBookTitle').textContent = title;
+        document.getElementById('selectedBookAuthor').textContent = author;
+        showBorrowStep(2);
+        await loadCopiesForBook(bookId);
+      }
+      async function loadCopiesForBook(bookId) {
+        const listEl = document.getElementById('borrowCopiesList');
+        const backButton = document.querySelector('#borrowStep2 .btn-secondary');
+        listEl.innerHTML = '<p class="loading-text">Loading copies...</p>';
+        try {
+          const response = await fetchWithCsrf('/api/book-copies/' + bookId);
+          const result = await response.json();
+          const copies = result.data || [];
+          const availableCopies = copies.filter(copy => copy.status === 'available');
+          if (availableCopies.length === 0) {
+            listEl.innerHTML = '<div style="padding:30px;text-align:center;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;margin:20px 0;"><span class="material-symbols-outlined" style="font-size:48px;color:#ff9800;display:block;margin-bottom:15px;">inventory_2</span><h3 style="color:#856404;margin:10px 0;">No Copies Available</h3><p style="color:#856404;margin:10px 0;">All copies of this book are currently borrowed or unavailable.</p><p style="color:#856404;font-size:14px;">Please select a different book or check back later.</p></div>';
+            if (backButton) backButton.disabled = false;
+            return;
+          }
+          if (backButton) backButton.disabled = false;
+          listEl.innerHTML = availableCopies.map(copy => '<div class="copy-item"><div class="copy-info"><p><strong>Accession #:</strong> ' + copy.accession_number + '</p><p><strong>Copy #:</strong> ' + copy.copy_number + '</p><p><strong>Condition:</strong> ' + copy.condition + '</p><p><strong>Location:</strong> ' + (copy.location || 'N/A') + '</p></div><button class="btn-select-copy" onclick=\'selectCopy(' + JSON.stringify(copy).replace(/\x27/g, "&#39;") + ')\'>Select</button></div>').join('');
+        } catch (error) { listEl.innerHTML = '<p class="loading-text">Error loading copies</p>'; if (backButton) backButton.disabled = false; }
+      }
+      function selectCopy(copy) {
+        currentSelectedCopy = copy;
+        document.getElementById('confirmStudentName').textContent = currentBorrowStudent.name;
+        document.getElementById('confirmBookTitle').textContent = currentSelectedBook.title;
+        document.getElementById('confirmAccessionNumber').textContent = copy.accession_number;
+        document.getElementById('confirmCondition').textContent = copy.condition;
+        showBorrowStep(3);
+      }
+      function backToBookSelection() { showBorrowStep(1); }
+      function backToCopySelection() { showBorrowStep(2); }
+      async function confirmBorrowing() {
+        const dueDate = document.getElementById('borrowDueDate').value;
+        if (!dueDate) { alert('Please select a due date'); return; }
+        try {
+          const response = await fetchWithCsrf('/api/book-borrowings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: currentBorrowStudent.id, book_id: currentSelectedBook.id, accession_number: currentSelectedCopy.accession_number, due_date: dueDate }) });
+          const result = await response.json();
+          if (response.ok) { alert('Book borrowed successfully!'); closeBorrowModal(); fetchStudentsData(); } else {
+            const errorMsg = result.message || 'Failed to borrow book';
+            const step3 = document.getElementById('borrowStep3');
+            let errorDiv = step3.querySelector('.borrow-error-msg');
+            if (!errorDiv) { errorDiv = document.createElement('div'); errorDiv.className = 'borrow-error-msg'; errorDiv.style.cssText = 'padding:15px;background:#ffebee;border:1px solid #f44336;border-radius:6px;margin:15px 0;color:#c62828;text-align:center;'; step3.insertBefore(errorDiv, step3.firstChild); }
+            errorDiv.innerHTML = '<strong>\u26a0\ufe0f ' + errorMsg + '</strong>';
+          }
+        } catch (error) {
+          const step3 = document.getElementById('borrowStep3');
+          let errorDiv = step3.querySelector('.borrow-error-msg');
+          if (!errorDiv) { errorDiv = document.createElement('div'); errorDiv.className = 'borrow-error-msg'; errorDiv.style.cssText = 'padding:15px;background:#ffebee;border:1px solid #f44336;border-radius:6px;margin:15px 0;color:#c62828;text-align:center;'; step3.insertBefore(errorDiv, step3.firstChild); }
+          errorDiv.innerHTML = '<strong>\u26a0\ufe0f Error borrowing book. Please try again.</strong>';
+        }
+      }
+      async function openBulkBorrowModal(studentId, studentName) {
+        currentBorrowStudent = { id: studentId, name: studentName };
+        document.getElementById('bulkBorrowStudentName').textContent = studentName;
+        document.getElementById('bulkBorrowStudentId').textContent = studentId;
+        selectedBooksForBulk = [];
+        updateBulkCart();
+        const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+        document.getElementById('bulkBorrowDueDate').value = dueDate.toISOString().split('T')[0];
+        const instructionDiv = document.getElementById('bulkBorrowInstructions');
+        if (instructionDiv) instructionDiv.innerHTML = '<div style="padding:12px;background:#e3f2fd;border-left:4px solid #2196F3;border-radius:4px;margin-bottom:15px;"><strong>How to borrow:</strong><ol style="margin:8px 0 0 0;padding-left:20px;font-size:14px;"><li>Search or browse available books below</li><li>Click on a book to add it to your cart</li><li>Set the due date and click "Confirm Borrow"</li></ol></div>';
+        await loadBooksForBulkBorrow();
+        document.getElementById('bulkBorrowModal').style.display = 'block';
+      }
+      function closeBulkBorrowModal() { document.getElementById('bulkBorrowModal').style.display = 'none'; selectedBooksForBulk = []; }
+      function showCopySelectionModal(bookTitle, copies, onSelect) {
+        return new Promise((resolve) => {
+          const copyOptionsHTML = copies.map(function(copy, index) {
+            const condColor = copy.condition_status === 'excellent' ? '#4CAF50' : copy.condition_status === 'good' ? '#2196F3' : '#FF9800';
+            return '<div class="copy-option" data-index="' + index + '" style="padding:12px 16px;border:2px solid #e0e0e0;border-radius:8px;margin-bottom:10px;cursor:pointer;transition:all 0.2s ease;display:flex;justify-content:space-between;align-items:center;" onmouseover="this.style.borderColor=\x27#4f8a42\x27;this.style.backgroundColor=\x27#f0f7f0\x27;" onmouseout="this.style.borderColor=\x27#e0e0e0\x27;this.style.backgroundColor=\x27white\x27;"><div><div style="font-weight:600;font-size:15px;margin-bottom:4px;">' + copy.accession_number + '</div><div style="font-size:13px;color:#666;">Condition: <span style="color:' + condColor + ';font-weight:500;">' + copy.condition_status + '</span></div></div><span class="material-symbols-outlined" style="color:#4f8a42;">arrow_forward</span></div>';
+          }).join('');
+          const modalHTML = '<div id="copySelectionModal" class="modal" style="display:block;"><div class="modal-content" style="max-width:500px;"><h2 style="margin-bottom:8px;">&#128218; Choose Which Copy to Borrow</h2><p style="color:#666;margin-bottom:8px;font-size:14px;"><strong>' + bookTitle + '</strong></p><p style="color:#999;margin-bottom:20px;font-size:13px;">This book has multiple copies. Select the one you want:</p><div id="copySelectionList" style="max-height:400px;overflow-y:auto;margin-bottom:20px;">' + copyOptionsHTML + '</div><div class="form-actions"><button type="button" class="cancel-btn" onclick="closeCopySelectionModal()">Cancel</button></div></div></div>';
+          document.body.insertAdjacentHTML('beforeend', modalHTML);
+          document.querySelectorAll('.copy-option').forEach(option => {
+            option.addEventListener('click', () => { const index = parseInt(option.dataset.index); const selectedCopy = copies[index]; closeCopySelectionModal(); onSelect(selectedCopy); resolve(selectedCopy); });
+          });
+          document.getElementById('copySelectionModal').addEventListener('click', (e) => { if (e.target.id === 'copySelectionModal') { closeCopySelectionModal(); resolve(null); } });
+        });
+      }
+      function closeCopySelectionModal() { const modal = document.getElementById('copySelectionModal'); if (modal) modal.remove(); }
+      async function loadBooksForBulkBorrow() {
+        const listEl = document.getElementById('bulkBooksList');
+        listEl.innerHTML = '<p class="loading-text">Loading books...</p>';
+        try {
+          const response = await fetch('/api/books');
+          const result = await response.json();
+          allBooksData = result.data || result || [];
+          const availableBooks = allBooksData.filter(book => book.available_quantity > 0);
+          if (availableBooks.length === 0) { listEl.innerHTML = '<p class="loading-text">No books available</p>'; return; }
+          renderBulkBooksList(availableBooks);
+          document.getElementById('bulkBookSearch').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filtered = availableBooks.filter(book => book.title.toLowerCase().includes(searchTerm) || book.author.toLowerCase().includes(searchTerm));
+            renderBulkBooksList(filtered);
+          });
+        } catch (error) { listEl.innerHTML = '<p class="loading-text">Error loading books</p>'; }
+      }
+      function renderBulkBooksList(books) {
+        const listEl = document.getElementById('bulkBooksList');
+        listEl.innerHTML = books.map(book => {
+          const isSelected = selectedBooksForBulk.some(b => b.bookId === book.id);
+          const onclickAttr = isSelected ? '' : 'addBookToBulkCart(' + book.id + ', \'' + book.title.replace(/\x27/g, "\\\x27") + '\', \'' + book.author.replace(/\x27/g, "\\\x27") + '\')';
+          return '<div class="book-item-select ' + (isSelected ? 'disabled' : '') + '" onclick="' + onclickAttr + '"><h4>' + book.title + ' ' + (isSelected ? '\u2713' : '') + '</h4><p><strong>Author:</strong> ' + book.author + '</p><p><strong>Available:</strong> ' + book.available_quantity + '</p></div>';
+        }).join('');
+      }
+      async function addBookToBulkCart(bookId, title, author) {
+        try {
+          const response = await fetchWithCsrf('/api/book-copies/' + bookId);
+          const result = await response.json();
+          const copies = result.data || [];
+          const availableCopies = copies.filter(c => c.status === 'available');
+          if (availableCopies.length === 0) { console.warn('[Bulk Borrow] No copies available for:', title); return; }
+          if (availableCopies.length === 1) {
+            const selectedCopy = availableCopies[0];
+            selectedBooksForBulk.push({ bookId, title, author, accessionNumber: selectedCopy.accession_number, condition: selectedCopy.condition_status });
+            updateBulkCart();
+            renderBulkBooksList(allBooksData.filter(book => book.available_quantity > 0));
+          } else {
+            await showCopySelectionModal(title, availableCopies, (selectedCopy) => {
+              selectedBooksForBulk.push({ bookId, title, author, accessionNumber: selectedCopy.accession_number, condition: selectedCopy.condition_status });
+              updateBulkCart();
+              renderBulkBooksList(allBooksData.filter(book => book.available_quantity > 0));
+            });
+          }
+        } catch (error) { console.error('Error:', error); }
+      }
+      function removeFromBulkCart(index) { selectedBooksForBulk.splice(index, 1); updateBulkCart(); renderBulkBooksList(allBooksData.filter(book => book.available_quantity > 0)); }
+      function updateBulkCart() {
+        const cartEl = document.getElementById('selectedBooksCart');
+        const countEl = document.getElementById('selectedBooksCount');
+        const confirmCountEl = document.getElementById('confirmBooksCount');
+        countEl.textContent = selectedBooksForBulk.length;
+        if (confirmCountEl) confirmCountEl.textContent = selectedBooksForBulk.length;
+        if (selectedBooksForBulk.length === 0) { cartEl.innerHTML = '<p class="empty-cart">Click books below to add them here</p>'; return; }
+        cartEl.innerHTML = selectedBooksForBulk.map((book, index) => '<div class="cart-item"><div class="cart-item-header"><div class="cart-item-title">' + book.title + '</div><button class="cart-item-remove" onclick="removeFromBulkCart(' + index + ')" title="Remove from cart">&times;</button></div><div class="cart-item-details"><div><small>&#128203; ' + book.accessionNumber + '</small></div><div><small>&#11088; ' + book.condition + '</small></div></div></div>').join('');
+      }
+      async function confirmBulkBorrowing() {
+        if (selectedBooksForBulk.length === 0) { alert('Please select at least one book'); return; }
+        const dueDate = document.getElementById('bulkBorrowDueDate').value;
+        if (!dueDate) { alert('Please select a due date'); return; }
+        try {
+          const borrowings = selectedBooksForBulk.map(book => ({ student_id: currentBorrowStudent.id, book_id: book.bookId, accession_number: book.accessionNumber, due_date: dueDate }));
+          const response = await fetchWithCsrf('/api/book-borrowings/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ borrowings }) });
+          const result = await response.json();
+          if (response.ok) { alert('Successfully borrowed ' + selectedBooksForBulk.length + ' book(s)!'); closeBulkBorrowModal(); fetchStudentsData(); } else {
+            const errorMsg = result.message || 'Failed to borrow books';
+            console.error('[Bulk Borrow] Error:', errorMsg);
+          }
+        } catch (error) { console.error('Error:', error); }
+      }
+    <\/script>
+
+    <div class="section-header">
+      <div>
+        <h2><i class="bi bi-people me-2"></i>User Management</h2>
+      </div>
+    </div>
+
+    <div class="section-card">
+    <div class="sa-filter-bar mb-3">
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <input type="checkbox" id="selectAllUsers" style="width:18px;height:18px;cursor:pointer;" title="Select all" />
+          <span id="selectedCount" class="small fw-medium text-secondary" style="white-space:nowrap;"></span>
+        </div>
+        <div class="sa-search-wrap" style="flex:1;min-width:200px;">
+          <i class="bi bi-search"></i>
+          <input type="text" id="usersSearchInput" class="sa-filter-select" placeholder="Search by name, ID, email, or course..." />
+        </div>
+        <select id="usersCourseFilter" class="sa-filter-select">
+          <option value="All">All Courses</option>
+          <option value="BSIT">BSIT</option>
+          <option value="BSCS">BSCS</option>
+          <option value="BSBM">BSBM</option>
+          <option value="BSHM">BSHM</option>
+          <option value="BSED">BSED</option>
+        </select>
+        <select id="usersYearFilter" class="sa-filter-select">
+          <option value="All">All Year Levels</option>
+          <option value="1">1st Year</option>
+          <option value="2">2nd Year</option>
+          <option value="3">3rd Year</option>
+          <option value="4">4th Year</option>
+          <option value="5">5th Year</option>
+        </select>
+        <select id="usersStatusFilter" class="sa-filter-select">
+          <option value="All">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button id="bulkEditUsersBtn" class="sa-btn sa-btn-primary" title="Edit selected users" disabled>
+          <i class="bi bi-pencil-fill me-1"></i>Edit
+        </button>
+        <button id="bulkDeleteBtn" class="sa-btn sa-btn-danger" title="Delete selected users" disabled>
+          <i class="bi bi-trash-fill me-1"></i>Delete
+        </button>
+        <button id="usersClearFilters" class="sa-clear-btn">
+          <i class="bi bi-funnel-fill"></i> Clear
+        </button>
+      </div>
+
+      <div id="usersResultCount" class="text-end text-muted small mb-2">Showing 0 of 0 users</div>
+
+      <div class="sa-table-wrapper">
+        <table class="user-table w-100">
+          <thead>
+            <tr>
+              <th style="width:40px;"></th>
+              <th>Name</th>
+              <th>Student ID</th>
+              <th>Course</th>
+              <th>Year</th>
+              <th>Rented Books</th>
+              <th>Books Title</th>
+              <th>Date to Return</th>
+              <th style="width:180px;"></th>
+            </tr>
+          </thead>
+          <tbody><tr><td>Loading students data...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Bulk Edit Users Modal -->
+    <div id="bulkEditUsersModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h2>Edit Selected Students</h2>
+        <form onsubmit="handleBulkEditUsersSubmit(event)">
+          <div class="form-group">
+            <label for="bulkUserDept">Course / Department</label>
+            <input type="text" id="bulkUserDept" name="department" placeholder="Leave empty to keep unchanged" />
+          </div>
+          <div class="form-group">
+            <label for="bulkUserYear">Year Level</label>
+            <select id="bulkUserYear" name="year_level">
+              <option value="">— Keep unchanged —</option>
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+              <option value="4">4th Year</option>
+              <option value="5">5th Year</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="bulkUserStatus">Status</label>
+            <select id="bulkUserStatus" name="status">
+              <option value="">— Keep unchanged —</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="submit-btn">Update Students</button>
+            <button type="button" class="cancel-btn" onclick="document.getElementById('bulkEditUsersModal').style.display='none'">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="adminModal" class="modal">
+      <div class="modal-content">
+        <h2>Add New User</h2>
+        <form>
+          <div class="form-group"><label for="name">Full Name</label><input type="text" id="name" required /></div>
+          <div class="form-group"><label for="email">Email</label><input type="email" id="email" required /></div>
+          <div class="form-group"><label for="role">Role</label><select id="role" class="form-control" required><option value="">Select a role</option><option value="student">Student</option><option value="faculty">Faculty</option><option value="staff">Staff</option></select></div>
+          <div class="form-group"><label for="password">Password</label><input type="password" id="password" required /></div>
+          <div class="form-group"><label for="Cpassword">Confirm Password</label><input type="password" id="Cpassword" required /></div>
+          <div class="form-group"><input type="checkbox" id="showPassword" /><label for="showPassword">Show Password</label></div>
+          <div class="form-actions"><button type="submit" class="submit-btn">Add User</button><button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div id="adminEdit" class="modal">
+      <div class="modal-content">
+        <h2>Edit User</h2>
+        <form>
+          <div class="form-group"><label for="nameEdit">Full Name</label><input type="text" id="nameEdit" value="Maria Garcia" required /></div>
+          <div class="form-group"><label for="emailEdit">Email</label><input type="email" id="emailEdit" value="maria@example.com" required /></div>
+          <div class="form-group"><label for="roleEdit">Role</label><select id="roleEdit" class="form-control" required><option value="">Select a role</option><option value="student" selected>Student</option><option value="faculty">Faculty</option><option value="staff">Staff</option></select></div>
+          <div class="form-group"><label for="passwordEdit">New Password</label><input type="password" id="passwordEdit" /></div>
+          <div class="form-group"><label for="CpasswordEdit">Confirm New Password</label><input type="password" id="CpasswordEdit" /></div>
+          <div class="form-group"><input type="checkbox" id="showPasswordEdit" /><label for="showPasswordEdit">Show Password</label></div>
+          <div class="form-actions"><button type="submit" class="submit-btn">Update User</button><button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div id="modalDelete" class="modal">
+      <div class="modal-content">
+        <h2>Confirm Deletion</h2>
+        <p>Are you sure you want to delete this user?</p>
+        <div class="form-actions"><button class="delete-confirm-btn">Delete</button><button class="cancel-btn" onclick="closeModal()">Cancel</button></div>
+      </div>
+    </div>
+
+    <div id="borrowModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+        <span class="close" onclick="closeBorrowModal()">&times;</span>
+        <h2>Borrow Book</h2>
+        <div class="borrow-student-info">
+          <p><strong>Student:</strong> <span id="borrowStudentName"></span></p>
+          <p><strong>Student ID:</strong> <span id="borrowStudentId"></span></p>
+        </div>
+        <div id="borrowStep1" class="borrow-step">
+          <h3>Step 1: Select a Book</h3>
+          <div class="book-search-section"><input type="text" id="borrowBookSearch" class="form-control" placeholder="Search by title, author, ISBN..."></div>
+          <div id="borrowBooksList" class="books-list" style="max-height:400px;overflow-y:auto;margin-top:15px;"><p class="loading-text">Loading books...</p></div>
+        </div>
+        <div id="borrowStep2" class="borrow-step" style="display:none;">
+          <h3>Step 2: Select a Copy</h3>
+          <div class="selected-book-info">
+            <p><strong>Book:</strong> <span id="selectedBookTitle"></span></p>
+            <p><strong>Author:</strong> <span id="selectedBookAuthor"></span></p>
+          </div>
+          <div id="borrowCopiesList" class="copies-list"><p class="loading-text">Loading copies...</p></div>
+          <button class="btn-secondary" onclick="backToBookSelection()">&#8592; Back to Book Selection</button>
+        </div>
+        <div id="borrowStep3" class="borrow-step" style="display:none;">
+          <h3>Step 3: Confirm Borrowing</h3>
+          <div class="borrow-summary">
+            <p><strong>Student:</strong> <span id="confirmStudentName"></span></p>
+            <p><strong>Book:</strong> <span id="confirmBookTitle"></span></p>
+            <p><strong>Accession #:</strong> <span id="confirmAccessionNumber"></span></p>
+            <p><strong>Condition:</strong> <span id="confirmCondition"></span></p>
+          </div>
+          <div class="form-group"><label for="borrowDueDate">Due Date:</label><input type="date" id="borrowDueDate" class="form-control" required></div>
+          <div class="form-actions">
+            <button class="btn-secondary" onclick="backToCopySelection()">&#8592; Back</button>
+            <button class="btn-primary" onclick="confirmBorrowing()">Confirm Borrow</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bulkBorrowModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:1000px;max-height:90vh;overflow-y:auto;">
+        <span class="close" onclick="closeBulkBorrowModal()">&times;</span>
+        <h2>&#128218; Borrow Books</h2>
+        <div class="borrow-student-info">
+          <p><strong>Student:</strong> <span id="bulkBorrowStudentName"></span></p>
+          <p><strong>Student ID:</strong> <span id="bulkBorrowStudentId"></span></p>
+        </div>
+        <div id="bulkBorrowInstructions"></div>
+        <div class="bulk-borrow-container">
+          <div class="selected-books-cart">
+            <h3>&#128214; Cart (<span id="selectedBooksCount">0</span>)</h3>
+            <div id="selectedBooksCart" class="cart-items"><p class="empty-cart">Click books below to add them here</p></div>
+            <div class="form-group" style="margin-top:20px;"><label for="bulkBorrowDueDate">&#128197; Return Date:</label><input type="date" id="bulkBorrowDueDate" class="form-control" required></div>
+            <button class="btn-primary" onclick="confirmBulkBorrowing()" style="width:100%;margin-top:15px;font-size:16px;padding:12px;"><span class="material-symbols-outlined">check_circle</span>Confirm Borrow (<span id="confirmBooksCount">0</span> books)</button>
+          </div>
+          <div class="available-books-section">
+            <h3>&#128218; Available Books</h3>
+            <input type="text" id="bulkBookSearch" class="form-control" placeholder="&#128269; Search by title or author..." style="margin-bottom:15px;">
+            <div id="bulkBooksList" class="books-list" style="max-height:500px;overflow-y:auto;"><p class="loading-text">Loading books...</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+}) %>

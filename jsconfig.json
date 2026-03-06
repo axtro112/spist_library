@@ -6,6 +6,7 @@
   "exclude": [
     "node_modules",
     "uploads",
-    "database"
+    "database",
+    "views"
   ]
 }

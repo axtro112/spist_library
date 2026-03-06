@@ -2,6 +2,7 @@
  * Authentication and Authorization Middleware
  * Provides role-based access control for routes
  */
+const db = require('../config/database');
 
 /**
  * Check if user is authenticated (logged in)
@@ -41,6 +42,10 @@ function requireAdmin(req, res, next) {
   });
   
   if (!req.session || !req.session.user) {
+    // Fallback: allow Passport-authenticated admin users (e.g. Google OAuth)
+    if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.userType === 'admin') {
+      return next();
+    }
     return res.status(401).json({
       success: false,
       message: "Authentication required. Please log in.",
@@ -65,32 +70,45 @@ function requireAdmin(req, res, next) {
 /**
  * Check if user is a super admin
  */
-function requireSuperAdmin(req, res, next) {
-  console.log('[Auth] requireSuperAdmin check:', {
-    hasSession: !!req.session,
-    hasUser: !!req.session?.user,
-    userRole: req.session?.user?.userRole,
-    role: req.session?.user?.role,
-    fullUser: req.session?.user
-  });
-  
+async function requireSuperAdmin(req, res, next) {
   if (!req.session || !req.session.user) {
+    // Fallback: allow Passport-authenticated super admins (e.g. Google OAuth)
+    if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.userType === 'admin' && req.user.role === 'super_admin') {
+      return next();
+    }
     return res.status(401).json({
       success: false,
       message: "Authentication required. Please log in.",
     });
   }
 
-  // For super admin, check the role field (not userRole)
-  // because admins have both userRole="admin" and role="super_admin" or "system_admin"
-  const role = req.session.user.role;
-  
+  let role = req.session.user.role;
+
+  // Self-heal: if role is missing from the session (old sessions created before
+  // 'role' was added to the session object), fetch it from the DB and cache it.
+  if (!role && req.session.user.userRole === 'admin' && req.session.user.id) {
+    try {
+      const rows = await db.query(
+        'SELECT role FROM admins WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+        [req.session.user.id]
+      );
+      const adminRow = Array.isArray(rows) ? rows[0] : rows;
+      if (adminRow && adminRow.role) {
+        req.session.user.role = adminRow.role;
+        req.session.save(() => {});
+        role = adminRow.role;
+        console.log('[Auth] requireSuperAdmin: backfilled role from DB:', role);
+      }
+    } catch (e) {
+      console.error('[Auth] requireSuperAdmin: DB backfill failed:', e.message);
+    }
+  }
+
   if (role === "super_admin") {
-    console.log('[Auth] Super admin access granted');
     return next();
   }
 
-  console.log('[Auth] Super admin access DENIED for role:', role);
+  console.log('[Auth] Super admin access DENIED for role:', role, '| session user id:', req.session.user.id);
   return res.status(403).json({
     success: false,
     message: "Access denied. Super admin privileges required.",

@@ -1,0 +1,281 @@
+/* =========================================================
+   Overview Panel — Green Glass Theme
+   ONLY uses .sa-overview-* selectors — no .modal usage
+   z-index: 3000/3001 (above main content, Bootstrap modals sit at 1050)
+   ========================================================= */
+
+/* ── Overlay ─────────────────────────────────────────────── */
+.sa-overview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 3000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.sa-overview-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Panel ───────────────────────────────────────────────── */
+.sa-overview-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  height: calc(100vh - 32px);
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 16px;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(46, 125, 50, 0.12);
+  z-index: 3001;
+  transform: translateX(calc(100% + 32px));
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(46, 125, 50, 0.2);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.sa-overview-panel.is-open {
+  transform: translateX(0);
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.sa-overview-header {
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 55%, #388e3c 100%);
+  color: #fff;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sa-overview-header-left {
+  min-width: 0;
+  flex: 1;
+}
+
+.sa-overview-kicker {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.78;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.sa-overview-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sa-overview-close {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: none;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.18s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.sa-overview-close:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* ── Body ────────────────────────────────────────────────── */
+.sa-overview-body {
+  padding: 14px 14px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  /* Slim custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(46, 125, 50, 0.35) transparent;
+}
+
+.sa-overview-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sa-overview-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sa-overview-body::-webkit-scrollbar-thumb {
+  background-color: rgba(46, 125, 50, 0.35);
+  border-radius: 6px;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.sa-overview-card {
+  background: #fff;
+  border: 1px solid rgba(17, 24, 39, 0.09);
+  border-radius: 12px;
+  padding: 13px 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 12px;
+}
+
+.sa-overview-card:last-child {
+  margin-bottom: 0;
+}
+
+.sa-overview-card-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sa-green-dark, #1b5e20);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Key-Value grid ──────────────────────────────────────── */
+.sa-overview-kv {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 7px 10px;
+  font-size: 12.5px;
+}
+
+.sa-overview-k {
+  color: #6b7280;
+  font-weight: 500;
+  align-self: start;
+  padding-top: 1px;
+}
+
+.sa-overview-v {
+  color: #111827;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+/* ── Row cursor hint ─────────────────────────────────────── */
+tr[data-overview-type] {
+  cursor: pointer;
+}
+
+tr[data-overview-type]:hover td {
+  background-color: rgba(46, 125, 50, 0.04);
+}
+
+/* ── List inside card ────────────────────────────────────── */
+.sa-overview-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sa-overview-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.45;
+}
+
+.sa-overview-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ── Badge ───────────────────────────────────────────────── */
+.sa-overview-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sa-overview-badge-green {
+  background: rgba(46, 125, 50, 0.12);
+  color: #1b5e20;
+}
+
+.sa-overview-badge-amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #92400e;
+}
+
+.sa-overview-badge-red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #991b1b;
+}
+
+.sa-overview-badge-gray {
+  background: rgba(107, 114, 128, 0.12);
+  color: #374151;
+}
+
+/* ── Empty state ─────────────────────────────────────────── */
+.sa-overview-empty {
+  border: 1px dashed rgba(46, 125, 50, 0.3);
+  background: rgba(46, 125, 50, 0.04);
+  color: #6b7280;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ── Loading state ───────────────────────────────────────── */
+.sa-overview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  padding: 30px 10px;
+  text-align: center;
+  font-size: 13px;
+  gap: 10px;
+}
+
+/* ── Mobile: full-screen sheet ───────────────────────────── */
+@media (max-width: 768px) {
+  .sa-overview-panel {
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100dvh;
+    height: 100vh; /* fallback */
+    border-radius: 0;
+    max-width: 100vw;
+    transform: translateY(calc(100% + 16px));
+  }
+
+  .sa-overview-panel.is-open {
+    transform: translateY(0);
+  }
+}

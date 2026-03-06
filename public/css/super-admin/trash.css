@@ -1,0 +1,173 @@
+/* ═══════════════════════════════════════════════
+   Trash Pages — shared styles (books-trash, users-trash, admins-trash)
+   ═══════════════════════════════════════════════ */
+
+@keyframes slideInRight  { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOutRight { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+/* ── ACTION BUTTONS ── */
+.btn-restore {
+  background-color: #10b981;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+.btn-restore:hover { background-color: #059669; }
+
+.btn-delete {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+.btn-delete:hover { background-color: #dc2626; }
+.btn-delete:disabled { background-color: #d1d5db; cursor: not-allowed; }
+
+.action-buttons { display: flex; gap: 6px; justify-content: center; }
+
+/* ── CHECKBOX COLUMN ── */
+.checkbox-col { width: 40px; text-align: center; }
+
+/* ── STATUS BADGES (trash pages) ── */
+.status-badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.status-active   { background-color: #d1fae5; color: #065f46; }
+.status-inactive { background-color: #fee2e2; color: #991b1b; }
+
+/* ── ROLE BADGES (admins-trash) ── */
+.role-badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.role-super-admin  { background-color: #dbeafe; color: #1e40af; }
+.role-system-admin { background-color: #e0e7ff; color: #4338ca; }
+
+/* ── TRASH CONFIRM MODALS ── */
+.trash-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1050;
+  padding: 1rem;
+  align-items: center;
+  justify-content: center;
+}
+.trash-modal.show { display: flex !important; }
+
+.trash-modal-content {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 460px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: saModalSlide 0.22s ease-out;
+}
+
+.trash-modal-header {
+  padding: 1.1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.trash-modal-header--danger  { background: linear-gradient(135deg, #7f1d1d, #dc2626, #ef4444); }
+.trash-modal-header--restore { background: linear-gradient(135deg, #1b5e20, #2e7d32, #43a047); }
+
+.trash-modal-header h2 {
+  color: #fff;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trash-modal-close {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.trash-modal-close:hover { background: rgba(255, 255, 255, 0.35); }
+
+.trash-modal-body { padding: 1.4rem 1.5rem 0.6rem; }
+
+.trash-modal-warning,
+.trash-modal-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+.trash-modal-warning { background: #fef2f2; border: 1px solid #fecaca; }
+.trash-modal-info    { background: #eff6ff; border: 1px solid #bfdbfe; }
+
+.trash-modal-warning i { color: #ef4444; font-size: 1.25rem; flex-shrink: 0; margin-top: 2px; }
+.trash-modal-info    i { color: #3b82f6; font-size: 1.25rem; flex-shrink: 0; margin-top: 2px; }
+
+.trash-modal-warning p,
+.trash-modal-info p { margin: 0; font-size: 0.88rem; color: #374151; line-height: 1.55; }
+.trash-modal-warning strong,
+.trash-modal-info strong { color: #111827; }
+
+.trash-modal-confirm-input { margin-top: 1rem; }
+.trash-modal-confirm-input label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+.trash-modal-confirm-input input {
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  color: #111827;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #f9fafb;
+}
+.trash-modal-confirm-input input:focus {
+  outline: none;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  background: #fff;
+}
+
+.trash-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.4rem;
+  border-top: 1px solid #f0f0f0;
+}
+.trash-modal-footer .sa-btn { flex: 1; justify-content: center; }

@@ -1,0 +1,125 @@
+<%
+  var extraHead = '<link rel="stylesheet" href="/css/super-admin/bulk-operations.css"><link rel="stylesheet" href="/css/super-admin/trash.css"><script src="/js/trash-manager.js" defer><\/script><script src="/js/super-admin/admins-trash.js" defer><\/script><style>html,body{overflow:hidden!important;height:100%!important;}.sa-wrapper{height:100vh;overflow:hidden;}.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}<\/style>';
+%>
+<%- include('../partials/super-admin-layout', {
+  title: 'Admins Trash - SPIST Library',
+  adminEmail: adminEmail,
+  activePage: 'admins-trash',
+  extraHead: extraHead,
+  body: `
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        SuperAdmin.AdminsTrashPage.init();
+      });
+    <\/script>
+
+    <div class="section-header">
+      <h2><i class="bi bi-trash me-2"></i>Admins Trash</h2>
+    </div>
+
+    <div class="section-card">
+      <div class="sa-filter-bar">
+        <div class="sa-search-wrap">
+          <i class="bi bi-search"></i>
+          <input type="text" id="searchInput" placeholder="Search by name or email..." />
+        </div>
+        <select id="roleFilter" class="sa-filter-select">
+          <option value="">All Roles</option>
+          <option value="super_admin">Super Admin</option>
+          <option value="system_admin">System Admin</option>
+        </select>
+        <button id="clearFilters" class="sa-clear-btn">
+          <i class="bi bi-x-circle me-1"></i>Clear
+        </button>
+      </div>
+
+      <div class="sa-bulk-bar">
+        <div class="d-flex align-items-center gap-2">
+          <input type="checkbox" id="bulkMasterCheckbox" class="form-check-input" />
+          <span id="bulkSelectionText" class="small fw-medium text-secondary"></span>
+        </div>
+        <div class="d-flex gap-2">
+          <button id="bulkRestoreBtn" class="sa-btn sa-btn-success" disabled>
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+          </button>
+          <button id="bulkDeleteBtn" class="sa-btn sa-btn-danger" disabled>
+            <i class="bi bi-trash3-fill me-1"></i>Delete Forever
+          </button>
+        </div>
+      </div>
+
+      <div class="sa-table-wrapper">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th class="checkbox-col"></th>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Created</th>
+              <th>Deleted At</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="9" style="text-align:center;padding:40px;">
+                <div class="notif-loading">Loading trash...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Permanent Delete Confirmation Modal -->
+    <div id="trashDangerModal" class="trash-modal" role="dialog" aria-modal="true" aria-labelledby="trashDangerTitle">
+      <div class="trash-modal-content">
+        <div class="trash-modal-header trash-modal-header--danger">
+          <h2 id="trashDangerTitle"><i class="bi bi-trash3-fill"></i> Delete Permanently</h2>
+          <button type="button" class="trash-modal-close" id="trashDangerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="trash-modal-body">
+          <div class="trash-modal-warning">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <p id="trashDangerMessage">This action cannot be undone.</p>
+          </div>
+          <div class="trash-modal-confirm-input">
+            <label for="trashDeleteConfirmInput">Type <strong>DELETE</strong> to confirm:</label>
+            <input type="text" id="trashDeleteConfirmInput" placeholder="DELETE" autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+        <div class="trash-modal-footer">
+          <button type="button" id="trashDangerConfirmBtn" class="sa-btn sa-btn-danger" disabled>
+            <i class="bi bi-trash3-fill me-1"></i> Delete Forever
+          </button>
+          <button type="button" id="trashDangerCancelBtn" class="sa-btn sa-btn-outline">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restore Confirmation Modal -->
+    <div id="trashRestoreModal" class="trash-modal" role="dialog" aria-modal="true" aria-labelledby="trashRestoreTitle">
+      <div class="trash-modal-content">
+        <div class="trash-modal-header trash-modal-header--restore">
+          <h2 id="trashRestoreTitle"><i class="bi bi-arrow-counterclockwise"></i> Restore Admin</h2>
+          <button type="button" class="trash-modal-close" id="trashRestoreClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="trash-modal-body">
+          <div class="trash-modal-info">
+            <i class="bi bi-info-circle-fill"></i>
+            <p id="trashRestoreMessage">Restore this admin?</p>
+          </div>
+        </div>
+        <div class="trash-modal-footer">
+          <button type="button" id="trashRestoreConfirmBtn" class="sa-btn sa-btn-success">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+          </button>
+          <button type="button" id="trashRestoreCancelBtn" class="sa-btn sa-btn-outline">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `
+}) %>

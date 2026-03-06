@@ -1,0 +1,92 @@
+<%
+  var extraHead = '<script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>' +
+    '<link rel="stylesheet" href="/css/super-admin/notification-user-modal.css">' +
+    '<script src="/js/notification-user-modal.js"><\/script>' +
+    '<script src="/js/admin.js" defer><\/script>' +
+    '<script src="/js/super-admin/dashboard.js" defer><\/script>' +
+    '<style>html,body{overflow:hidden!important;height:100%!important;}' +
+    '.sa-wrapper{height:100vh;overflow:hidden;}' +
+    '.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}' +
+    '.sa-content{height:calc(100vh - var(--sa-header-h));overflow:hidden!important;display:flex;flex-direction:column;}' +
+    '.sa-content .section-card:last-child{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;margin-bottom:0;}' +
+    '.sa-content .section-card:last-child .activity-list{flex:1;overflow-y:auto;min-height:0;}<\/style>';
+%>
+
+<%- include('../partials/super-admin-layout', {
+  title: 'Super Admin Dashboard - SPIST Library',
+  adminEmail: adminEmail,
+  activePage: 'dashboard',
+  extraHead: extraHead,
+  body: `
+
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        SuperAdmin.Dashboard.init();
+      });
+    <\/script>
+
+    <div class="sa-stats-grid">
+      <div class="sa-stat-card">
+        <div class="sa-stat-icon"><i class="bi bi-book-fill"></i></div>
+        <div class="sa-stat-info">
+          <div class="sa-stat-number" id="totalBooks">0</div>
+          <div class="sa-stat-label">Total Books</div>
+        </div>
+      </div>
+      <div class="sa-stat-card">
+        <div class="sa-stat-icon"><i class="bi bi-journal-bookmark-fill"></i></div>
+        <div class="sa-stat-info">
+          <div class="sa-stat-number" id="activeBorrowings">0</div>
+          <div class="sa-stat-label">Active Borrowings</div>
+        </div>
+      </div>
+      <div class="sa-stat-card">
+        <div class="sa-stat-icon"><i class="bi bi-people-fill"></i></div>
+        <div class="sa-stat-info">
+          <div class="sa-stat-number" id="registeredStudents">0</div>
+          <div class="sa-stat-label">Registered Students</div>
+        </div>
+      </div>
+      <div class="sa-stat-card">
+        <div class="sa-stat-icon"><i class="bi bi-shield-fill-check"></i></div>
+        <div class="sa-stat-info">
+          <div class="sa-stat-number" id="totalAdmins">0</div>
+          <div class="sa-stat-label">Total Admins</div>
+        </div>
+      </div>
+      <div class="sa-stat-card">
+        <div class="sa-stat-icon"><i class="bi bi-exclamation-triangle-fill" style="color:#ef4444;"></i></div>
+        <div class="sa-stat-info">
+          <div class="sa-stat-number" id="overdueBooks">0</div>
+          <div class="sa-stat-label">Overdue Books</div>
+        </div>
+      </div>
+      <div class="sa-stat-card">
+        <div class="sa-stat-icon"><i class="bi bi-activity" style="color:#10b981;"></i></div>
+        <div class="sa-stat-info">
+          <div class="sa-stat-number" id="systemHealth" style="font-size:16px;color:#10b981;">Healthy</div>
+          <div class="sa-stat-label">System Health</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card mt-3">
+      <div class="row g-3">
+        <div class="col-md-7">
+          <div style="height:280px;"><canvas id="borrowingTrends"></canvas></div>
+        </div>
+        <div class="col-md-5">
+          <div style="height:280px;"><canvas id="popularCategories"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card mt-3">
+      <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success"></i>Recent System Activity</h5>
+      <ul class="activity-list list-unstyled mb-0" id="activityList">
+        <li class="activity-item"><div class="activity-content notif-loading">Loading activities...</div></li>
+      </ul>
+    </div>
+  `
+}) %>

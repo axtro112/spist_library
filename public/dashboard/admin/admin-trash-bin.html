@@ -31,6 +31,7 @@
     <script src="/js/session-timeout.js"></script>
     <script src="/js/api.js"></script>
     <script src="/js/ui.js"></script>
+    <script src="/js/admin.js"></script>
     <script src="/js/notifications.js"></script>
     <script src="/js/system-admin-guard.js" defer></script>
     <script src="/js/unified-trash-bin.js" defer></script>
@@ -601,6 +602,16 @@
     <div class="toast" id="toast">
       <span class="material-symbols-outlined" id="toastIcon">check_circle</span>
       <span id="toastMessage">Action completed</span>
+    </div>
+    <div id="logoutModal" class="modal">
+      <div class="modal-content">
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to log out?</p>
+        <div class="form-actions">
+          <button class="logout-confirm-btn" onclick="logout()">Logout</button>
+          <button class="cancel-btn" onclick="closeLogoutModal()">Cancel</button>
+        </div>
+      </div>
     </div>
   </body>
 </html>

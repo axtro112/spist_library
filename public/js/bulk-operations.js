@@ -6,6 +6,85 @@
 let selectedBookIds = new Set();
 
 /**
+ * Parse availability and total quantity from a table row.
+ * Prefers data-available / data-quantity attributes; falls back to
+ * scanning cells for the "X/Y" pattern.
+ * @param {HTMLTableRowElement} row
+ * @returns {{ available: number, total: number }}
+ */
+function parseAvailabilityCell(row) {
+  // Prefer data attributes (set during row render)
+  const da = row.dataset.available;
+  const dq = row.dataset.quantity;
+  if (da !== undefined && da !== '' && dq !== undefined && dq !== '') {
+    const a = parseInt(da, 10);
+    const t = parseInt(dq, 10);
+    if (!isNaN(a) && !isNaN(t)) return { available: a, total: t };
+  }
+  // Fallback: find a cell whose trimmed text matches "digits/digits"
+  const cells = row.querySelectorAll('td');
+  for (const cell of cells) {
+    const text = cell.textContent.trim();
+    const match = text.match(/^(\d+)\s*\/\s*(\d+)$/);
+    if (match) {
+      return { available: parseInt(match[1], 10), total: parseInt(match[2], 10) };
+    }
+  }
+  return { available: 0, total: 0 };
+}
+
+/**
+ * A row is selectable when it has at least one copy in the library
+ * (quantity > 0). Admins can bulk-edit/delete any book regardless
+ * of how many copies are currently on loan.
+ * @param {HTMLTableRowElement} row
+ * @returns {boolean}
+ */
+function isRowSelectable(row) {
+  const { total } = parseAvailabilityCell(row);
+  return total > 0;
+}
+
+/**
+ * Disable checkboxes on non-selectable (unavailable) rows and mark the row.
+ * Should be called after every table re-render.
+ */
+function applyRowSelectability() {
+  const masterCheckbox = document.getElementById('bulkMasterCheckbox');
+  const checkboxes = document.querySelectorAll('.book-row-checkbox');
+  let selectableCount = 0;
+
+  checkboxes.forEach(checkbox => {
+    const row = checkbox.closest('tr');
+    if (!row) return;
+    const selectable = isRowSelectable(row);
+    if (selectable) {
+      checkbox.disabled = false;
+      row.classList.remove('row-unavailable');
+      selectableCount++;
+    } else {
+      checkbox.disabled = true;
+      checkbox.checked = false;
+      const bookId = parseInt(checkbox.dataset.bookId);
+      if (!isNaN(bookId)) selectedBookIds.delete(bookId);
+      row.classList.add('row-unavailable');
+    }
+  });
+
+  if (masterCheckbox) {
+    if (selectableCount === 0) {
+      masterCheckbox.disabled = true;
+      masterCheckbox.checked = false;
+      masterCheckbox.indeterminate = false;
+    } else {
+      masterCheckbox.disabled = false;
+    }
+  }
+
+  updateBulkToolbar();
+}
+
+/**
  * Initialize bulk operations when DOM is ready
  * Sets up event listeners for checkboxes and bulk action buttons
  */
@@ -27,6 +106,9 @@ function initBulkOperations() {
   if (bulkEditBtn) {
     bulkEditBtn.addEventListener('click', handleBulkEdit);
   }
+
+  // Apply initial selectability state
+  applyRowSelectability();
 
   // Initialize toolbar state
   updateBulkToolbar();
@@ -54,6 +136,8 @@ function selectAllCurrentPage() {
   const checkboxes = document.querySelectorAll('.book-row-checkbox');
   
   checkboxes.forEach(checkbox => {
+    const row = checkbox.closest('tr');
+    if (!row || !isRowSelectable(row)) return;
     const bookId = parseInt(checkbox.dataset.bookId);
     checkbox.checked = true;
     selectedBookIds.add(bookId);
@@ -88,6 +172,11 @@ function clearSelection() {
  * Updates selection state and syncs master checkbox
  */
 function handleRowCheckboxChange(checkbox) {
+  const row = checkbox.closest('tr');
+  if (row && !isRowSelectable(row)) {
+    checkbox.checked = false;
+    return;
+  }
   const bookId = parseInt(checkbox.dataset.bookId);
   
   if (checkbox.checked) {
@@ -109,51 +198,78 @@ function handleRowCheckboxChange(checkbox) {
 function updateMasterCheckboxState() {
   const masterCheckbox = document.getElementById('bulkMasterCheckbox');
   if (!masterCheckbox) return;
-  
-  const totalCheckboxes = document.querySelectorAll('.book-row-checkbox').length;
-  const selectedCount = selectedBookIds.size;
-  
-  if (selectedCount === 0) {
+
+  const selectableCheckboxes = Array.from(
+    document.querySelectorAll('.book-row-checkbox')
+  ).filter(cb => {
+    const row = cb.closest('tr');
+    return row && isRowSelectable(row);
+  });
+
+  const totalSelectable = selectableCheckboxes.length;
+  const checkedSelectable = selectableCheckboxes.filter(cb => cb.checked).length;
+
+  if (totalSelectable === 0) {
     masterCheckbox.checked = false;
     masterCheckbox.indeterminate = false;
-  } else if (selectedCount === totalCheckboxes) {
+    masterCheckbox.disabled = true;
+  } else if (checkedSelectable === 0) {
+    masterCheckbox.checked = false;
+    masterCheckbox.indeterminate = false;
+    masterCheckbox.disabled = false;
+  } else if (checkedSelectable >= totalSelectable) {
     masterCheckbox.checked = true;
     masterCheckbox.indeterminate = false;
+    masterCheckbox.disabled = false;
   } else {
     masterCheckbox.checked = false;
     masterCheckbox.indeterminate = true;
+    masterCheckbox.disabled = false;
   }
 }
 
 /**
  * Update bulk toolbar UI based on selection state
- * Shows/hides selection count and enables/disables action buttons
+ * Shows/hides selection count (in copies) and enables/disables action buttons
  */
 function updateBulkToolbar() {
-  const selectedCount = selectedBookIds.size;
   const selectionText = document.getElementById('bulkSelectionText');
   const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
-  const bulkEditBtn = document.getElementById('bulkEditBtn');
-  
+  const bulkEditBtn   = document.getElementById('bulkEditBtn');
+
+  const count = selectedBookIds.size;
+
+  // Sum available and total copies across all selected book rows
+  let totalAvail = 0;
+  let totalQty   = 0;
+  selectedBookIds.forEach(bookId => {
+    const cb  = document.querySelector(`.book-row-checkbox[data-book-id="${bookId}"]`);
+    const row = cb && cb.closest('tr');
+    if (row) {
+      const { available, total } = parseAvailabilityCell(row);
+      totalAvail += available;
+      totalQty   += total;
+    }
+  });
+
   // Update selection count text
   if (selectionText) {
-    if (selectedCount > 0) {
-      selectionText.textContent = `${selectedCount} selected`;
+    if (count > 0) {
+      selectionText.textContent = `Selected: ${count} book title${count > 1 ? 's' : ''} (${totalAvail} available / ${totalQty} total copies)`;
       selectionText.style.display = 'inline-block';
     } else {
       selectionText.textContent = '';
       selectionText.style.display = 'none';
     }
   }
-  
-  // Enable/disable bulk action buttons
-  const isDisabled = selectedCount === 0;
+
+  // Enable/disable bulk action buttons based on whether any rows are checked
+  const isDisabled = selectedBookIds.size === 0;
   if (bulkDeleteBtn) {
     bulkDeleteBtn.disabled = isDisabled;
     bulkDeleteBtn.style.opacity = isDisabled ? '0.5' : '1';
     bulkDeleteBtn.style.cursor = isDisabled ? 'not-allowed' : 'pointer';
   }
-  
   if (bulkEditBtn) {
     bulkEditBtn.disabled = isDisabled;
     bulkEditBtn.style.opacity = isDisabled ? '0.5' : '1';
@@ -181,7 +297,7 @@ async function handleBulkDelete() {
     return;
   }
   
-  const confirmMessage = `Delete ${selectedIds.length} selected book${selectedIds.length > 1 ? 's' : ''}? This cannot be undone.`;
+  const confirmMessage = `Move ${selectedIds.length} selected book${selectedIds.length > 1 ? 's' : ''} to trash?`;
   
   if (!confirm(confirmMessage)) {
     return;
@@ -199,10 +315,10 @@ async function handleBulkDelete() {
     const result = await response.json();
     
     if (!response.ok) {
-      throw new Error(result.message || 'Failed to delete books');
+      throw new Error(result.message || 'Failed to move books to trash');
     }
     
-    alert(`Successfully deleted ${result.deletedCount} book${result.deletedCount > 1 ? 's' : ''}`);
+    alert(`Moved ${result.deletedCount} book${result.deletedCount > 1 ? 's' : ''} to trash`);
     
     // Clear selection and reload table with stats
     clearSelection();
@@ -214,7 +330,7 @@ async function handleBulkDelete() {
     
   } catch (error) {
     console.error('Bulk delete error:', error);
-    alert('Failed to delete books: ' + error.message);
+    alert('Failed to move books to trash: ' + error.message);
   }
 }
 

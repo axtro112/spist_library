@@ -342,7 +342,47 @@ CREATE TABLE IF NOT EXISTS `book_copy_audit` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit trail for book copy changes';
 
 -- ============================================
--- 05 FOREIGN KEY CONSTRAINTS & INDEXES
+-- 05 SOFT DELETE COLUMNS
+-- ============================================
+
+-- Add soft-delete columns to students (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students' AND COLUMN_NAME = 'deleted_at');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `students` ADD COLUMN `deleted_at` DATETIME DEFAULT NULL AFTER `updated_at`, ADD COLUMN `deleted_by` INT DEFAULT NULL AFTER `deleted_at`',
+  'SELECT ''soft-delete columns already exist in students'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add soft-delete columns to books (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'books' AND COLUMN_NAME = 'deleted_at');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `books` ADD COLUMN `deleted_at` DATETIME DEFAULT NULL AFTER `updated_at`, ADD COLUMN `deleted_by` INT DEFAULT NULL AFTER `deleted_at`',
+  'SELECT ''soft-delete columns already exist in books'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add soft-delete columns to admins (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admins' AND COLUMN_NAME = 'deleted_at');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `admins` ADD COLUMN `deleted_at` DATETIME DEFAULT NULL AFTER `updated_at`, ADD COLUMN `deleted_by` INT DEFAULT NULL AFTER `deleted_at`',
+  'SELECT ''soft-delete columns already exist in admins'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add pickup/return tracking columns to book_borrowings (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'book_borrowings' AND COLUMN_NAME = 'picked_up_at');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `book_borrowings`
+   ADD COLUMN `picked_up_at` DATETIME DEFAULT NULL AFTER `return_date`,
+   ADD COLUMN `claim_expires_at` DATETIME DEFAULT NULL AFTER `picked_up_at`,
+   ADD COLUMN `picked_up_by_admin_id` INT DEFAULT NULL AFTER `claim_expires_at`,
+   ADD COLUMN `returned_by_admin_id` INT DEFAULT NULL AFTER `picked_up_by_admin_id`',
+  'SELECT ''pickup/return tracking columns already exist in book_borrowings'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ============================================
+-- 06 FOREIGN KEY CONSTRAINTS & INDEXES
 -- ============================================
 
 -- Add foreign key for books.added_by (if not exists)
@@ -450,30 +490,25 @@ DEALLOCATE PREPARE stmt;
 -- IMPORTANT: Uncomment this section ONLY for development/testing
 -- DO NOT use on production database!
 
-/*
+
 
 -- Insert default notification preferences for existing students
-INSERT INTO `notification_preferences` (`user_type`, `user_id`)
-SELECT 'student', `student_id` FROM `students`
-WHERE NOT EXISTS (
-  SELECT 1 FROM `notification_preferences` 
-  WHERE `user_type` = 'student' AND `notification_preferences`.`user_id` = `students`.`student_id`
-);
+INSERT IGNORE INTO `notification_preferences` (`user_type`, `user_id`)
+SELECT 'student', `student_id` FROM `students`;
 
 -- Insert default notification preferences for existing admins
-INSERT INTO `notification_preferences` (`user_type`, `user_id`)
-SELECT 'admin', CAST(`id` AS CHAR) FROM `admins`
-WHERE NOT EXISTS (
-  SELECT 1 FROM `notification_preferences` 
-  WHERE `user_type` = 'admin' AND `notification_preferences`.`user_id` = CAST(`admins`.`id` AS CHAR)
-);
+INSERT IGNORE INTO `notification_preferences` (`user_type`, `user_id`)
+SELECT 'admin', CAST(`id` AS CHAR) FROM `admins`;
 
--- Insert sample admin accounts (password: admin123)
+-- Insert sample admin accounts (password for all: admin123)
 INSERT IGNORE INTO `admins` (`fullname`, `email`, `password`, `role`, `is_active`) VALUES
-('System Administrator', 'admin@spist.edu', '$2b$10$XsCv92X03pF9juwKuGO3FOx5jvNV5B4c1gvpjfv21vPH7V5NHCKEO', 'super_admin', TRUE),
-('John Admin', 'john.admin@spist.edu', '$2b$10$XsCv92X03pF9juwKuGO3FOx5jvNV5B4c1gvpjfv21vPH7V5NHCKEO', 'system_admin', TRUE),
-('Jane Manager', 'jane.manager@spist.edu', '$2b$10$XsCv92X03pF9juwKuGO3FOx5jvNV5B4c1gvpjfv21vPH7V5NHCKEO', 'system_admin', TRUE)
-ON DUPLICATE KEY UPDATE `email` = `email`;
+('System Administrator', 'admin@spist.edu', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'super_admin', TRUE),
+('John Admin', 'john.admin@spist.edu', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'system_admin', TRUE),
+('Jane Manager', 'jane.manager@spist.edu', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'system_admin', TRUE),
+('Jowel Galang', 'hahacctmo145@gmail.com', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'super_admin', TRUE)
+ON DUPLICATE KEY UPDATE
+  `password` = VALUES(`password`),
+  `is_active` = TRUE;
 
 -- Insert sample student accounts (password: student123)
 INSERT IGNORE INTO `students` (`student_id`, `fullname`, `email`, `password`, `department`, `year_level`, `student_type`, `contact_number`, `status`) VALUES
@@ -507,7 +542,7 @@ INSERT IGNORE INTO `book_borrowings` (`id`, `book_id`, `student_id`, `approved_b
 (5, 8, 'STD-2024-005', 1, '2024-11-15 09:00:00', '2024-11-29 09:00:00', NULL, 'borrowed')
 ON DUPLICATE KEY UPDATE `id` = `id`;
 
-*/
+
 
 -- ============================================
 -- VERIFICATION & COMPLETION

@@ -1,0 +1,27 @@
+<!-- Super/System Admin Overview Panel (Reusable Partial) -->
+<div id="saOverviewOverlay" class="sa-overview-overlay" aria-hidden="true"></div>
+
+<aside
+  id="saOverviewPanel"
+  class="sa-overview-panel"
+  aria-hidden="true"
+  role="dialog"
+  aria-labelledby="saOverviewTitle"
+>
+  <div class="sa-overview-header">
+    <div class="sa-overview-header-left">
+      <div class="sa-overview-kicker">Overview</div>
+      <div id="saOverviewTitle" class="sa-overview-title">Loading...</div>
+    </div>
+    <button id="saOverviewCloseBtn" type="button" class="sa-overview-close" aria-label="Close overview">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="sa-overview-body" id="saOverviewBody">
+    <div class="sa-overview-loading">
+      <div class="spinner-border text-success" role="status" aria-label="Loading"></div>
+      <div>Loading details...</div>
+    </div>
+  </div>
+</aside>

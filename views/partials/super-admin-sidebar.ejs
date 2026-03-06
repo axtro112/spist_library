@@ -1,0 +1,59 @@
+      <aside class="sidebar">
+        <div class="logo">
+          <img src="/img/school-logo-large.png" alt="SPIST Logo" />
+          <h3>SPIST Library</h3>
+        </div>
+        <nav class="nav">
+          <ul>
+            <li class="<%= activePage === 'dashboard' ? 'active' : '' %>">
+              <a href="/super-admin-dashboard">
+                <span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+              </a>
+            </li>
+            <li class="<%= activePage === 'admins' ? 'active' : '' %>">
+              <a href="/super-admin-admins">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                Manage Admins
+              </a>
+            </li>
+            </li>
+            <li class="<%= activePage === 'books' ? 'active' : '' %>">
+              <a href="/super-admin-books">
+                <span class="material-symbols-outlined">book</span>
+                Books
+              </a>
+            </li>
+            <li class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
+              <a href="/super-admin-borrowed-books">
+                <span class="material-symbols-outlined">local_library</span>
+                Borrowed Books
+              </a>
+            </li>
+            <li class="<%= activePage === 'users' ? 'active' : '' %>">
+              <a href="/super-admin-users">
+                <span class="material-symbols-outlined">group</span>
+                Users
+              </a>
+            </li>
+            <li class="<%= activePage === 'audit-logs' ? 'active' : '' %>">
+              <a href="/super-admin-audit-logs">
+                <span class="material-symbols-outlined">history</span>
+                Audit Logs
+              </a>
+            </li>
+            <li class="<%= activePage === 'settings' ? 'active' : '' %>">
+              <a href="/super-admin-settings">
+                <span class="material-symbols-outlined">settings</span>
+                System Settings
+              </a>
+            </li>
+            <li>
+              <a href="#" onclick="showLogoutModal()">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </aside>

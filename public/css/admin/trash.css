@@ -1,0 +1,152 @@
+/* ═══════════════════════════════════════════════
+   Unified Trash Manager — public/css/admin/trash.css
+   Uses existing .sa-* variables from layout.css.
+   ═══════════════════════════════════════════════ */
+
+/* ── toast animations ── */
+@keyframes trashToastIn  { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes trashToastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(110%); opacity: 0; } }
+
+/* ── TABS ── */
+.trash-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 0;
+  padding: 0 4px;
+}
+
+.trash-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -2px;
+  white-space: nowrap;
+}
+
+.trash-tab:hover {
+  color: #2e7d32;
+  background: rgba(46, 125, 50, 0.07);
+}
+
+.trash-tab.active {
+  color: #2e7d32;
+  border-bottom-color: #2e7d32;
+  font-weight: 600;
+  background: rgba(46, 125, 50, 0.09);
+}
+
+/* ── ROW ACTION BUTTONS ── */
+.trash-btn-restore,
+.trash-btn-delete {
+  border: none;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: background 0.15s, transform 0.1s;
+  line-height: 1;
+}
+
+.trash-btn-restore {
+  background: #10b981;
+  color: #fff;
+}
+.trash-btn-restore:hover { background: #059669; transform: scale(1.06); }
+
+.trash-btn-delete {
+  background: #ef4444;
+  color: #fff;
+}
+.trash-btn-delete:hover { background: #dc2626; transform: scale(1.06); }
+
+.trash-action-btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── CHECKBOX COLUMN ── */
+.trash-checkbox-col {
+  width: 38px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* ── EMPTY STATE ── */
+.trash-empty-cell {
+  text-align: center !important;
+  padding: 52px 20px !important;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* ── LOADING SPINNER ── */
+.trash-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2e7d32;
+  border-radius: 50%;
+  animation: trashSpin 0.75s linear infinite;
+  margin: 0 auto 10px;
+}
+@keyframes trashSpin { to { transform: rotate(360deg); } }
+
+/* ── STATUS BADGES ── */
+.status-badge {
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+  letter-spacing: 0.3px;
+}
+.status-active   { background: #d1fae5; color: #065f46; }
+.status-inactive { background: #fee2e2; color: #991b1b; }
+
+/* ── ROLE BADGES ── */
+.role-badge {
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+  letter-spacing: 0.3px;
+}
+.role-super-admin  { background: #dbeafe; color: #1e40af; }
+.role-system-admin { background: #ede9fe; color: #5b21b6; }
+
+/* ── FILTER BAR ADDITIONS ── */
+#trashMasterCb {
+  width: 16px;
+  height: 16px;
+  accent-color: #2e7d32;
+  cursor: pointer;
+}
+
+#trashSelectionText {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  min-width: 68px;
+}
+
+/* ── TABLE WRAPPER with tab divider gap ── */
+#trashTableWrap {
+  padding-top: 14px;
+}

@@ -1,0 +1,245 @@
+/* ============================
+   GMAIL-STYLE BULK OPERATIONS TOOLBAR
+   Description: Minimal styling for bulk actions bar
+   Reuses existing admin.css classes where possible
+   ============================ */
+
+.books-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(76, 175, 80, 0.1);
+}
+
+.bulk-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Master checkbox styling */
+.bulk-master-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #4caf50;
+}
+
+/* Selection text (e.g., "3 selected") */
+.bulk-selection-text {
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+  display: none; /* Hidden when no selection */
+}
+
+/* Bulk action icon buttons */
+.bulk-action-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bulk-action-btn:hover:not(:disabled) {
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.bulk-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bulk-action-btn .material-symbols-outlined {
+  font-size: 20px;
+  color: #555;
+}
+
+.bulk-action-btn:hover:not(:disabled) .material-symbols-outlined {
+  color: #4caf50;
+}
+
+.bulk-action-btn.delete-action .material-symbols-outlined {
+  color: #d32f2f;
+}
+
+.bulk-action-btn.delete-action:hover:not(:disabled) {
+  background: rgba(211, 47, 47, 0.1);
+}
+
+/* Row checkbox in table */
+.book-row-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4caf50;
+}
+
+/* Checkbox column in table */
+.checkbox-col {
+  width: 40px;
+  text-align: center;
+}
+
+/* Unavailable rows — checkbox is hidden/muted, row is visually de-emphasised */
+tr.row-unavailable {
+  opacity: 0.55;
+}
+
+tr.row-unavailable .book-row-checkbox {
+  cursor: not-allowed;
+}
+
+/* Bulk edit modal - reuses existing modal styles */
+#bulkEditModal .form-group {
+  margin-bottom: 16px;
+}
+
+#bulkEditModal label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+}
+
+#bulkEditModal input,
+#bulkEditModal select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#bulkEditModal .field-note {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ── Row Actions Kebab Dropdown ─────────────────────────────────── */
+.actions-dropdown {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.btn-actions {
+  background: transparent;
+  color: #555;
+  border: 1.5px solid #d1d5db;
+  width: auto;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.btn-actions .kebab-icon {
+  font-size: 18px;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.btn-actions .caret-icon {
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+
+.actions-dropdown.show .btn-actions .caret-icon {
+  transform: rotate(180deg);
+}
+
+.btn-actions:hover,
+.btn-actions:focus {
+  background-color: #e8f5e9;
+  border-color: #2e7d32;
+  color: #2e7d32;
+  outline: none;
+}
+
+.actions-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 145px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  list-style: none !important;
+  margin: 0 !important;
+  z-index: 1060;
+}
+
+.actions-menu li {
+  list-style: none !important;
+  padding: 0;
+  margin: 0;
+}
+
+.actions-dropdown.show .actions-menu {
+  display: block;
+}
+
+.actions-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  color: #374151;
+  text-decoration: none !important;
+  font-size: 0.855rem;
+  white-space: nowrap;
+  transition: background-color 0.13s;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.actions-menu .dropdown-item:hover {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.actions-menu .dropdown-item.action-delete:hover {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.actions-menu .dropdown-item.action-delete-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.actions-menu .dropdown-item .material-symbols-outlined {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+/* ── /Row Actions Kebab Dropdown ────────────────────────────────── */

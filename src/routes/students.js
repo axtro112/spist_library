@@ -616,6 +616,53 @@ router.post("/borrow-multiple", async (req, res) => {
   }
 });
 
+// Bulk update students endpoint
+router.patch("/bulk-update", requireAdmin, async (req, res) => {
+  const { studentIds, update } = req.body;
+
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    return response.validationError(res, 'studentIds must be a non-empty array');
+  }
+  if (studentIds.length > 50) {
+    return response.validationError(res, 'Cannot update more than 50 students at once');
+  }
+  if (!update || typeof update !== 'object' || Object.keys(update).length === 0) {
+    return response.validationError(res, 'update must be a non-empty object');
+  }
+
+  // Whitelist allowed fields to prevent injection
+  const ALLOWED_FIELDS = ['department', 'year_level', 'status'];
+  const setClauses = [];
+  const queryParams = [];
+  for (const field of ALLOWED_FIELDS) {
+    if (update[field] !== undefined && update[field] !== null && update[field] !== '') {
+      setClauses.push(`${field} = ?`);
+      queryParams.push(update[field]);
+    }
+  }
+
+  if (setClauses.length === 0) {
+    return response.validationError(res, 'No valid fields to update');
+  }
+
+  const placeholders = studentIds.map(() => '?').join(',');
+  queryParams.push(...studentIds);
+
+  logger.info('Bulk update students request', { count: studentIds.length, fields: setClauses });
+
+  try {
+    const result = await db.query(
+      `UPDATE students SET ${setClauses.join(', ')} WHERE student_id IN (${placeholders}) AND deleted_at IS NULL`,
+      queryParams
+    );
+    logger.info('Bulk update students completed', { updatedCount: result.affectedRows });
+    response.success(res, { updatedCount: result.affectedRows }, `Updated ${result.affectedRows} student(s)`);
+  } catch (err) {
+    logger.error('Bulk update students failed', { error: err.message });
+    response.error(res, 'Failed to update students', err);
+  }
+});
+
 // Bulk soft delete students endpoint (move to trash)
 router.delete("/bulk", requireAdmin, async (req, res) => {
   const { studentIds } = req.body;

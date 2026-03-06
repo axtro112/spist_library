@@ -1,0 +1,41 @@
+<%
+  var extraHead = '<style>html,body{overflow:hidden!important;height:100%!important;}.sa-wrapper{height:100vh;overflow:hidden;}.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}<\/style>';
+%>
+<%- include('../partials/super-admin-layout', {
+  title: 'Audit Logs - SPIST Library (Super Admin)',
+  adminEmail: adminEmail,
+  activePage: 'audit',
+  extraHead: extraHead,
+  body: `
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var s = SuperAdmin.utils.getSession();
+        SuperAdmin.utils.loadAdminHeader(s.adminId);
+      });
+    <\/script>
+
+    <div class="section-header">
+      <div>
+        <h1>Audit Logs</h1>
+        <p>System activity and change history</p>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div style="padding: 60px 40px; text-align: center;">
+        <i class="bi bi-clock-history" style="font-size: 64px; color: #0e5e3f; opacity: 0.5;"></i>
+        <h3 style="color: #374151; margin-top: 20px; font-weight: 600;">Audit Logs Feature</h3>
+        <p style="color: #6b7280; margin-top: 10px;">
+          This feature will display system activity logs including:
+        </p>
+        <ul style="list-style: none; padding: 0; color: #9ca3af; margin-top: 15px; line-height: 2;">
+          <li><i class="bi bi-dot"></i> Admin login/logout activities</li>
+          <li><i class="bi bi-dot"></i> Book management changes</li>
+          <li><i class="bi bi-dot"></i> User management actions</li>
+          <li><i class="bi bi-dot"></i> System configuration updates</li>
+        </ul>
+        <p style="color: #9ca3af; margin-top: 20px; font-style: italic;">Coming soon...</p>
+      </div>
+    </div>
+  `
+}) %>

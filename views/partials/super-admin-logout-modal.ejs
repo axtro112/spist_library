@@ -1,0 +1,61 @@
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to log out?</p>
+        <div class="form-actions">
+          <button class="logout-confirm-btn" onclick="logout()">Logout</button>
+          <button class="cancel-btn" onclick="closeLogoutModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* Ensure both class-based and style-based modal patterns work */
+      .modal.show { display: flex !important; }
+    </style>
+
+    <script>
+      // Unified logout functions – defined here for pages without admin.js.
+      // Pages that load admin.js (defer) will have these overridden by admin.js,
+      // which also works because the .modal.show CSS rule is now available above.
+      if (typeof showLogoutModal === 'undefined') {
+        function showLogoutModal() {
+          var modal = document.getElementById('logoutModal');
+          if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('show');
+            document.body.classList.add('modal-open');
+          }
+        }
+      }
+      if (typeof closeLogoutModal === 'undefined') {
+        function closeLogoutModal() {
+          var modal = document.getElementById('logoutModal');
+          if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+            document.body.classList.remove('modal-open');
+          }
+        }
+      }
+      // Aliases used by trash pages
+      if (typeof hideLogoutModal === 'undefined') {
+        function hideLogoutModal() { closeLogoutModal(); }
+      }
+      if (typeof confirmLogout === 'undefined') {
+        function confirmLogout() {
+          sessionStorage.clear();
+          window.location.href = '/login';
+        }
+      }
+      if (typeof logout === 'undefined') {
+        function logout() {
+          sessionStorage.clear();
+          window.location.href = '/login';
+        }
+      }
+    </script>
+
+    <script src="/js/notification-deeplink.js"></script>
+    <script src="/js/notification-highlight.js"></script>

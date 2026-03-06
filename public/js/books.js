@@ -451,6 +451,12 @@ function handleEditClick(book) {
 }
 
 function populateEditModal(book) {
+  // Delegate to the merged modal (book-copies.js)
+  if (typeof bookCopyManager !== 'undefined') {
+    bookCopyManager.openEditTab(book);
+    return;
+  }
+  // Fallback: open the standalone #adminEdit if bookCopyManager isn't loaded yet
   const formElements = {
     title: document.getElementById("titleEdit"),
     author: document.getElementById("authorEdit"),
@@ -504,9 +510,11 @@ function populateEditModal(book) {
   }
 
   const modal = document.getElementById("adminEdit");
-  modal.dataset.bookId = book.id;
-  modal.style.display = "flex";
-  document.body.classList.add("modal-open");
+  if (modal) {
+    modal.dataset.bookId = book.id;
+    modal.style.display = "flex";
+    document.body.classList.add("modal-open");
+  }
 }
 
 async function handleAddBook(e) {
@@ -558,7 +566,9 @@ async function handleAddBook(e) {
 async function handleEditBook(e) {
   e.preventDefault();
 
-  const bookId = document.getElementById("adminEdit").dataset.bookId;
+  const bookId = (typeof bookCopyManager !== 'undefined' && bookCopyManager.currentBookId)
+    ? bookCopyManager.currentBookId
+    : (document.getElementById('adminEdit') && document.getElementById('adminEdit').dataset.bookId);
   const quantityValue = document.getElementById("No#BooksEdit").value;
   
   const formData = {

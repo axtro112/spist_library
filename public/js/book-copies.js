@@ -26,14 +26,17 @@ class BookCopyManager {
     const modalHTML = `
       <div id="copiesModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 900px;">
+
+          <!-- ── Header ── -->
           <div class="modal-header">
             <h2>
-              <span class="material-symbols-outlined">qr_code_2</span>
-              Book Copies (Accession Numbers)
+              <span class="material-symbols-outlined" id="copiesModalIcon">qr_code_2</span>
+              <span id="copiesModalTitle">Book Copies (Accession Numbers)</span>
             </h2>
             <span class="close" onclick="bookCopyManager.closeModal()">&times;</span>
           </div>
 
+          <!-- ── Book meta card (shared between tabs) ── -->
           <div class="sa-book-meta">
             <div class="sa-book-meta-top">
               <span id="copyBookTitle" class="sa-book-meta-title">Loading…</span>
@@ -48,43 +51,101 @@ class BookCopyManager {
             </div>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3>All Copies</h3>
-            <button class="btn-primary" onclick="bookCopyManager.showAddCopyForm()">
-              <span class="material-symbols-outlined">add</span>
-              Add New Copy
+          <!-- ── Tab bar ── -->
+          <div class="bcm-tabs">
+            <button class="bcm-tab bcm-tab--active" id="tabBtnCopies"
+                    onclick="bookCopyManager.switchTab('copies')">
+              <span class="material-symbols-outlined">list_alt</span> Copies
+            </button>
+            <button class="bcm-tab" id="tabBtnEdit"
+                    onclick="bookCopyManager.switchTab('edit')">
+              <span class="material-symbols-outlined">edit</span> Edit Book
             </button>
           </div>
 
-          <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
-            <table class="user-table">
-              <thead>
-                <tr>
-                  <th>Accession #</th>
-                  <th>Copy #</th>
-                  <th>Condition</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Borrowed By</th>
-                  <th>Due Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="copiesTableBody">
-                <tr>
-                  <td colspan="8" class="text-center">Loading copies...</td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- ── Tab: Copies ── -->
+          <div id="tabPaneCopies" class="bcm-tab-pane bcm-tab-pane--active">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+              <h3 style="margin:0;">All Copies</h3>
+              <button class="btn-primary" onclick="bookCopyManager.showAddCopyForm()">
+                <span class="material-symbols-outlined">add</span>
+                Add New Copy
+              </button>
+            </div>
+            <div class="table-wrapper" style="max-height: 360px; overflow-y: auto;">
+              <table class="user-table">
+                <thead>
+                  <tr>
+                    <th>Accession #</th>
+                    <th>Copy #</th>
+                    <th>Condition</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th>Borrowed By</th>
+                    <th>Due Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="copiesTableBody">
+                  <tr><td colspan="8" class="text-center">Loading copies…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:space-between;">
+              <button class="btn-secondary" onclick="bookCopyManager.exportCopies()">
+                <span class="material-symbols-outlined">download</span>
+                Export List
+              </button>
+              <button class="btn-secondary" onclick="bookCopyManager.closeModal()">Close</button>
+            </div>
           </div>
 
-          <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: space-between;">
-            <button class="btn-secondary" onclick="bookCopyManager.exportCopies()">
-              <span class="material-symbols-outlined">download</span>
-              Export List
-            </button>
-            <button class="btn-secondary" onclick="bookCopyManager.closeModal()">Close</button>
+          <!-- ── Tab: Edit Book ── -->
+          <div id="tabPaneEdit" class="bcm-tab-pane">
+            <form id="editBookForm" style="padding-top:4px;">
+              <div class="form-group">
+                <label for="titleEdit">Title</label>
+                <input type="text" id="titleEdit" name="title" required />
+              </div>
+              <div class="form-group">
+                <label for="authorEdit">Author</label>
+                <input type="text" id="authorEdit" name="author" required />
+              </div>
+              <div class="form-group">
+                <label for="No#BooksEdit">No#Books</label>
+                <input type="number" id="No#BooksEdit" name="No#Books" value="0" min="0" max="10" required />
+              </div>
+              <div class="form-group">
+                <label for="categoryEdit">Category</label>
+                <input type="text" id="categoryEdit" name="category" required />
+              </div>
+              <div class="form-group">
+                <label for="isbnEdit">ISBN</label>
+                <input type="text" id="isbnEdit" name="isbn" required />
+              </div>
+              <div class="form-group">
+                <label for="statusEdit">Status</label>
+                <select id="statusEdit" name="status" required>
+                  <option value="available">Available</option>
+                  <option value="borrowed">Borrowed</option>
+                </select>
+              </div>
+              <div class="form-group form-group-hidden" id="studentSelectGroup">
+                <label for="studentEdit">Assign to Student</label>
+                <select id="studentEdit" name="student">
+                  <option value="">Select a student…</option>
+                </select>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="submit-btn">Update Book</button>
+                <button type="button" class="btn-secondary"
+                        onclick="bookCopyManager.switchTab('copies')">Back to Copies</button>
+                <button type="button" class="cancel-btn"
+                        onclick="bookCopyManager.closeModal()">Cancel</button>
+              </div>
+            </form>
           </div>
+
         </div>
       </div>
 
@@ -153,6 +214,14 @@ class BookCopyManager {
       '.sa-pill-available{background:rgba(34,197,94,.25)!important;border-color:rgba(34,197,94,.45)!important;}',
       '.sa-pill-borrowed{background:rgba(251,146,60,.25)!important;border-color:rgba(251,146,60,.45)!important;}',
       '.sa-pill-maintenance{background:rgba(148,163,184,.25)!important;border-color:rgba(148,163,184,.45)!important;}',
+      /* tab bar */
+      '.bcm-tabs{display:flex;gap:4px;border-bottom:1px solid rgba(255,255,255,.18);margin-bottom:16px;padding-bottom:4px;}',
+      '.bcm-tab{display:flex;align-items:center;gap:6px;padding:7px 16px;border:none;border-radius:8px 8px 0 0;',
+      'background:transparent;color:rgba(255,255,255,.65);font-size:13px;font-weight:600;cursor:pointer;transition:all .18s;}',
+      '.bcm-tab:hover{background:rgba(255,255,255,.10);color:#fff;}',
+      '.bcm-tab--active{background:rgba(255,255,255,.18)!important;color:#fff!important;',
+      'box-shadow:0 -2px 0 0 #4ade80 inset;}',
+      '.bcm-tab-pane{display:none;}.bcm-tab-pane--active{display:block;}',
       '@media(max-width:900px){.sa-book-meta-grid{grid-template-columns:repeat(2,1fr);}}',
       '@media(max-width:520px){.sa-book-meta-grid{grid-template-columns:1fr;}}',
     ].join('');
@@ -204,8 +273,66 @@ class BookCopyManager {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** Switch between 'copies' and 'edit' tabs. */
+  switchTab(name) {
+    const panels  = { copies: 'tabPaneCopies', edit: 'tabPaneEdit' };
+    const buttons = { copies: 'tabBtnCopies',  edit: 'tabBtnEdit'  };
+    Object.keys(panels).forEach(k => {
+      const pane = document.getElementById(panels[k]);
+      const btn  = document.getElementById(buttons[k]);
+      if (pane) pane.classList.toggle('bcm-tab-pane--active', k === name);
+      if (btn)  btn.classList.toggle('bcm-tab--active',   k === name);
+    });
+  }
+
+  /**
+   * Open the merged modal pre-filled on the Edit tab.
+   * Called by openBookEditor() in books.js instead of #adminEdit.
+   */
+  openEditTab(book) {
+    this.currentBookId = book.id;
+
+    // Populate book meta card
+    this._setText('copyBookTitle',    book.title);
+    this._setText('copyBookAuthor',   book.author);
+    this._setText('copyBookCategory', book.category);
+    this._setText('copyBookISBN',     book.isbn);
+    this._setText('copyBookTotal',     book.quantity);
+    this._setText('copyBookAvailable', book.available_quantity);
+    const { label, cls } = this._statusInfo(book.current_status);
+    const statusEl = document.getElementById('copyBookStatus');
+    if (statusEl) { statusEl.textContent = label; statusEl.className = `sa-pill-status ${cls}`.trim(); }
+
+    // Populate edit form
+    const f = {
+      title:    document.getElementById('titleEdit'),
+      author:   document.getElementById('authorEdit'),
+      quantity: document.getElementById('No#BooksEdit'),
+      category: document.getElementById('categoryEdit'),
+      isbn:     document.getElementById('isbnEdit'),
+      status:   document.getElementById('statusEdit'),
+    };
+    if (f.title)    f.title.value    = book.title    || '';
+    if (f.author)   f.author.value   = book.author   || '';
+    if (f.quantity) f.quantity.value = book.quantity  || '';
+    if (f.category) f.category.value = book.category || '';
+    if (f.isbn)     f.isbn.value     = book.isbn      || '';
+    if (f.status)   f.status.value   = (book.current_status || '').toLowerCase() === 'borrowed' ? 'borrowed' : 'available';
+
+    const studentGroup = document.getElementById('studentSelectGroup');
+    const studentEl    = document.getElementById('studentEdit');
+    const isBorrowed   = f.status && f.status.value === 'borrowed';
+    if (studentGroup) studentGroup.style.display = isBorrowed ? 'block' : 'none';
+    if (studentEl)    studentEl.required = isBorrowed;
+
+    this.switchTab('edit');
+    this.modal.style.display = 'block';
+    document.body.classList.add('modal-open');
+  }
+
   async showCopies(bookId) {
     this.currentBookId = bookId;
+    this.switchTab('copies');
     this.modal.style.display = 'block';
 
     // Reset to loading placeholders

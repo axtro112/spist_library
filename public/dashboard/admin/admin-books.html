@@ -416,52 +416,8 @@
     </div>
 
     <!-- Edit Book Modal -->
-    <div id="adminEdit" class="modal">
-      <div class="modal-content">
-        <h2>Edit Book</h2>
-        <form id="editBookForm">
-          <div class="form-group">
-            <label for="titleEdit">Title</label>
-            <input type="text" id="titleEdit" name="title" required />
-          </div>
-          <div class="form-group">
-            <label for="authorEdit">Author</label>
-            <input type="text" id="authorEdit" name="author" required />
-          </div>
-          <div class="form-group">
-            <label for="No#BooksEdit">No#Books</label>
-            <input type="number" id="No#BooksEdit" name="No#Books" value="0" min="0" max="10" required/>
-          </div>
-          <div class="form-group">
-            <label for="categoryEdit">Category</label>
-            <input type="text" id="categoryEdit" name="category" required />
-          </div>
-          <div class="form-group">
-            <label for="isbnEdit">ISBN</label>
-            <input type="text" id="isbnEdit" name="isbn" required />
-          </div>
-          <div class="form-group">
-            <label for="statusEdit">Status</label>
-            <select id="statusEdit" name="status" required>
-              <option value="available">Available</option>
-              <option value="borrowed">Borrowed</option>
-            </select>
-          </div>
-          <div class="form-group form-group-hidden" id="studentSelectGroup">
-            <label for="studentEdit">Assign to Student</label>
-            <select id="studentEdit" name="student">
-              <option value="">Select a student...</option>
-            </select>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="submit-btn">Update Book</button>
-            <button type="button" class="cancel-btn" onclick="closeModal()">
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <!-- Edit Book Modal — form fields moved into merged #copiesModal (book-copies.js) -->
+    <div id="adminEdit" style="display:none" hidden></div>
 
     <!-- Delete Confirmation Modal -->
     <div id="modalDelete" class="modal">

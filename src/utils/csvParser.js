@@ -240,8 +240,9 @@ const importBooks = async (books) => {
   const summary = {
     total_rows: books.length,
     successfully_imported: 0,
+    updated_existing: 0,
     skipped_missing_fields: [],
-    skipped_duplicate_isbns: [],
+    skipped_duplicate_isbns: [], // kept for backward-compat, always empty now
     zero_quantity_entries: [],
   };
 
@@ -260,28 +261,13 @@ const importBooks = async (books) => {
         continue;
       }
 
-      // Check for duplicate ISBN
-      const existingBook = await queryDB(
-        "SELECT id FROM books WHERE isbn = ?",
-        [book.isbn.trim()]
-      );
-
-      if (existingBook.length > 0) {
-        summary.skipped_duplicate_isbns.push({
-          row: rowNum,
-          isbn: book.isbn,
-          title: book.title,
-        });
-        continue;
-      }
-
       // Set default quantity to 1 if empty/null
       let quantity = parseInt(book.quantity, 10);
       if (isNaN(quantity) || book.quantity === "" || book.quantity === null) {
         quantity = 1;
       }
 
-      // Track zero quantity entries
+      // Track zero quantity entries (still inserted/updated)
       if (quantity === 0) {
         summary.zero_quantity_entries.push({
           row: rowNum,
@@ -290,25 +276,46 @@ const importBooks = async (books) => {
         });
       }
 
-      // Determine status based on quantity
-      const status = await determineBookStatus(quantity, null);
+      // Check whether this ISBN already exists
+      const existingBook = await queryDB(
+        "SELECT id FROM books WHERE isbn = ?",
+        [book.isbn.trim()]
+      );
 
-      // Insert book into database
-      const insertQuery = `
-        INSERT INTO books (title, author, isbn, category, quantity, status, added_date)
-        VALUES (?, ?, ?, ?, ?, ?, NOW())
-      `;
-
-      await queryDB(insertQuery, [
-        book.title.trim(),
-        book.author.trim(),
-        book.isbn.trim(),
-        book.category.trim(),
-        quantity,
-        status,
-      ]);
-
-      summary.successfully_imported++;
+      if (existingBook.length > 0) {
+        // ISBN exists → UPDATE the book (upsert)
+        const status = await determineBookStatus(quantity, existingBook[0].id);
+        await queryDB(
+          `UPDATE books
+             SET title = ?, author = ?, category = ?, quantity = ?, status = ?
+           WHERE isbn = ?`,
+          [
+            book.title.trim(),
+            book.author.trim(),
+            book.category.trim(),
+            quantity,
+            status,
+            book.isbn.trim(),
+          ]
+        );
+        summary.updated_existing++;
+      } else {
+        // ISBN does not exist → INSERT new book
+        const status = await determineBookStatus(quantity, null);
+        await queryDB(
+          `INSERT INTO books (title, author, isbn, category, quantity, status, added_date)
+           VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+          [
+            book.title.trim(),
+            book.author.trim(),
+            book.isbn.trim(),
+            book.category.trim(),
+            quantity,
+            status,
+          ]
+        );
+        summary.successfully_imported++;
+      }
     } catch (error) {
       console.error(`Error importing row ${rowNum}:`, error);
       summary.skipped_missing_fields.push({

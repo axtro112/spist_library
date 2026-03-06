@@ -374,9 +374,9 @@ async function handleImportSubmit(e) {
 
     alert(
       `Import Completed!\n\n` +
-      `✓ Successfully imported: ${result.summary.successfully_imported}\n` +
+      `✓ New books added: ${result.summary.successfully_imported}\n` +
+      `↻ Existing books updated: ${result.summary.updated_existing || 0}\n` +
       `✗ Skipped (missing fields): ${result.summary.skipped_missing_fields.length}\n` +
-      `✗ Skipped (duplicate ISBN): ${result.summary.skipped_duplicate_isbns.length}\n` +
       ` Zero quantity entries: ${result.summary.zero_quantity_entries.length}`
     );
 
@@ -474,12 +474,13 @@ async function handleImportSubmit(e) {
 function displayImportResults(summary) {
   const resultsContent = document.getElementById("importResultsContent");
   
+  const updated = summary.updated_existing || 0;
   let html = `
     <div style="margin-bottom: 15px; padding: 10px; background-color: #e8f5e9; border-left: 4px solid #4CAF50;">
       <strong>Summary:</strong><br>
-      ✓ Successfully Imported: ${summary.successfully_imported}<br>
+      ✓ New Books Added: ${summary.successfully_imported}<br>
+      ↻ Existing Books Updated: ${updated}<br>
       ✗ Skipped (Missing Fields): ${summary.skipped_missing_fields.length}<br>
-      ✗ Skipped (Duplicate ISBN): ${summary.skipped_duplicate_isbns.length}<br>
        Zero Quantity Entries: ${summary.zero_quantity_entries.length}
     </div>
   `;
@@ -493,13 +494,11 @@ function displayImportResults(summary) {
     html += `</div>`;
   }
 
-  if (summary.skipped_duplicate_isbns.length > 0) {
-    html += `<div style="margin-bottom: 10px; padding: 10px; background-color: #fff3e0; border-left: 4px solid #ff9800;">
-      <strong>Skipped Rows (Duplicate ISBN):</strong><br>`;
-    summary.skipped_duplicate_isbns.forEach((item) => {
-      html += `<div style="margin: 5px 0;">Row ${item.row}: "${item.title}" (${item.isbn})</div>`;
-    });
-    html += `</div>`;
+  // skipped_duplicate_isbns is now always empty (upsert behavior)
+  if (updated > 0) {
+    html += `<div style="margin-bottom: 10px; padding: 10px; background-color: #e3f2fd; border-left: 4px solid #2196F3;">
+      <strong>↻ Updated ${updated} existing book${updated !== 1 ? 's' : ''} with new data from file.</strong>
+    </div>`;
   }
 
   if (summary.zero_quantity_entries.length > 0) {

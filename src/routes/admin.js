@@ -7,6 +7,10 @@ const bcrypt = require("bcrypt");
 const upload = require("../middleware/upload");
 const { requireAdmin, requireSuperAdmin } = require("../middleware/auth");
 const {
+  getNextAccessionNumber,
+  getQrCodeImagePath,
+} = require('../utils/accession');
+const {
   parseCSV,
   parseExcel,
   importBooks,
@@ -79,8 +83,8 @@ router.get("/books", requireAdmin, async (req, res) => {
   // Base condition: exclude soft-deleted books
   whereConditions.push("b.deleted_at IS NULL");
   
-  // Include 'available', 'active', 'maintenance', 'retired' statuses
-  whereConditions.push("b.status IN ('available', 'active', 'maintenance', 'retired', 'borrowed')");
+  // Include valid statuses (available, active, maintenance, retired, borrowed, missing)
+  whereConditions.push("b.status IN ('available', 'active', 'maintenance', 'retired', 'borrowed', 'missing')");
   
   // Search condition: search across title, author, ISBN, and category (partial match, case-insensitive)
   if (search && search.trim()) {
@@ -122,9 +126,17 @@ router.get("/books", requireAdmin, async (req, res) => {
         WHEN b.available_quantity = 0 THEN 'All Borrowed'
         ELSE 'Unavailable'
       END as current_status,
-      bb.borrow_date, bb.due_date,
+      bb.borrow_date, bb.due_date, bb.claim_expires_at, bb.picked_up_at,
       s.fullname as borrowed_by,
-      bb.status as borrow_status
+      bb.status as borrow_status,
+      CASE
+        WHEN bb.id IS NULL THEN 'available'
+        WHEN bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.return_date IS NULL AND bb.due_date < NOW()) THEN 'overdue'
+        WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
+        WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
+        WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
+        ELSE bb.status
+      END as display_status
     FROM books b
     LEFT JOIN admins a ON b.added_by = a.id
     LEFT JOIN (
@@ -133,6 +145,8 @@ router.get("/books", requireAdmin, async (req, res) => {
       LEFT JOIN book_borrowings bb2 
         ON bb1.book_id = bb2.book_id 
         AND bb1.id < bb2.id
+        AND bb2.return_date IS NULL
+        AND bb2.status IN ('borrowed', 'overdue')
       WHERE bb2.id IS NULL
         AND bb1.return_date IS NULL
         AND bb1.status IN ('borrowed', 'overdue')
@@ -144,8 +158,8 @@ router.get("/books", requireAdmin, async (req, res) => {
 
   try {
     const results = await db.query(query, queryParams);
-    logger.info('Books fetched with filters', { count: results.length, search, category, status });
-    logger.debug('Books query details', { queryParams, whereClause });
+    logger.info('Books fetched with filters', { count: results.length, search, category, status, whereClause });
+    logger.debug('Books query details', { queryParams, whereClause, query: query.substring(0, 200) });
     
     if (results.length > 0 && process.env.NODE_ENV !== 'production') {
       logger.debug('Sample books', { books: results.slice(0, 3).map(b => ({
@@ -164,8 +178,8 @@ router.get("/books", requireAdmin, async (req, res) => {
 });
 
 router.post("/books", requireAdmin, async (req, res) => {
-  const { title, author, category, isbn, quantity, adminId } = req.body;
-  logger.debug('Adding new book', { title, author, category, isbn, quantity, adminId });
+  const { title, author, category, isbn, quantity, adminId, status } = req.body;
+  logger.debug('Adding new book', { title, author, category, isbn, quantity, adminId, status });
 
   if (!title || !author || !category || !isbn) {
     return response.validationError(res, 'All fields are required');
@@ -181,26 +195,100 @@ router.post("/books", requireAdmin, async (req, res) => {
       return response.validationError(res, 'A book with this ISBN already exists');
     }
 
-    const bookQuantity = quantity || 1;
-    const query = `
-      INSERT INTO books (title, author, isbn, category, added_date, status, quantity, available_quantity, added_by)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'active', ?, ?, ?)
-    `;
+    const parsedQty = Number.parseInt(quantity, 10);
+    const bookQuantity = Number.isFinite(parsedQty) && parsedQty >= 0 ? parsedQty : 1;
 
-    const result = await db.query(query, [title, author, isbn, category, bookQuantity, bookQuantity, adminId || null]);
-    logger.info('Book created successfully', { bookId: result.insertId, title, isbn });
-    response.success(res, {
-      message: "Book added successfully",
-      bookId: result.insertId,
-    }, 'Book added successfully', 201);
+    // UI sends available|maintenance|retired, while DB uses active|maintenance|retired.
+    const requestedStatus = String(status || 'available').toLowerCase();
+    const dbStatus = requestedStatus === 'maintenance'
+      ? 'maintenance'
+      : (requestedStatus === 'retired' ? 'retired' : 'active');
+
+    // Non-available statuses should not increase available_quantity.
+    const initialAvailableQuantity = dbStatus === 'active' ? bookQuantity : 0;
+    const createdCopies = [];
+    let newBookId = null;
+
+    await db.withTransaction(async (conn) => {
+      const insertBookQuery = `
+        INSERT INTO books (title, author, isbn, category, added_date, status, quantity, available_quantity, added_by)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
+      `;
+
+      const bookResult = await conn.queryAsync(insertBookQuery, [
+        title,
+        author,
+        isbn,
+        category,
+        dbStatus,
+        bookQuantity,
+        initialAvailableQuantity,
+        adminId || null,
+      ]);
+
+      newBookId = bookResult.insertId;
+
+      if (bookQuantity > 0) {
+        const copyStatus = dbStatus === 'active' ? 'available' : dbStatus;
+
+        for (let i = 1; i <= bookQuantity; i++) {
+          const accessionNumber = await getNextAccessionNumber(conn);
+
+          await conn.queryAsync(
+            `INSERT INTO book_copies
+             (accession_number, book_id, copy_number, condition_status, location, status)
+             VALUES (?, ?, ?, 'excellent', 'Main Library', ?)`,
+            [accessionNumber, newBookId, i, copyStatus]
+          );
+
+          await conn.queryAsync(
+            `INSERT INTO book_copy_audit (accession_number, action, new_value, performed_by, notes)
+             VALUES (?, 'created', ?, ?, ?)`,
+            [
+              accessionNumber,
+              JSON.stringify({ source: 'add_book', status: copyStatus }),
+              req.session?.user?.id || req.session?.adminId || null,
+              'Copy auto-created from Add Book',
+            ]
+          );
+
+          createdCopies.push({
+            accession_number: accessionNumber,
+            copy_number: i,
+            qr_code_image_url: getQrCodeImagePath(accessionNumber),
+          });
+        }
+      }
+    });
+
+    logger.info('Book created successfully', {
+      bookId: newBookId,
+      title,
+      isbn,
+      autoCopies: createdCopies.length,
+    });
+
+    response.success(
+      res,
+      {
+        message: 'Book added successfully',
+        bookId: newBookId,
+        copies_created: createdCopies.length,
+        copies: createdCopies,
+      },
+      'Book added successfully',
+      201
+    );
   } catch (err) {
     logger.error('Error adding book', { error: err.message, title, isbn });
+    response.error(res, 'Error adding book', err);
   }
 });
 
 router.put("/books/:id", requireAdmin, async (req, res) => {
   const bookId = req.params.id;
   const { title, author, category, isbn, status, student_id, quantity } = req.body;
+  const adminId = req.session.user?.id || req.session.adminId || null;
 
   logger.debug('Book update request', { bookId, title, author, category, isbn, status, student_id, quantity });
 
@@ -222,6 +310,19 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
         [bookId]
       );
       const activeBorrowings = borrowingCount.count || 0;
+
+      // Only explicit return-confirm routes may mark borrowings as returned.
+      if (status === "available" && activeBorrowings > 0) {
+        logger.warn('BOOK_UPDATE_BLOCKED', {
+          reason: 'active_borrowings_require_confirm_return',
+          adminId,
+          bookId,
+          requestedStatus: status,
+          activeBorrowings,
+        });
+        throw new Error("VALIDATION:Cannot mark book as available while it has active borrowings. Confirm return first.");
+      }
+
       const newAvailableQty = Math.max(0, bookQuantity - activeBorrowings);
 
       let dbStatus = 'active';
@@ -245,14 +346,16 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
 
         if (currentBorrowing.length > 0) {
           if (currentBorrowing[0].student_id !== student_id) {
-            await conn.queryAsync(
-              `UPDATE book_borrowings SET status = 'returned', return_date = CURRENT_TIMESTAMP WHERE id = ?`,
-              [currentBorrowing[0].id]
-            );
-            await conn.queryAsync(
-              `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status) VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
-              [bookId, student_id]
-            );
+            logger.warn('BOOK_UPDATE_BLOCKED', {
+              reason: 'book_borrowed_by_different_student',
+              adminId,
+              bookId,
+              requestedStatus: status,
+              currentBorrowingId: currentBorrowing[0].id,
+              currentStudentId: currentBorrowing[0].student_id,
+              requestedStudentId: student_id,
+            });
+            throw new Error("VALIDATION:This book is currently borrowed by another student. Confirm return first before reassigning.");
           }
         } else {
           await conn.queryAsync(
@@ -260,16 +363,14 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
             [bookId, student_id]
           );
         }
-      } else if (status === "available") {
-        await conn.queryAsync(
-          `UPDATE book_borrowings SET status = 'returned', return_date = CURRENT_TIMESTAMP WHERE book_id = ? AND status IN ('borrowed', 'overdue') AND return_date IS NULL`,
-          [bookId]
-        );
       }
     });
 
     response.success(res, null, 'Book updated successfully');
   } catch (err) {
+    if (err.message && err.message.startsWith('VALIDATION:')) {
+      return response.validationError(res, err.message.replace('VALIDATION:', ''));
+    }
     logger.error('Error updating book', { bookId, error: err.message });
     response.error(res, 'Error updating book', err);
   }
@@ -310,6 +411,11 @@ router.delete("/books/:id", requireAdmin, async (req, res) => {
 // Dashboard Statistics Route
 router.get("/dashboard/stats", requireAdmin, async (req, res) => {
   const queries = {
+        pendingPickup: `
+          SELECT COUNT(*) as count
+          FROM book_borrowings
+          WHERE status = 'borrowed' AND picked_up_at IS NULL
+        `,
     totalBooks: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
     totalCopies: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
     availableBooks: "SELECT COALESCE(SUM(available_quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
@@ -1178,6 +1284,12 @@ router.patch("/books/bulk-update", requireAdmin, async (req, res) => {
     if (update.status !== undefined) {
       updates.push("status = ?");
       params.push(update.status);
+      
+      // If changing status to "Available" without changing quantity,
+      // automatically make all copies available
+      if (update.status === "available" && update.quantity === undefined) {
+        updates.push("available_quantity = quantity");
+      }
     }
     
     if (update.quantity !== undefined) {
@@ -1202,7 +1314,7 @@ router.patch("/books/bulk-update", requireAdmin, async (req, res) => {
     let updatedCount = 0;
     const errors = [];
     
-    logger.info('Bulk update initiated', { bookCount: ids.length, bookIds: ids, fields: updateData });
+    logger.info('Bulk update initiated', { bookCount: ids.length, bookIds: ids, fields: update });
     
     // Update each book
     for (const bookId of ids) {
@@ -1287,13 +1399,16 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
     // Status filter
     if (status && status.trim()) {
       if (status === 'pending_pickup') {
-        // Borrowed status but no pickup confirmation yet
+        // Borrowed + not picked up (includes claim-expired so active records stay visible)
         whereConditions.push("bb.status = 'borrowed' AND bb.picked_up_at IS NULL");
       } else if (status === 'picked_up') {
         // Picked up (borrowed with pickup confirmation)
         whereConditions.push("bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL");
+      } else if (status === 'overdue') {
+        // Overdue: either marked overdue in DB, or past due date and not yet returned
+        whereConditions.push("(bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.return_date IS NULL AND bb.due_date < NOW()))");
       } else {
-        // Direct status match (returned, overdue, etc.)
+        // Direct status match (returned, etc.)
         whereConditions.push("bb.status = ?");
         queryParams.push(status);
       }
@@ -1315,6 +1430,10 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
         bb.picked_up_at,
         bb.return_date,
         bb.status,
+        CASE
+          WHEN bb.return_date IS NULL AND bb.status <> 'returned' THEN 1
+          ELSE 0
+        END AS is_active,
         bb.copy_condition_at_borrow,
         bb.copy_condition_at_return,
         bb.notes,
@@ -1334,7 +1453,8 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
         a_returned.fullname AS returned_by_name,
         CASE 
           WHEN bb.status = 'returned' THEN 'returned'
-          WHEN bb.status = 'overdue' THEN 'overdue'
+          WHEN bb.return_date IS NULL AND (bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.due_date < NOW())) THEN 'overdue'
+          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
           WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
           WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
           ELSE bb.status
@@ -1379,7 +1499,7 @@ router.post("/borrowings/:id/confirm-pickup", requireAdmin, async (req, res) => 
   try {
     // Get borrowing details
     const borrowing = await db.query(
-      "SELECT id, status, picked_up_at, student_id FROM book_borrowings WHERE id = ?",
+      "SELECT id, status, borrow_date, claim_expires_at, picked_up_at, student_id FROM book_borrowings WHERE id = ?",
       [borrowingId]
     );
     
@@ -1399,6 +1519,24 @@ router.post("/borrowings/:id/confirm-pickup", requireAdmin, async (req, res) => 
     if (record.status !== 'borrowed') {
       logger.warn('Invalid status for pickup', { borrowingId, status: record.status });
       return response.validationError(res, 'Can only confirm pickup for borrowed items');
+    }
+
+    // Enforce strict pickup window (max 24 hours from borrow_date).
+    // If claim_expires_at exists, use the earlier of that value and borrow_date + 24h.
+    const borrowDate = new Date(record.borrow_date);
+    const hardLimit = new Date(borrowDate.getTime() + 24 * 60 * 60 * 1000);
+    const claimExpires = record.claim_expires_at ? new Date(record.claim_expires_at) : null;
+    const effectiveExpiry = claimExpires && !Number.isNaN(claimExpires.getTime()) && claimExpires < hardLimit
+      ? claimExpires
+      : hardLimit;
+
+    if (new Date() > effectiveExpiry) {
+      logger.warn('Pickup window expired', {
+        borrowingId,
+        studentId: record.student_id,
+        effectiveExpiry: effectiveExpiry.toISOString(),
+      });
+      return response.validationError(res, 'Pickup window has expired (24-hour limit reached).');
     }
     
     // Update borrowing record
@@ -1557,6 +1695,77 @@ router.post("/borrowings/:id/confirm-return", requireAdmin, async (req, res) => 
   } catch (error) {
     logger.error('Error confirming return', { borrowingId, error: error.message });
     response.error(res, 'Error confirming return', error);
+  }
+});
+
+/**
+ * POST /api/admin/borrowings/:id/cancel
+ * Admin cancels a pending pickup request (restores book availability)
+ * Access: Super Admin + System Admin
+ */
+router.post('/borrowings/:id/cancel', requireAdmin, async (req, res) => {
+  const borrowingId = req.params.id;
+  const adminId = req.session.user?.id || req.session.adminId;
+
+  try {
+    const borrowings = await db.query(
+      `SELECT bb.id, bb.status, bb.picked_up_at, bb.book_id, bb.accession_number, bb.student_id,
+              b.title AS book_title, s.email AS student_email
+       FROM book_borrowings bb
+       LEFT JOIN books b ON bb.book_id = b.id
+       LEFT JOIN students s ON bb.student_id = s.student_id
+       WHERE bb.id = ?`,
+      [borrowingId]
+    );
+
+    if (!borrowings || borrowings.length === 0) {
+      return response.notFound(res, 'Borrowing record not found');
+    }
+
+    const record = borrowings[0];
+
+    if (record.status !== 'borrowed' || record.picked_up_at) {
+      return response.validationError(res, 'Only pending (not yet picked up) requests can be cancelled');
+    }
+
+    await db.withTransaction(async (conn) => {
+      await conn.queryAsync(
+        `UPDATE book_borrowings
+         SET status = 'cancelled',
+             notes = CONCAT(COALESCE(notes, ''), CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END, 'Cancelled by admin')
+         WHERE id = ? AND status = 'borrowed' AND picked_up_at IS NULL`,
+        [borrowingId]
+      );
+
+      if (record.accession_number) {
+        await conn.queryAsync(
+          `UPDATE book_copies SET status = 'available' WHERE accession_number = ?`,
+          [record.accession_number]
+        );
+      }
+
+      await conn.queryAsync(
+        `UPDATE books SET available_quantity = LEAST(quantity, available_quantity + 1) WHERE id = ?`,
+        [record.book_id]
+      );
+    });
+
+    const { createNotification } = require('../routes/notifications');
+    await createNotification({
+      user_type: 'student',
+      user_id: record.student_id,
+      title: 'Borrow Request Cancelled by Admin',
+      message: `Your borrow request for "${record.book_title}" has been cancelled by an administrator.`,
+      type: 'SYSTEM',
+      related_table: 'book_borrowings',
+      related_id: borrowingId
+    });
+
+    logger.info('Borrow request cancelled by admin', { borrowingId, adminId, studentId: record.student_id });
+    response.success(res, null, 'Borrow request cancelled successfully');
+  } catch (error) {
+    logger.error('Error cancelling borrow request', { borrowingId, error: error.message });
+    response.error(res, 'Error cancelling borrow request', error);
   }
 });
 
@@ -2988,8 +3197,11 @@ router.delete('/trash/:entity/bulk-permanent', requireSuperAdmin, async (req, re
   try {
     let deletedCount = 0;
     if (entity === 'books') {
-      const [{ cnt }] = await db.query(`SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id IN (${ph}) AND status IN ('borrowed','overdue','approved') AND return_date IS NULL`, safeIds);
+      const countResult = await db.query(`SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id IN (${ph}) AND status IN ('borrowed','overdue','approved') AND return_date IS NULL`, safeIds);
+      const cnt = Array.isArray(countResult) && countResult.length > 0 ? countResult[0].cnt : 0;
       if (cnt > 0) return response.validationError(res, 'Cannot delete: some selected books have active borrowings');
+      // Delete all borrowing records first (including returned ones) due to foreign key constraint
+      await db.query(`DELETE FROM book_borrowings WHERE book_id IN (${ph})`, safeIds);
       await db.query(`DELETE FROM book_copies WHERE book_id IN (${ph})`, safeIds);
       const r = await db.query(`DELETE FROM books WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
       deletedCount = r?.affectedRows || 0;
@@ -3009,7 +3221,8 @@ router.delete('/trash/:entity/bulk-permanent', requireSuperAdmin, async (req, re
     logger.info(`[UnifiedTrash] Bulk permanent delete ${entity}`, { ids: safeIds, deletedCount, adminId: req.session.user.id });
     return response.success(res, { deletedCount }, `${deletedCount} ${entity} permanently deleted`);
   } catch (err) {
-    logger.error(`[UnifiedTrash] Bulk permanent delete ${entity} error`, { error: err.message });
+    logger.error(`[UnifiedTrash] Bulk permanent delete ${entity} error`, { error: err.message, stack: err.stack });
+    console.error(`[BULK DELETE ERROR] Entity: ${entity}, Error:`, err);
     return response.error(res, `Error bulk deleting ${entity}`, err);
   }
 });

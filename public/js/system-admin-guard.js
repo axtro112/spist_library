@@ -4,7 +4,11 @@
 (function() {
   'use strict';
 
-  function checkSystemAdminAccess() {
+  async function checkSystemAdminAccess() {
+    if (window.AuthHelper && typeof window.AuthHelper.ensureAdminSessionFromServer === 'function') {
+      await window.AuthHelper.ensureAdminSessionFromServer();
+    }
+
     const isLoggedIn = sessionStorage.getItem("isLoggedIn");
     const userRole = sessionStorage.getItem("userRole");
     const adminRole = sessionStorage.getItem("adminRole");

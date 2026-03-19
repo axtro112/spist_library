@@ -14,8 +14,18 @@
   utils.safeFetch = async function (url, options) {
     options = Object.assign({ credentials: 'include' }, options || {});
     try {
-      const response = await fetch(url, options);
+      const doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
+      const response = await doFetch(url, options);
       if (!response.ok) {
+        const isAdminApi = typeof url === 'string' && url.startsWith('/api/admin/');
+        if (isAdminApi && response.status === 401 && !window.__adminAuthRedirecting) {
+          window.__adminAuthRedirecting = true;
+          sessionStorage.removeItem('adminId');
+          sessionStorage.removeItem('adminRole');
+          sessionStorage.removeItem('userRole');
+          sessionStorage.removeItem('isLoggedIn');
+          setTimeout(function () { window.location.href = '/login'; }, 600);
+        }
         throw new Error('HTTP ' + response.status + ' ' + response.statusText + ' — ' + url);
       }
       return await response.json();
@@ -28,6 +38,18 @@
   // ── getSession ────────────────────────────────────────────────────────────
   // Returns the four session values stored by the auth flow.
   utils.getSession = function () {
+    var body = document.body;
+    if (body) {
+      var datasetAdminId = body.getAttribute('data-admin-id') || '';
+      var datasetAdminRole = body.getAttribute('data-admin-role') || '';
+      if (datasetAdminId) sessionStorage.setItem('adminId', datasetAdminId);
+      if (datasetAdminRole) sessionStorage.setItem('adminRole', datasetAdminRole);
+      if (datasetAdminId || datasetAdminRole) {
+        if (sessionStorage.getItem('isLoggedIn') !== 'true') sessionStorage.setItem('isLoggedIn', 'true');
+        if (!sessionStorage.getItem('userRole')) sessionStorage.setItem('userRole', 'admin');
+      }
+    }
+
     return {
       isLoggedIn: sessionStorage.getItem('isLoggedIn'),
       userRole:   sessionStorage.getItem('userRole'),

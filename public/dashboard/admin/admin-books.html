@@ -84,7 +84,10 @@
 
         if (!session.isLoggedIn || session.userRole !== "admin") {
           console.warn('[System Admin Books] Not authenticated as admin, redirecting...');
-          alert("Please log in with admin credentials to access this page.");
+          const isTimeoutLogout = sessionStorage.getItem('timeout-logout') === 'true';
+          if (!isTimeoutLogout) {
+            alert("Please log in with admin credentials to access this page.");
+          }
           window.location.href = "/login";
           return;
         }
@@ -113,8 +116,6 @@
       });
     </script>
 
-    <script src="/js/csrf-helper.js"></script>
-    <script src="/js/session-timeout.js"></script>
     <script src="/js/api.js"></script>
     <script src="/js/ui.js"></script>
     <script src="/js/notifications.js"></script>

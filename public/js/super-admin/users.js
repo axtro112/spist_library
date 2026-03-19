@@ -14,6 +14,22 @@
   var currentFilters       = { search: '', course: 'All', year: 'All', status: 'All' };
   var filterDebounceTimer  = null;
   var selectedStudentIds   = new Set();
+  var PROGRAM_FILTER_OPTIONS = [
+    'BS Computer Engineering',
+    'BS Computer Science',
+    'BS Information Technology',
+    'BS Tourism Management',
+    'BS Business Administration - Major in Marketing Management',
+    'BS Business Administration - Major in Operations Management',
+    'BS Accountancy',
+    'BS Hospitality Management',
+    'Bachelor in Elementary Education',
+    'Bachelor in Secondary Education - Major in English',
+    'Bachelor in Secondary Education - Major in Mathematics',
+    'Bachelor in Secondary Education - Major in Filipino',
+    'Bachelor in Secondary Education - Major in Social Studies',
+    'Bachelor in Secondary Education - Major in Science'
+  ];
 
   // Borrow state
   var currentBorrowStudent  = { id: '', name: '' };
@@ -154,17 +170,27 @@
 
     _initBulkSelection();
 
-    // Deep-link highlight
+    // Deep-link highlight (consume once)
     var urlParams   = new URLSearchParams(window.location.search);
     var highlightId = urlParams.get('highlight');
     if (highlightId) {
+      var consumeKey = 'sa-users-highlight-consumed:' + highlightId;
+      var alreadyConsumed = sessionStorage.getItem(consumeKey) === 'true';
+
+      // Clear URL immediately so hard refresh does not retrigger modal open.
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      if (alreadyConsumed) {
+        return;
+      }
+
       var targetRow = tbody.querySelector('tr[data-student-id="' + highlightId + '"]');
       if (targetRow) {
+        sessionStorage.setItem(consumeKey, 'true');
         targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
         targetRow.classList.add('selected-row');
         targetRow.style.animation = 'highlightPulse 2s ease-out';
         setTimeout(function () { targetRow.click(); }, 500);
-        setTimeout(function () { window.history.replaceState({}, document.title, window.location.pathname); }, 3000);
       }
     }
   }
@@ -198,11 +224,15 @@
       var result = await SA.utils.safeFetch('/api/students');
       if (!result) return;
       var students = result.data || result || [];
-      var courses  = Array.from(new Set(students.map(function (s) { return s.department; }).filter(Boolean))).sort();
+      var liveCourses  = Array.from(new Set(students.map(function (s) { return s.department; }).filter(Boolean))).sort();
+      var mergedCourses = PROGRAM_FILTER_OPTIONS.slice();
+      liveCourses.forEach(function (c) {
+        if (mergedCourses.indexOf(c) === -1) mergedCourses.push(c);
+      });
       var select   = document.getElementById('usersCourseFilter');
       if (!select) return;
       select.innerHTML = '<option value="All">All Courses</option>';
-      courses.forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; select.appendChild(o); });
+      mergedCourses.forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; select.appendChild(o); });
     } catch (e) { console.error('[UsersPage] loadUniqueCourses:', e); }
   }
 
@@ -218,7 +248,13 @@
       row.classList.add('selected-row');
       var studentId = row.cells[2] ? row.cells[2].textContent : null;
       if (!studentId) return;
-      if (window.openUserModal) { window.openUserModal(studentId); return; }
+
+      // Prefer the side Overview panel for user details on this page.
+      if (window.SuperAdmin && window.SuperAdmin.Overview && typeof window.SuperAdmin.Overview.open === 'function') {
+        window.SuperAdmin.Overview.open('user', studentId);
+        return;
+      }
+
       // Fallback: update the side profile card
       try {
         var sResult = await SA.utils.safeFetch('/api/students/' + studentId);
@@ -328,7 +364,7 @@
     if (title) title.textContent = 'Edit ' + selectedStudentIds.size + ' Selected Student' + (selectedStudentIds.size > 1 ? 's' : '');
     var form = modal.querySelector('form');
     if (form) form.reset();
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
   }
 
   async function _handleBulkEditSubmit(e) {
@@ -392,11 +428,23 @@
     var openViolations = p.get('openViolations');
     var isValid = function (v) { return v && v !== 'undefined' && v !== 'null' && v.trim() !== ''; };
     if (isValid(openViolations)) {
+      var consumeViolationKey = 'sa-users-openViolations-consumed:' + openViolations;
+      var violationsConsumed = sessionStorage.getItem(consumeViolationKey) === 'true';
       window.history.replaceState({}, document.title, window.location.pathname);
+      if (violationsConsumed) return;
+      sessionStorage.setItem(consumeViolationKey, 'true');
       setTimeout(function () { if (window.userViolationsModal) window.userViolationsModal.open(openViolations); }, 500);
-    } else if (isValid(openUser) && window.openUserModal) {
+    } else if (isValid(openUser)) {
+      var consumeUserKey = 'sa-users-openUser-consumed:' + openUser;
+      var userConsumed = sessionStorage.getItem(consumeUserKey) === 'true';
       window.history.replaceState({}, document.title, window.location.pathname);
-      setTimeout(function () { window.openUserModal(openUser); }, 500);
+      if (userConsumed) return;
+      sessionStorage.setItem(consumeUserKey, 'true');
+      setTimeout(function () {
+        if (window.SuperAdmin && window.SuperAdmin.Overview && typeof window.SuperAdmin.Overview.open === 'function') {
+          window.SuperAdmin.Overview.open('user', openUser);
+        }
+      }, 500);
     }
   }
 
@@ -432,7 +480,7 @@
     if (!listEl) return;
     listEl.innerHTML = '<p class="loading-text">Loading books...</p>';
     try {
-      var result = await SA.utils.safeFetch('/api/books');
+      var result = await SA.utils.safeFetch('/api/books?ts=' + Date.now());
       if (!result) { listEl.innerHTML = '<p class="loading-text">Error loading books</p>'; return; }
       allBooksData = result.data || result || [];
       var available = allBooksData.filter(function (b) { return b.available_quantity > 0; });
@@ -566,7 +614,7 @@
     if (!listEl) return;
     listEl.innerHTML = '<p class="loading-text">Loading books...</p>';
     try {
-      var result = await SA.utils.safeFetch('/api/books');
+      var result = await SA.utils.safeFetch('/api/books?ts=' + Date.now());
       if (!result) { listEl.innerHTML = '<p class="loading-text">Error loading books</p>'; return; }
       allBooksData = result.data || result || [];
       var available = allBooksData.filter(function (b) { return b.available_quantity > 0; });
@@ -843,6 +891,10 @@
   // ── init ─────────────────────────────────────────────────────────────────
   async function init() {
     if (!SA.utils.guardSuperAdmin()) return;
+
+    // Extended delay to ensure backend session is fully loaded from store
+    // on hard refresh (100ms gives enough time for MySQL session store)
+    await new Promise(resolve => setTimeout(resolve, 100));
     var session = SA.utils.getSession();
 
     // Expose globals required by onclick handlers

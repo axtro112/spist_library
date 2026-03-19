@@ -7,6 +7,9 @@
 
   let trashManager;
   let selectedIds = new Set();
+  let booksTrashCategoryLastRefreshAt = 0;
+  let booksTrashCategoryRefreshing = false;
+  const BOOKS_TRASH_CATEGORY_REFRESH_MS = 15000;
 
   /* ── helpers ── */
   function formatDate(dateString) {
@@ -85,23 +88,46 @@
 
   async function loadCategories() {
     try {
-      const res = await fetch('/api/books/categories');
+      const res = await fetch('/api/books/categories?ts=' + Date.now());
       if (!res.ok) return;
       const result = await res.json();
       const cats = result.data || result;
       const select = document.getElementById('categoryFilter');
       if (!select) return;
+      const currentValue = select.value || '';
+      const categoryValues = [];
       select.innerHTML = '<option value="">All Categories</option>';
       if (Array.isArray(cats)) {
         cats.forEach(c => {
           if (c.category) {
             const opt = document.createElement('option');
             opt.value = c.category; opt.textContent = c.category;
+            if (currentValue && currentValue === c.category) opt.selected = true;
             select.appendChild(opt);
+            categoryValues.push(c.category);
           }
         });
       }
+
+      if (currentValue && !categoryValues.includes(currentValue)) {
+        select.value = '';
+      }
+
+      booksTrashCategoryLastRefreshAt = Date.now();
     } catch (e) { console.error('Error loading categories:', e); }
+  }
+
+  async function refreshCategoriesIfNeeded(force) {
+    const isStale = (Date.now() - booksTrashCategoryLastRefreshAt) > BOOKS_TRASH_CATEGORY_REFRESH_MS;
+    if (!force && !isStale) return;
+    if (booksTrashCategoryRefreshing) return;
+
+    booksTrashCategoryRefreshing = true;
+    try {
+      await loadCategories();
+    } finally {
+      booksTrashCategoryRefreshing = false;
+    }
   }
 
   /* ── bulk ops ── */
@@ -135,7 +161,11 @@
     const clearButton    = document.getElementById('clearFilters');
     let t;
     if (searchInput)    searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(loadTrash, 300); });
-    if (categoryFilter) categoryFilter.addEventListener('change', loadTrash);
+    if (categoryFilter) {
+      categoryFilter.addEventListener('change', loadTrash);
+      categoryFilter.addEventListener('focus', () => { refreshCategoriesIfNeeded(true); });
+      categoryFilter.addEventListener('mousedown', () => { refreshCategoriesIfNeeded(true); });
+    }
     if (clearButton)    clearButton.addEventListener('click', () => { searchInput.value = ''; categoryFilter.value = ''; loadTrash(); });
   }
 
@@ -196,6 +226,11 @@
       window.location.href = '/login';
       return;
     }
+    
+    // Extended delay to ensure backend session is fully loaded from store
+    // on hard refresh (100ms gives enough time for MySQL session store)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     SA.utils.loadAdminHeader(s.adminId);
 
     trashManager = new TrashManager('books', '/api/admin/books');
@@ -203,6 +238,14 @@
     await loadCategories();
     setupFilters();
     setupBulkOps();
+
+    const refreshHandle = setInterval(() => {
+      refreshCategoriesIfNeeded(false);
+    }, BOOKS_TRASH_CATEGORY_REFRESH_MS);
+
+    window.addEventListener('beforeunload', () => {
+      clearInterval(refreshHandle);
+    }, { once: true });
   }
 
   /* ── namespace ── */

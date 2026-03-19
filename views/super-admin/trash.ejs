@@ -1,34 +1,23 @@
 <%
   var extraHead = [
-    '<link rel="stylesheet" href="/css/admin/trash.css">',
+     '<link rel="stylesheet" href="/css/admin/trash.css">',
+    '<script src="/js/admin/trash-bootstrap.js" defer><\/script>',
     '<script src="/js/shared/utils/safeFetch.js" defer><\/script>',
     '<script src="/js/admin/trash/services.js" defer><\/script>',
     '<script src="/js/admin/trash/table.js" defer><\/script>',
     '<script src="/js/admin/trash/actions.js" defer><\/script>',
     '<script src="/js/admin/trash/filters.js" defer><\/script>',
     '<script src="/js/admin/trash/index.js" defer><\/script>',
-    '<style>',
-      'html,body{overflow:hidden!important;height:100%!important;}',
-      '.sa-wrapper{height:100vh;overflow:hidden;}',
-      '.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}',
-      '.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}',
-    '<\/style>',
   ].join('');
 %>
 <%- include('../partials/super-admin-layout', {
   title: 'Trash Manager - SPIST Library',
   adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
   activePage: 'trash',
   extraHead: extraHead,
   body: `
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        var serverRole = '${adminRole}';
-        var clientRole = sessionStorage.getItem('adminRole') || '';
-        Trash.init({ adminRole: serverRole || clientRole });
-      });
-    <\/script>
-
     <div class="section-header">
       <h2><i class="bi bi-trash2 me-2"></i>Trash Bin</h2>
     </div>

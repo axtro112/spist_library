@@ -1,18 +1,14 @@
 <%
-  var extraHead = '<link rel="stylesheet" href="/css/super-admin/bulk-operations.css"><link rel="stylesheet" href="/css/super-admin/trash.css"><script src="/js/trash-manager.js" defer><\/script><script src="/js/super-admin/admins-trash.js" defer><\/script><style>html,body{overflow:hidden!important;height:100%!important;}.sa-wrapper{height:100vh;overflow:hidden;}.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}<\/style>';
+  var extraHead = '<script src="/js/trash-manager.js" defer><\/script><script src="/js/super-admin/admins-trash.js" defer><\/script>';
 %>
 <%- include('../partials/super-admin-layout', {
   title: 'Admins Trash - SPIST Library',
   adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
   activePage: 'admins-trash',
   extraHead: extraHead,
   body: `
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        SuperAdmin.AdminsTrashPage.init();
-      });
-    <\/script>
-
     <div class="section-header">
       <h2><i class="bi bi-trash me-2"></i>Admins Trash</h2>
     </div>
@@ -95,7 +91,7 @@
           <button type="button" id="trashDangerConfirmBtn" class="sa-btn sa-btn-danger" disabled>
             <i class="bi bi-trash3-fill me-1"></i> Delete Forever
           </button>
-          <button type="button" id="trashDangerCancelBtn" class="sa-btn sa-btn-outline">Cancel</button>
+          <button type="button" id="trashDangerCancelBtn" class="sa-btn sa-btn-outline cancel-btn">Cancel</button>
         </div>
       </div>
     </div>
@@ -117,7 +113,7 @@
           <button type="button" id="trashRestoreConfirmBtn" class="sa-btn sa-btn-success">
             <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
           </button>
-          <button type="button" id="trashRestoreCancelBtn" class="sa-btn sa-btn-outline">Cancel</button>
+          <button type="button" id="trashRestoreCancelBtn" class="sa-btn sa-btn-outline cancel-btn">Cancel</button>
         </div>
       </div>
     </div>

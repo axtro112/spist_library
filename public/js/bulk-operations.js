@@ -45,6 +45,10 @@ function isRowSelectable(row) {
   return total > 0;
 }
 
+function isRowVisible(row) {
+  return !!row && row.style.display !== 'none' && !row.classList.contains('books-tab-hidden');
+}
+
 /**
  * Disable checkboxes on non-selectable (unavailable) rows and mark the row.
  * Should be called after every table re-render.
@@ -61,7 +65,7 @@ function applyRowSelectability() {
     if (selectable) {
       checkbox.disabled = false;
       row.classList.remove('row-unavailable');
-      selectableCount++;
+      if (isRowVisible(row)) selectableCount++;
     } else {
       checkbox.disabled = true;
       checkbox.checked = false;
@@ -137,7 +141,7 @@ function selectAllCurrentPage() {
   
   checkboxes.forEach(checkbox => {
     const row = checkbox.closest('tr');
-    if (!row || !isRowSelectable(row)) return;
+    if (!row || !isRowVisible(row) || !isRowSelectable(row)) return;
     const bookId = parseInt(checkbox.dataset.bookId);
     checkbox.checked = true;
     selectedBookIds.add(bookId);
@@ -203,7 +207,7 @@ function updateMasterCheckboxState() {
     document.querySelectorAll('.book-row-checkbox')
   ).filter(cb => {
     const row = cb.closest('tr');
-    return row && isRowSelectable(row);
+    return row && isRowVisible(row) && isRowSelectable(row);
   });
 
   const totalSelectable = selectableCheckboxes.length;
@@ -414,7 +418,8 @@ async function handleBulkEditSubmit(e) {
       throw new Error(result.message || 'Failed to update books');
     }
     
-    alert(`Successfully updated ${result.updatedCount} book${result.updatedCount > 1 ? 's' : ''}`);
+    const updatedCount = result.data?.updatedCount || 0;
+    alert(`Successfully updated ${updatedCount} book${updatedCount > 1 ? 's' : ''}`);
     
     // Close modal, clear selection, and reload table with stats
     closeModal();

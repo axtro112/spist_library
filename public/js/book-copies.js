@@ -473,6 +473,9 @@ class BookCopyManager {
           <td>${borrowedBy}</td>
           <td>${dueDate}</td>
           <td>
+            <button class="action-btn btn-view" onclick="bookCopyManager.openCopyQr('${copy.accession_number}')" title="View QR Code">
+              <span class="material-symbols-outlined">qr_code_2</span>
+            </button>
             <button class="action-btn btn-edit" onclick="bookCopyManager.editCopy('${copy.accession_number}')" title="Edit">
               <span class="material-symbols-outlined">edit</span>
             </button>
@@ -524,7 +527,10 @@ class BookCopyManager {
         throw new Error(result.message || 'Failed to add copy');
       }
       
+      const qrDataUrl = result?.data?.qr_code_data_url;
+      const qrImageUrl = result?.data?.qr_code_image_url;
       alert(`✅ New copy added: ${result.data.accession_number}`);
+      this.showQrPreview(result.data.accession_number, qrDataUrl, qrImageUrl);
       
       // Close add modal and refresh copies list
       this.closeAddCopyModal();
@@ -539,6 +545,92 @@ class BookCopyManager {
       console.error('Error adding copy:', error);
       alert('Failed to add copy: ' + error.message);
     }
+  }
+
+  async openCopyQr(accessionNumber) {
+    const imagePath = `/api/book-copies/qr/${encodeURIComponent(accessionNumber)}`;
+    const imageUrl = new URL(imagePath, window.location.origin).toString();
+    const popup = window.open('', '_blank', 'width=420,height=520');
+    if (!popup) {
+      window.open(imageUrl, '_blank');
+      return;
+    }
+
+    popup.document.write(`
+      <html>
+        <head>
+          <title>QR - ${accessionNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 16px; text-align: center; }
+            h2 { margin: 0 0 8px; color: #14532d; font-size: 18px; }
+            p { margin: 0 0 12px; color: #4b5563; }
+            img { width: 300px; height: 300px; border: 1px solid #e5e7eb; border-radius: 8px; }
+            .hint { margin-top: 12px; font-size: 12px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <h2>${accessionNumber}</h2>
+          <p>Generated QR code for this copy</p>
+          <img id="copyQrImage" alt="QR code for ${accessionNumber}" />
+          <div id="copyQrHint" class="hint">Loading QR image...</div>
+        </body>
+      </html>
+    `);
+    popup.document.close();
+
+    try {
+      const doFetch = (typeof fetchWithCsrf === 'function') ? fetchWithCsrf : fetch;
+      const qrResponse = await doFetch(imagePath, { method: 'GET' });
+      if (!qrResponse.ok) throw new Error(`QR request failed (${qrResponse.status})`);
+
+      const qrBlob = await qrResponse.blob();
+      const blobUrl = URL.createObjectURL(qrBlob);
+
+      const qrImgEl = popup.document.getElementById('copyQrImage');
+      const hintEl = popup.document.getElementById('copyQrHint');
+      if (qrImgEl) qrImgEl.src = blobUrl;
+      if (hintEl) hintEl.textContent = 'QR ready';
+    } catch (error) {
+      const qrImgEl = popup.document.getElementById('copyQrImage');
+      const hintEl = popup.document.getElementById('copyQrHint');
+      if (qrImgEl) qrImgEl.src = imageUrl;
+      if (hintEl) hintEl.textContent = 'Loaded with fallback path';
+      console.warn('QR fetch fallback used:', error.message);
+    }
+  }
+
+  showQrPreview(accessionNumber, qrDataUrl, qrImageUrl) {
+    const popup = window.open('', '_blank', 'width=420,height=520');
+    if (!popup) {
+      if (qrImageUrl) {
+        window.open(new URL(qrImageUrl, window.location.origin).toString(), '_blank');
+      }
+      return;
+    }
+
+    const fallbackPath = `/api/book-copies/qr/${encodeURIComponent(accessionNumber)}`;
+    const src = qrDataUrl
+      || (qrImageUrl ? new URL(qrImageUrl, window.location.origin).toString() : '')
+      || new URL(fallbackPath, window.location.origin).toString();
+    popup.document.write(`
+      <html>
+        <head>
+          <title>New Copy QR - ${accessionNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 16px; text-align: center; }
+            h2 { margin: 0 0 8px; color: #14532d; font-size: 18px; }
+            p { margin: 0 0 16px; color: #4b5563; }
+            img { width: 300px; height: 300px; border: 1px solid #e5e7eb; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <h2>${accessionNumber}</h2>
+          <p>QR code generated successfully</p>
+          <img src="${src}" alt="QR code for ${accessionNumber}" />
+        </body>
+      </html>
+    `);
+    popup.document.close();
   }
 
   async editCopy(accessionNumber) {

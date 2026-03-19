@@ -252,6 +252,11 @@ body {
   color: #0a4830;
 }
 
+.toggle-password.active {
+  color: #2c7a30;
+  opacity: 1;
+}
+
 .toggle-password .eye-icon {
   width: 20px;
   height: 20px;

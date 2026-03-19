@@ -7,12 +7,41 @@
 let allBorrowings = [];
 let filteredBorrowings = [];
 let selectedBorrowingIds = new Set();
+let currentLifecycleFilter = 'pending_pickup';
+let borrowedCategoryLastRefreshAt = 0;
+let borrowedCategoryRefreshing = false;
+const BORROWED_CATEGORY_REFRESH_MS = 15000;
+const KANBAN_STAGE_IDS = {
+  pending: 'kanban-pending',
+  active: 'kanban-active',
+  overdue: 'kanban-overdue',
+  returned: 'kanban-returned',
+  history: 'kanban-history'
+};
+const KANBAN_COUNT_IDS = {
+  pending: 'count-pending',
+  active: 'count-active',
+  overdue: 'count-overdue',
+  returned: 'count-returned-kanban',
+  history: 'count-history'
+};
 
 // ===========================
 // INITIALIZATION
 // ===========================
 
+// Guard: Only run admin-side initialization
 document.addEventListener("DOMContentLoaded", async function () {
+  // Check if this is an admin page (super-admin/admin access) - if student page, do NOT run this
+  const userRole = sessionStorage.getItem("userRole");
+  const adminRole = sessionStorage.getItem("adminRole");
+  
+  // Only initialize on admin pages (skip if student)
+  if (userRole === "student" || !adminRole) {
+    console.log('[Borrowed Books Admin] Skipping - not an admin page');
+    return;
+  }
+  
   console.log('[Borrowed Books] Initializing...');
   
   // Load data
@@ -21,12 +50,42 @@ document.addEventListener("DOMContentLoaded", async function () {
   // Setup filters
   setupFilters();
   
+  // Initialize lifecycle panel
+  initBorrowLifecycle();
+  
+  // Auto-refresh borrowed books every 20 seconds
+  setInterval(async () => {
+    try {
+      await loadBorrowings();
+      await refreshCategoriesIfNeeded(false);
+      updateTabCounters();
+      console.log('[Borrowed Books] Auto-refreshed at', new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error('[Borrowed Books] Auto-refresh failed:', err);
+    }
+  }, 20000);
+  
   console.log('[Borrowed Books] Initialization complete');
 });
 
 // ===========================
 // DATA LOADING
 // ===========================
+
+function handleAdminAccessDenied(message) {
+  console.warn('[Borrowed Books] Admin access denied:', message || 'No message');
+  showToast(message || 'Session expired or insufficient privileges. Please log in as admin.', 'error');
+
+  // Clear stale admin markers to avoid repeated forbidden fetches.
+  sessionStorage.removeItem('adminId');
+  sessionStorage.removeItem('adminRole');
+  sessionStorage.removeItem('userRole');
+  sessionStorage.removeItem('isLoggedIn');
+
+  setTimeout(() => {
+    window.location.href = '/login';
+  }, 900);
+}
 
 async function loadBorrowings() {
   try {
@@ -38,7 +97,11 @@ async function loadBorrowings() {
     const response = await fetchWithCsrf(url);
     
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        handleAdminAccessDenied(error.message || 'Access denied. Admin privileges required.');
+        return;
+      }
       throw new Error(error.message || 'Failed to fetch borrowings');
     }
     
@@ -47,6 +110,12 @@ async function loadBorrowings() {
     filteredBorrowings = allBorrowings;
     
     console.log(`[Borrowed Books] Loaded ${allBorrowings.length} borrowings`);
+    
+    // Update lifecycle counters after loading
+    updateTabCounters();
+    
+    // Apply lifecycle filter
+    applyLifecycleFilter();
     
     displayBorrowings(filteredBorrowings);
     updateResultCount();
@@ -61,10 +130,15 @@ async function loadCategories() {
   try {
     console.log('[Borrowed Books] Loading categories...');
     
-    const response = await fetchWithCsrf('/api/admin/books');
+    const response = await fetchWithCsrf('/api/admin/books?ts=' + Date.now());
     
     if (!response.ok) {
-      throw new Error('Failed to fetch categories');
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        handleAdminAccessDenied(error.message || 'Access denied. Admin privileges required.');
+        return;
+      }
+      throw new Error(error.message || 'Failed to fetch categories');
     }
     
     const result = await response.json();
@@ -75,18 +149,39 @@ async function loadCategories() {
     
     const categoryFilter = document.getElementById('categoryFilter');
     if (categoryFilter) {
+      const currentValue = categoryFilter.value || '';
       categoryFilter.innerHTML = '<option value="">All Categories</option>';
       categories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat;
         option.textContent = cat;
+        if (currentValue && currentValue === cat) option.selected = true;
         categoryFilter.appendChild(option);
       });
+
+      if (currentValue && !categories.includes(currentValue)) {
+        categoryFilter.value = '';
+      }
+
+      borrowedCategoryLastRefreshAt = Date.now();
       console.log(`[Borrowed Books] Loaded ${categories.length} categories`);
     }
     
   } catch (error) {
     console.error('[Borrowed Books] Error loading categories:', error);
+  }
+}
+
+async function refreshCategoriesIfNeeded(force) {
+  const isStale = (Date.now() - borrowedCategoryLastRefreshAt) > BORROWED_CATEGORY_REFRESH_MS;
+  if (!force && !isStale) return;
+  if (borrowedCategoryRefreshing) return;
+
+  borrowedCategoryRefreshing = true;
+  try {
+    await loadCategories();
+  } finally {
+    borrowedCategoryRefreshing = false;
   }
 }
 
@@ -113,19 +208,32 @@ function setupFilters() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
       console.log('[Borrowed Books] Search changed:', searchInput.value);
-      loadBorrowings();
+      applyLifecycleFilter();
+      displayBorrowings(filteredBorrowings);
+      updateResultCount();
     }, 300);
   });
   
   // Filter changes
   categoryFilter.addEventListener('change', () => {
     console.log('[Borrowed Books] Category filter changed:', categoryFilter.value);
-    loadBorrowings();
+    applyLifecycleFilter();
+    displayBorrowings(filteredBorrowings);
+    updateResultCount();
+  });
+
+  categoryFilter.addEventListener('focus', () => {
+    refreshCategoriesIfNeeded(true);
+  });
+  categoryFilter.addEventListener('mousedown', () => {
+    refreshCategoriesIfNeeded(true);
   });
   
   statusFilter.addEventListener('change', () => {
     console.log('[Borrowed Books] Status filter changed:', statusFilter.value);
-    loadBorrowings();
+    applyLifecycleFilter();
+    displayBorrowings(filteredBorrowings);
+    updateResultCount();
   });
   
   // Clear filters
@@ -134,7 +242,9 @@ function setupFilters() {
     searchInput.value = '';
     categoryFilter.value = '';
     statusFilter.value = '';
-    loadBorrowings();
+    applyLifecycleFilter();
+    displayBorrowings(filteredBorrowings);
+    updateResultCount();
   });
   
   console.log('[Borrowed Books] Filters setup complete');
@@ -159,6 +269,156 @@ function updateResultCount() {
     const count = filteredBorrowings.length;
     resultCount.textContent = `${count} record${count !== 1 ? 's' : ''} found`;
   }
+}
+
+// ===========================
+// LIFECYCLE TAB FILTERING
+// ===========================
+
+function initBorrowLifecycle() {
+  console.log('[Borrowed Books] Initializing lifecycle tabs...');
+  
+  const tabs = document.querySelectorAll('.borrow-tab');
+  
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const status = tab.dataset.status;
+      console.log('[Borrowed Books] Tab clicked:', status);
+      
+      // Update active tab
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      // Update filter and re-render
+      currentLifecycleFilter = status;
+      applyLifecycleFilter();
+      displayBorrowings(filteredBorrowings);
+      updateResultCount();
+    });
+  });
+  
+  // Initial counter setup
+  updateTabCounters();
+}
+
+function normalizeBorrowStatus(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getLifecycleStageFromStatus(value) {
+  const status = normalizeBorrowStatus(value);
+
+  if (status === 'pending_pickup' || status === 'claim_expired' || status === 'pending') {
+    return 'pending';
+  }
+
+  if (status === 'overdue') {
+    return 'overdue';
+  }
+
+  if (
+    status === 'borrowed' ||
+    status === 'picked_up' ||
+    status === 'pending_return' ||
+    status === 'active'
+  ) {
+    return 'active';
+  }
+
+  if (status === 'returned') {
+    return 'returned';
+  }
+
+  if (status === 'completed' || status === 'history') {
+    return 'history';
+  }
+
+  return 'history';
+}
+
+function calculateTabCounters() {
+  const counters = {
+    pending_pickup: 0,
+    pending_return: 0,
+    returned: 0
+  };
+  
+  allBorrowings.forEach(borrowing => {
+    const stage = getLifecycleStageFromStatus(borrowing.display_status || borrowing.status);
+
+    if (stage === 'pending') {
+      counters.pending_pickup++;
+    } else if (stage === 'active' || stage === 'overdue') {
+      counters.pending_return++;
+    } else if (stage === 'returned' || stage === 'history') {
+      counters.returned++;
+    }
+  });
+  
+  return counters;
+}
+
+function updateTabCounters() {
+  const counters = calculateTabCounters();
+  
+  const countPendingPickup = document.getElementById('count-pending-pickup');
+  const countPendingReturn = document.getElementById('count-pending-return');
+  const countReturned = document.getElementById('count-returned');
+  
+  if (countPendingPickup) countPendingPickup.textContent = counters.pending_pickup;
+  if (countPendingReturn) countPendingReturn.textContent = counters.pending_return;
+  if (countReturned) countReturned.textContent = counters.returned;
+  
+  console.log('[Borrowed Books] Tab counters updated:', counters);
+}
+
+function applyLifecycleFilter() {
+  console.log('[Borrowed Books] Applying lifecycle filter:', currentLifecycleFilter);
+
+  // Apply filters in required order: Search -> Category -> Status -> Lifecycle
+  let tempBorrowings = allBorrowings.filter(matchesBaseFilters);
+
+  // Lifecycle stage filter is applied last
+  if (currentLifecycleFilter === 'pending_pickup') {
+    tempBorrowings = tempBorrowings.filter(b => {
+      const stage = getLifecycleStageFromStatus(b.display_status || b.status);
+      return stage === 'pending';
+    });
+  } else if (currentLifecycleFilter === 'pending_return') {
+    tempBorrowings = tempBorrowings.filter(b => {
+      const stage = getLifecycleStageFromStatus(b.display_status || b.status);
+      return stage === 'active' || stage === 'overdue';
+    });
+  } else if (currentLifecycleFilter === 'returned') {
+    tempBorrowings = tempBorrowings.filter(b => {
+      const stage = getLifecycleStageFromStatus(b.display_status || b.status);
+      return stage === 'returned' || stage === 'history';
+    });
+  }
+
+  filteredBorrowings = tempBorrowings;
+  console.log(`[Borrowed Books] After lifecycle filter: ${filteredBorrowings.length} records`);
+}
+
+function matchesBaseFilters(b) {
+  const search = document.getElementById('searchInput')?.value.toLowerCase() || '';
+  const category = document.getElementById('categoryFilter')?.value || '';
+  const statusFilter = document.getElementById('statusFilter')?.value || '';
+
+  if (search) {
+    const searchMatch = (
+      (b.student_name && b.student_name.toLowerCase().includes(search)) ||
+      (b.student_id && b.student_id.toLowerCase().includes(search)) ||
+      (b.book_title && b.book_title.toLowerCase().includes(search)) ||
+      (b.accession_number && b.accession_number.toLowerCase().includes(search))
+    );
+    if (!searchMatch) return false;
+  }
+
+  if (category && b.book_category !== category) return false;
+  if (statusFilter && b.display_status !== statusFilter) return false;
+
+  return true;
 }
 
 // ===========================
@@ -240,8 +500,15 @@ async function handleBulkConfirmPickup() {
   for (const id of ids) {
     try {
       const res = await fetchWithCsrf(`/api/admin/borrowings/${id}/confirm-pickup`, { method: 'POST' });
-      if (res.ok) success++;
-      else failed++;
+      if (res.ok) {
+        success++;
+      } else if (res.status === 401 || res.status === 403) {
+        const err = await res.json().catch(() => ({}));
+        handleAdminAccessDenied(err.message || 'Access denied. Admin privileges required.');
+        return;
+      } else {
+        failed++;
+      }
     } catch {
       failed++;
     }
@@ -249,7 +516,8 @@ async function handleBulkConfirmPickup() {
 
   showToast(`Pickup confirmed for ${success} record(s)${failed ? ` (${failed} failed)` : ''}.`, failed ? 'warning' : 'success');
   selectedBorrowingIds.clear();
-  loadBorrowings();
+  await loadBorrowings();
+  updateTabCounters();
 }
 
 async function handleBulkConfirmReturn() {
@@ -272,8 +540,15 @@ async function handleBulkConfirmReturn() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ condition: 'good' })
       });
-      if (res.ok) success++;
-      else failed++;
+      if (res.ok) {
+        success++;
+      } else if (res.status === 401 || res.status === 403) {
+        const err = await res.json().catch(() => ({}));
+        handleAdminAccessDenied(err.message || 'Access denied. Admin privileges required.');
+        return;
+      } else {
+        failed++;
+      }
     } catch {
       failed++;
     }
@@ -281,7 +556,8 @@ async function handleBulkConfirmReturn() {
 
   showToast(`Return confirmed for ${success} record(s)${failed ? ` (${failed} failed)` : ''}.`, failed ? 'warning' : 'success');
   selectedBorrowingIds.clear();
-  loadBorrowings();
+  await loadBorrowings();
+  updateTabCounters();
 }
 
 // ===========================
@@ -295,6 +571,8 @@ function displayBorrowings(borrowings) {
     console.error('[Borrowed Books] Table tbody not found!');
     return;
   }
+
+  renderKanbanBoard(borrowings);
   
   tbody.innerHTML = '';
   
@@ -316,6 +594,96 @@ function displayBorrowings(borrowings) {
     tbody.appendChild(row);
   });
   initBulkSelection();
+}
+
+function mapBorrowingToKanbanStage(record) {
+  return getLifecycleStageFromStatus(record.display_status || record.status);
+}
+
+function buildKanbanGroups(records) {
+  const grouped = {
+    pending: [],
+    active: [],
+    overdue: [],
+    returned: [],
+    history: []
+  };
+
+  records.forEach(record => {
+    const stage = mapBorrowingToKanbanStage(record);
+    if (!grouped[stage]) grouped[stage] = [];
+    grouped[stage].push(record);
+  });
+
+  return grouped;
+}
+
+function renderKanbanBoard(records) {
+  const board = document.getElementById('borrowKanbanBoard');
+  if (!board) return;
+
+  const groups = buildKanbanGroups(records);
+  let visibleColumns = 0;
+
+  Object.keys(KANBAN_STAGE_IDS).forEach(stage => {
+    const listEl = document.getElementById(KANBAN_STAGE_IDS[stage]);
+    if (!listEl) return;
+    const colEl = listEl.closest('.kanban-column');
+
+    const items = groups[stage] || [];
+    if (!items.length) {
+      listEl.innerHTML = '<div class="kanban-empty">No records</div>';
+      if (colEl) colEl.classList.add('is-hidden');
+      return;
+    }
+
+    visibleColumns++;
+    if (colEl) colEl.classList.remove('is-hidden');
+    listEl.innerHTML = items.map(renderKanbanCard).join('');
+  });
+
+  // If everything is empty, keep one column visible so the page doesn't look broken.
+  if (visibleColumns === 0) {
+    const pendingCol = document.querySelector('.kanban-column[data-stage="pending"]');
+    if (pendingCol) pendingCol.classList.remove('is-hidden');
+  }
+
+  updateKanbanCounters(groups);
+}
+
+function renderKanbanCard(record) {
+  const status = String(record.display_status || '').toLowerCase();
+  const canConfirmPickup = status === 'pending_pickup';
+  const canConfirmReturn = status === 'picked_up' || status === 'overdue' || status === 'borrowed' || status === 'pending_return';
+
+  const studentName = escapeHtml(record.student_name || 'Unknown student');
+  const studentId = escapeHtml(record.student_id || 'N/A');
+  const bookTitle = escapeHtml(record.book_title || 'Untitled');
+  const dueDate = record.due_date ? formatDate(record.due_date) : 'N/A';
+  const borrowId = Number(record.id);
+
+  return `
+    <div class="borrow-card" data-borrowing-id="${borrowId}">
+      <div class="card-title">${bookTitle}</div>
+      <div class="card-meta">
+        Student: ${studentName} (${studentId})<br>
+        Due Date: ${dueDate}
+      </div>
+      <div class="card-actions">
+        ${canConfirmPickup ? `<button type="button" class="sa-btn sa-btn-success" onclick="showPickupModal(${borrowId})">Confirm Pickup</button>` : ''}
+        ${canConfirmReturn ? `<button type="button" class="sa-btn sa-btn-primary" onclick="showReturnModal(${borrowId})">Confirm Return</button>` : ''}
+        <button type="button" class="sa-btn sa-btn-outline" onclick="showDetailsModal(${borrowId})">Details</button>
+      </div>
+    </div>
+  `;
+}
+
+function updateKanbanCounters(groups) {
+  Object.keys(KANBAN_COUNT_IDS).forEach(stage => {
+    const el = document.getElementById(KANBAN_COUNT_IDS[stage]);
+    if (!el) return;
+    el.textContent = (groups[stage] || []).length;
+  });
 }
 
 function createBorrowingRow(record) {
@@ -371,6 +739,7 @@ function createBorrowingRow(record) {
 function getStatusBadge(status) {
   const statusMap = {
     'pending_pickup': { label: 'Pending Pickup', color: '#f59e0b', bg: '#fef3c7' },
+    'claim_expired': { label: 'Claim Expired', color: '#b91c1c', bg: '#fee2e2' },
     'picked_up': { label: 'Picked Up', color: '#3b82f6', bg: '#dbeafe' },
     'returned': { label: 'Returned', color: '#10b981', bg: '#d1fae5' },
     'overdue': { label: 'Overdue', color: '#ef4444', bg: '#fee2e2' }
@@ -406,6 +775,16 @@ function getActionButtons(record, bookMissing = false) {
         >
           <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
           Pickup
+        </button>
+      `);
+      buttons.push(`
+        <button 
+          class="btn btn-sm btn-danger" 
+          onclick="cancelBorrowing(${record.id})"
+          title="Cancel Request"
+        >
+          <span class="material-symbols-outlined" style="font-size: 16px;">cancel</span>
+          Cancel
         </button>
       `);
     }
@@ -695,6 +1074,27 @@ function showDetailsModal(borrowingId) {
 // ACTIONS
 // ===========================
 
+async function cancelBorrowing(borrowingId) {
+  if (!confirm('Cancel this borrow request? The book will be returned to the available pool.')) return;
+  try {
+    const response = await fetchWithCsrf(`/api/admin/borrowings/${borrowingId}/cancel`, { method: 'POST' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        handleAdminAccessDenied(error.message || 'Access denied.');
+        return;
+      }
+      throw new Error(error.message || 'Failed to cancel borrow request');
+    }
+    showToast('Borrow request cancelled successfully.', 'success');
+    await loadBorrowings();
+    updateTabCounters();
+  } catch (error) {
+    console.error('[Borrowed Books] Error cancelling borrowing:', error);
+    showToast('Error: ' + error.message, 'error');
+  }
+}
+
 async function confirmPickup(borrowingId) {
   try {
     console.log('[Borrowed Books] Confirming pickup for:', borrowingId);
@@ -704,7 +1104,11 @@ async function confirmPickup(borrowingId) {
     });
     
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        handleAdminAccessDenied(error.message || 'Access denied. Admin privileges required.');
+        return;
+      }
       throw new Error(error.message || 'Failed to confirm pickup');
     }
     
@@ -716,6 +1120,7 @@ async function confirmPickup(borrowingId) {
     
     // Reload borrowings
     await loadBorrowings();
+    updateTabCounters();
     
   } catch (error) {
     console.error('[Borrowed Books] Error confirming pickup:', error);
@@ -735,7 +1140,11 @@ async function confirmReturn(borrowingId) {
     });
     
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        handleAdminAccessDenied(error.message || 'Access denied. Admin privileges required.');
+        return;
+      }
       throw new Error(error.message || 'Failed to confirm return');
     }
     
@@ -747,6 +1156,7 @@ async function confirmReturn(borrowingId) {
     
     // Reload borrowings
     await loadBorrowings();
+    updateTabCounters();
     
   } catch (error) {
     console.error('[Borrowed Books] Error confirming return:', error);

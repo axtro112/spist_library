@@ -37,12 +37,33 @@
 .btn-secondary:hover   { background: #4b5563; }
 
 /* ── MODAL (borrowed detail) ── */
-.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; }
-.modal-content { background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
-.modal-header { padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
-.modal-header h2 { margin: 0; font-size: 20px; color: #111827; }
-.modal-body { padding: 20px; }
-.modal-footer { padding: 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px; }
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 24, 14, 0.56);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+.modal-content {
+  background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(246,252,247,0.96) 100%);
+  border: 1px solid rgba(46,125,50,0.22);
+  border-radius: 18px;
+  max-width: 640px;
+  width: min(92vw, 640px);
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.26);
+}
+.modal-header { padding: 18px 20px; border-bottom: 1px solid rgba(46,125,50,0.18); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h2 { margin: 0; font-size: 20px; color: #1b5e20; }
+.modal-body { padding: 18px 20px; }
+.modal-footer { padding: 16px 20px; border-top: 1px solid rgba(46,125,50,0.18); display: flex; justify-content: flex-end; gap: 10px; }
 .modal-detail-grid { display: flex; flex-direction: column; gap: 12px; }
 .detail-row { display: grid; grid-template-columns: 140px 1fr; gap: 10px; }
 .detail-label { font-weight: 600; color: #374151; }
@@ -63,6 +84,94 @@ h4 { margin-top: 20px; margin-bottom: 10px; font-size: 16px; color: #111827; fon
 h4:first-child { margin-top: 0; }
 
 .result-count { font-size: 14px; color: #6b7280; margin-left: 10px; }
+
+/* ── LIFECYCLE TABS ── */
+.borrow-lifecycle-panel {
+  padding: 0;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.borrow-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 0;
+  padding: 0 4px;
+}
+
+.borrow-tab {
+display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -2px;
+  white-space: nowrap;
+}
+
+.borrow-tab i {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+.borrow-tab:hover {
+  color: #2e7d32;
+  background: rgba(46, 125, 50, 0.07);
+}
+
+.borrow-tab.active {
+  color: #2e7d32;
+  border-bottom-color: #2e7d32;
+  font-weight: 600;
+  background: rgba(46, 125, 50, 0.09);
+}
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(140, 144, 163, 0.1);
+  color: #0e5e3f;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+
+/* ── FADE ANIMATIONS ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
 
 /* ── TOAST ANIMATIONS ── */
 @keyframes slideInRight  { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }

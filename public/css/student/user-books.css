@@ -1,0 +1,518 @@
+/* ═══════════════════════════════════════════════
+   User Books Pages — shared table + filter styles
+   Applied to: available-books, browse-books, borrowed-books, dashboard
+   ═══════════════════════════════════════════════ */
+
+/* ── STAT CARDS (Dashboard) ── */
+.u-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.u-stat-card {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.u-stat-card:hover {
+  transform: translateY(-3px);
+  background: rgba(255,255,255,0.22);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+}
+.u-stat-icon {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.u-stat-num {
+  font-size: 32px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.u-stat-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* ── 2-COLUMN GRID (Dashboard) ── */
+.u-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .u-grid-2col { grid-template-columns: 1fr; }
+}
+
+/* ── PANELS ── */
+.u-panel {
+  background: rgba(255,255,255,0.96);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.09);
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow: hidden;
+}
+.u-panel .u-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(46,125,50,0.3) transparent;
+}
+.u-panel .u-table-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
+.u-panel .u-table-wrap::-webkit-scrollbar-track { background: transparent; }
+.u-panel .u-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(46,125,50,0.35);
+  border-radius: 3px;
+}
+.u-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8f5e9;
+}
+.u-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1b5e20;
+  margin: 0 0 12px 0;
+}
+.u-panel-header .u-panel-title { margin-bottom: 0; }
+.u-see-all {
+  font-size: 13px;
+  color: var(--u-green, #2e7d32);
+  text-decoration: none;
+  font-weight: 600;
+}
+.u-see-all:hover { text-decoration: underline; }
+
+/* ── TABLE ── */
+.u-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+}
+.u-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.u-table thead th {
+  background: var(--u-green, #2e7d32);
+  color: #fff;
+  padding: 12px 14px;
+  font-weight: 600;
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.u-table thead th:first-child { border-radius: 8px 0 0 0; }
+.u-table thead th:last-child  { border-radius: 0 8px 0 0; }
+.u-table tbody tr { border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
+.u-table tbody tr:last-child { border-bottom: none; }
+.u-table tbody tr:hover { background: #f1f8e9; }
+.u-table tbody td {
+  padding: 12px 14px;
+  color: #333;
+  vertical-align: middle;
+}
+
+/* Existing .user-table class — keep working on all pages */
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.user-table thead th {
+  background: var(--u-green, #2e7d32);
+  color: #fff;
+  padding: 12px 14px;
+  font-weight: 600;
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.user-table thead th:first-child { border-radius: 8px 0 0 0; }
+.user-table thead th:last-child  { border-radius: 0 8px 0 0; }
+.user-table tbody tr { border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
+.user-table tbody tr:last-child { border-bottom: none; }
+.user-table tbody tr:hover { background: #f1f8e9; }
+.user-table tbody td {
+  padding: 12px 14px;
+  color: #333;
+  vertical-align: middle;
+}
+
+/* ── BADGE / STATUS ── */
+.u-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.u-badge-available  { background: #e8f5e9; color: #2e7d32; }
+.u-badge-borrowed   { background: #fff3e0; color: #e65100; }
+.u-badge-overdue    { background: #ffebee; color: #c62828; }
+.u-badge-returned   { background: #e3f2fd; color: #1565c0; }
+
+/* ── ACTION BUTTONS ── */
+.u-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.u-btn-primary {
+  background: var(--u-green, #2e7d32);
+  color: #fff;
+}
+.u-btn-primary:hover  { background: #1b5e20; color: #fff; }
+.u-btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+.u-btn-outline {
+  background: #f1f8e9;
+  color: var(--u-green, #2e7d32);
+  border: 1.5px solid #c8e6c9;
+}
+.u-btn-outline:hover { background: var(--u-green, #2e7d32); color: #fff; border-color: var(--u-green, #2e7d32); }
+
+/* ── MODAL (shared across user pages) ── */
+.u-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
+}
+.u-modal-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px 32px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.u-modal-box h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1b5e20;
+  margin-bottom: 12px;
+}
+.u-modal-box p { color: #444; font-size: 14px; margin-bottom: 16px; }
+.u-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.u-btn-confirm {
+  flex: 1;
+  padding: 10px;
+  background: var(--u-green, #2e7d32);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.u-btn-confirm:hover { background: #1b5e20; }
+.u-btn-cancel {
+  flex: 1;
+  padding: 10px;
+  background: #f5f5f5;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 7px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.u-btn-cancel:hover { background: #e0e0e0; }
+
+/* ── Student Available Books: table polish (design only) ── */
+#availBooksBody td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+#availBooksBody .avail-check-cell {
+  width: 44px;
+  text-align: center;
+}
+
+#availBooksBody .avail-row-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+#availBooksBody .avail-id-cell {
+  color: #4b5563;
+  font-weight: 600;
+}
+
+#availBooksBody .avail-qty-cell {
+  text-align: center;
+}
+
+#availBooksBody .u-badge-available {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #b7e4bf;
+}
+
+#availBooksBody .avail-action-cell {
+  text-align: left;
+}
+
+#availBooksBody .u-btn-borrow {
+  min-width: 96px;
+  justify-content: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  #availBooksBody td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  #availBooksBody .u-btn-borrow {
+    min-width: 84px;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+}
+
+/* ── DATE INPUT ── */
+.u-date-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #c8e6c9;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  margin-top: 5px;
+}
+.u-date-input:focus { border-color: var(--u-green, #2e7d32); }
+.u-form-group label { font-size: 13px; font-weight: 600; color: #333; }
+.u-form-group { margin-bottom: 14px; }
+
+/* Selected count beside checkbox (Available Books page) */
+.avail-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.avail-select-wrap .form-check-input {
+  margin: 0;
+}
+
+#availSelectedCount {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── SELECTION TOOLBAR ── */
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #f1f8e9;
+  border: 1.5px solid #c8e6c9;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+}
+
+/* ── MINI CALENDAR (Dashboard) ── */
+.u-cal { font-size: 13px; user-select: none; }
+.u-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.u-cal-title { font-weight: 600; color: #2e7d32; font-size: 14px; }
+.u-cal-btn {
+  background: none;
+  border: 1px solid #c8e6c9;
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1.2;
+  color: #388e3c;
+}
+.u-cal-btn:hover { background: #e8f5e9; }
+.u-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.u-cal-dname {
+  text-align: center;
+  font-weight: 600;
+  color: #aaa;
+  font-size: 11px;
+  padding: 3px 0 5px;
+}
+.u-cal-day {
+  text-align: center;
+  padding: 5px 2px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #444;
+  min-height: 26px;
+  line-height: 16px;
+}
+.u-cal-empty { visibility: hidden; }
+.u-cal-today {
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-weight: 700;
+  border: 1px solid #a5d6a7;
+}
+.u-cal-due {
+  background: #fff3e0;
+  color: #e65100;
+  font-weight: 600;
+  border: 1px solid #ffcc80;
+  cursor: default;
+  position: relative;
+}
+.u-cal-today.u-cal-due {
+  background: #ffe0b2;
+  color: #bf360c;
+  border-color: #ff8f00;
+}
+.u-cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #888;
+}
+.u-cal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.u-cal-dot-today { background: #e8f5e9; border: 1px solid #a5d6a7; }
+.u-cal-dot-due   { background: #fff3e0; border: 1px solid #ffcc80; }
+
+/* ── BORROWED BOOKS TABS (match super-admin books-lifecycle-tabs design) ── */
+.borrow-lifecycle-panel {
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+}
+
+.borrow-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid #e5e7eb;
+  margin: 0 0 12px;
+  padding: 0 4px;
+  background: #f3f4f6;
+  border-radius: 10px 10px 0 0;
+}
+
+.borrow-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -2px;
+  white-space: nowrap;
+}
+
+.borrow-tab i {
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+.borrow-tab:hover {
+  color: #2e7d32;
+  background: #eceff1;
+}
+
+.borrow-tab.active {
+  color: #2e7d32;
+  border-bottom-color: #2e7d32;
+  font-weight: 600;
+  background: #e7f0eb;
+}
+
+.borrow-tabs .tab-badge {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(46, 125, 50, 0.14);
+  color: #1b5e20;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .u-stats-row { grid-template-columns: 1fr 1fr; }
+  .u-modal-box { padding: 20px; }
+  .borrow-tab { padding: 8px 14px; font-size: 12px; }
+}
+@media (max-width: 480px) {
+  .u-stats-row { grid-template-columns: 1fr; }
+  .borrow-tab span:not(.tab-badge) { display: none; }
+  .borrow-tab i { font-size: 16px; opacity: 1; }
+}

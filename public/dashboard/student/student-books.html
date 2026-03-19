@@ -251,7 +251,7 @@
         try {
           // Fetch from /api/books (already filtered for available status)
           console.log('[LoadBooks] Fetching from /api/books...');
-          const response = await fetchWithCsrf("/api/books");
+          const response = await fetchWithCsrf("/api/books?ts=" + Date.now());
           
           if (!response.ok) {
             throw new Error(`Failed to fetch books: ${response.status}`);
@@ -747,7 +747,7 @@
       async function loadCategories() {
         try {
           console.log('[LoadCategories] Starting to load categories...');
-          const response = await fetchWithCsrf("/api/books/categories");
+          const response = await fetchWithCsrf("/api/books/categories?ts=" + Date.now());
           console.log('[LoadCategories] Response status:', response.status);
           
           if (!response.ok) {
@@ -801,7 +801,7 @@
       async function loadAllBooks() {
         try {
           console.log('[LoadAllBooks] Fetching all books...');
-          const response = await fetchWithCsrf('/api/books');
+          const response = await fetchWithCsrf('/api/books?ts=' + Date.now());
           
           if (!response.ok) {
             throw new Error(`Failed to fetch books: ${response.status}`);
@@ -982,6 +982,7 @@
           const params = new URLSearchParams();
           if (searchQuery) params.append("search", searchQuery);
           if (category) params.append("category", category);
+          params.append("ts", Date.now());
 
           const url = `/api/books?${params.toString()}`;
           console.log('[LoadBooks] Fetching from:', url);

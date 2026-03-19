@@ -25,7 +25,11 @@
     }
 
     if (res.status === 401) {
+      const isTimeoutLogout = sessionStorage.getItem('timeout-logout') === 'true';
       sessionStorage.clear();
+      if (isTimeoutLogout) {
+        sessionStorage.setItem('timeout-logout', 'true');
+      }
       window.location.href = '/login';
       return { ok: false, status: 401, data: null };
     }

@@ -1,0 +1,79 @@
+<!-- ═══ Quick Borrow Modal — shared across all student pages ═══
+     Requires: /css/student/quick-borrow.css
+               /js/student/quick-borrow-modal.js              ═══ -->
+<div id="modal-user" class="qb-modal qb-hidden" aria-hidden="true">
+  <div class="qb-backdrop" onclick="closeModal(event)"></div>
+  <div class="qb-card" role="dialog" aria-modal="true"
+       aria-labelledby="qbTitle" onclick="event.stopPropagation()">
+
+    <div class="qb-header">
+      <h2 id="qbTitle">Quick Borrow</h2>
+      <button class="qb-close-btn" type="button"
+              onclick="closeModal(event)" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="qb-body">
+
+      <!-- Book Cart ─────────────────────────────────────────── -->
+      <div class="qb-section">
+        <div class="qb-section-head">
+          <h3>Book Cart</h3>
+          <span id="qbCartCount" class="qb-cart-badge"
+                aria-live="polite" style="display:none;">0</span>
+          <button class="qb-icon-btn" type="button" id="qbDueBtn"
+                  title="Set due date"
+                  onclick="document.getElementById('returnDate').showPicker?.();
+                           document.getElementById('returnDate').focus();">
+            <svg width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" aria-hidden="true">
+              <path d="M7 2v2M17 2v2M3 9h18M5 6h14a2 2 0 0 1 2 2v13
+                       a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"
+                    stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round"/>
+            </svg>
+          </button>
+          <input id="returnDate" class="qb-date" type="date"
+                 onchange="updateConfirmButtonState()" required />
+        </div>
+        <div id="bookDetailsContainer" class="qb-cart">
+          <div style="color:#999;font-style:italic;text-align:center;padding:20px;">
+            No book selected yet. Search below to add books.
+          </div>
+        </div>
+      </div>
+
+      <!-- Available Books ────────────────────────────────────── -->
+      <div class="qb-section">
+        <h3>Available Books</h3>
+        <div class="qb-search">
+          <span class="qb-search-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15
+                       7.5 7.5 0 0 1 0 15Z"
+                    stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input id="smartSearchInput" type="text" placeholder="Search"
+                 oninput="handleSmartSearch(this.value)" autocomplete="off" />
+        </div>
+        <div id="availableBooksContainer" class="qb-list" role="list">
+          <div style="color:#999;font-style:italic;text-align:center;padding:15px;">
+            Type to search for books...
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer buttons ─────────────────────────────────────── -->
+      <div class="qb-footer">
+        <button id="confirmBorrowBtn" class="qb-done" type="button"
+                onclick="handleBorrow()" disabled>Done</button>
+        <button class="qb-cancel" type="button"
+                onclick="closeModal(event)">Cancel</button>
+      </div>
+
+    </div><!-- /.qb-body -->
+
+    <div id="borrowMessageContainer" class="message-container"></div>
+  </div><!-- /.qb-card -->
+</div><!-- /#modal-user -->

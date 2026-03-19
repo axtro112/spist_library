@@ -15,11 +15,14 @@ class TrashManager {
     ).toString();
     const url = `${this.apiEndpoint}/trash${params ? '?' + params : ''}`;
     const res = await fetch(url, { credentials: 'include' });
-    if (res.status === 401 || res.status === 403) {
-      // Session expired or role mismatch — force re-login
+    if (res.status === 401) {
+      // Session expired — force re-login
       sessionStorage.clear();
       window.location.href = '/login';
       throw new Error('Session expired. Redirecting to login...');
+    }
+    if (res.status === 403) {
+      throw new Error('Access denied. You do not have permission to view this section.');
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const result = await res.json();

@@ -107,6 +107,39 @@ async function fetchWithCsrf(url, options = {}) {
     const response = await fetch(url, options);
     console.log(`[CSRF] Response: ${response.status} for ${method} ${url}`);
 
+    // Central guard for admin endpoints:
+    // logout redirect only on true unauthenticated state (401).
+    // Keep 403 in-page so role mismatch does not forcibly log out a valid session.
+    const isAdminApi = typeof url === 'string' && url.startsWith('/api/admin/');
+    if (isAdminApi && response.status === 401) {
+      if (!window.__adminAuthRedirecting) {
+        window.__adminAuthRedirecting = true;
+        console.warn('[CSRF] Admin session expired; clearing stale admin session markers and redirecting to /login');
+        sessionStorage.removeItem('adminId');
+        sessionStorage.removeItem('adminRole');
+        sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('isLoggedIn');
+        setTimeout(() => { window.location.href = '/login'; }, 600);
+      }
+    }
+
+    // Central guard for student endpoints: on 401 clear student session and redirect to login.
+    // /api/books is included when the page belongs to a student session.
+    const _studentRole = sessionStorage.getItem('userRole') === 'student';
+    const isStudentApi = typeof url === 'string' && (
+      url.startsWith('/api/students/') ||
+      url.startsWith('/api/book-borrowings/') ||
+      (_studentRole && url.startsWith('/api/books'))
+    );
+    if (isStudentApi && response.status === 401 && !window.__studentAuthRedirecting) {
+      window.__studentAuthRedirecting = true;
+      console.warn('[CSRF] Student access denied; clearing stale student session and redirecting to /login');
+      sessionStorage.removeItem('studentId');
+      sessionStorage.removeItem('userRole');
+      sessionStorage.removeItem('isLoggedIn');
+      setTimeout(() => { window.location.href = '/login'; }, 600);
+    }
+
     // If CSRF token is invalid, fetch new one and retry
     if (response.status === 403) {
       const contentType = response.headers.get("content-type");

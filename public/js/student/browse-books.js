@@ -1,4 +1,4 @@
-// ==================================================
+﻿// ==================================================
 // GLOBAL STATE AND FUNCTIONS
 // (Must be global for inline onclick handlers)
 // ==================================================
@@ -18,586 +18,29 @@ let currentFilters = {
   category: ''
 };
 
-// Smart Borrow Modal State
-let smartBorrowState = {
-  cartItems: [], // [{ bookId, title, author, isbn, accessionNo, availableQty, qty }]
-  availableBooks: [], // All available books loaded from API
-  filteredBooks: [], // Filtered results based on search
-  isLoading: false,
-  errorMessage: null,
-  searchQuery: '' // Current search query
-};
+// Smart Borrow Modal State — declared in quick-borrow-modal.js
+// (openSmartBorrowModal, showBorrowModal, closeModal, handleBorrow,
+//  addToCart, renderCart, etc. also live in quick-borrow-modal.js)
+
+// placeholder comment so the section marker is kept readable
+void 0;
 
 /* ========================================
-   MODAL FUNCTIONS (GLOBAL SCOPE)
+   MODAL FUNCTIONS
+   All modal logic (openSmartBorrowModal, showBorrowModal, closeModal,
+   handleBorrow, addToCart, renderCart, etc.) lives in:
+   /js/student/quick-borrow-modal.js
    ======================================== */
 
-// Function to open Smart Borrow modal (unified borrowing)
-async function openSmartBorrowModal() {
-  console.log('[Modal] openSmartBorrowModal called');
-  console.log('[Modal] Current cart state:', smartBorrowState.cartItems.length, 'items');
-  
-  // Reset modal state EXCEPT cartItems (preserve preloaded cart!)
-  smartBorrowState = {
-    cartItems: smartBorrowState.cartItems || [],  // PRESERVE existing cart
-    availableBooks: [],
-    filteredBooks: [],
-    isLoading: false,
-    errorMessage: null,
-    searchQuery: ''
-  };
-  
-  console.log('[Modal] State reset. Cart items preserved:', smartBorrowState.cartItems.length);
-  
-  // Clear session book ID
-  sessionStorage.removeItem("currentBorrowBookId");
-  
-  // Clear and reset inputs
-  const searchInput = document.getElementById("smartSearchInput");
-  if (searchInput) {
-    searchInput.value = "";
-  }
-  
-  // Set minimum date to tomorrow and maximum date to 7 days from today
-  const today = new Date();
-  const minDate = new Date(today);
-  minDate.setDate(today.getDate() + 1); // Minimum tomorrow
-  
-  const maxDate = new Date(today);
-  maxDate.setDate(today.getDate() + 7); // Maximum 7 days
+// browse-books uses openSmartBorrowModal() to open the shared Quick Borrow
+// modal with any pre-selected books. The function below is intentionally
+// NOT redeclared here — the shared version (from quick-borrow-modal.js)
+// is used directly.  We just register the page-specific success callback
+// inside DOMContentLoaded (further below).
 
-  const returnDateInput = document.getElementById("returnDate");
-  if (returnDateInput) {
-    returnDateInput.min = minDate.toISOString().split("T")[0];
-    returnDateInput.max = maxDate.toISOString().split("T")[0];
-    returnDateInput.value = maxDate.toISOString().split("T")[0]; // Default to max date (7 days)
-  }
+// ─── legacy function stubs that may still be referenced by old code ──
+// (safe to remove once confirmed nothing else calls them)
 
-  const modal = document.getElementById("modal-user");
-  if (!modal) {
-    console.error('[Modal] Modal element not found!');
-    return;
-  }
-  
-  // Force remove hidden class and show modal
-  modal.classList.remove("qb-hidden");
-  modal.style.display = "grid";
-  modal.setAttribute("aria-hidden", "false");
-  
-  console.log('[Modal] Modal shown. Loading available books...');
-  await loadAvailableBooksForModal();
-  
-  // Update display
-  updateSmartSearchDisplay();
-  updateConfirmButtonState();
-  
-  // Focus on search input
-  setTimeout(() => searchInput?.focus(), 100);
-}
-
-// Function to show book borrow modal - ONLY call when user clicks Borrow button
-async function showBorrowModal(bookId) {
-  console.log('[Modal] showBorrowModal called with bookId:', bookId);
-  
-  // Find the book in cached data
-  const book = allBooksData.find(b => b.id == bookId);
-  console.log('[Modal] Found book:', book ? book.title : 'NOT FOUND');
-  
-  // Reset modal state
-  smartBorrowState = {
-    cartItems: [],
-    availableBooks: [],
-    filteredBooks: [],
-    isLoading: false,
-    errorMessage: null,
-    searchQuery: ''
-  };
-  
-  sessionStorage.setItem("currentBorrowBookId", bookId);
-  
-  // Clear search input
-  const searchInput = document.getElementById("smartSearchInput");
-  if (searchInput) {
-    searchInput.value = "";
-  }
-  
-  // Set minimum date to tomorrow and maximum date to 7 days from today
-  const today = new Date();
-  const minDate = new Date(today);
-  minDate.setDate(today.getDate() + 1);
-  
-  const maxDate = new Date(today);
-  maxDate.setDate(today.getDate() + 7);
-
-  const returnDateInput = document.getElementById("returnDate");
-  if (returnDateInput) {
-    returnDateInput.min = minDate.toISOString().split("T")[0];
-    returnDateInput.max = maxDate.toISOString().split("T")[0];
-    returnDateInput.value = maxDate.toISOString().split("T")[0];
-  }
-
-  const modal = document.getElementById("modal-user");
-  if (!modal) {
-    console.error('[Modal] Modal element not found!');
-    return;
-  }
-  
-  // Force remove hidden class and show modal
-  modal.classList.remove("qb-hidden");
-  modal.style.display = "grid";
-  modal.setAttribute("aria-hidden", "false");
-  
-  // Load available books first
-  await loadAvailableBooksForModal();
-  
-  // Add book to cart after loading available books
-  if (book) {
-    addToCart(book);
-  }
-  
-  // Update display
-  updateSmartSearchDisplay();
-  updateConfirmButtonState();
-  
-  // Focus on search input
-  setTimeout(() => searchInput?.focus(), 100);
-}
-
-// Function to close modal
-function closeModal(event) {
-  console.log('[Modal] closeModal called');
-  
-  // Prevent event bubbling if event exists
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
-  
-  const modal = document.getElementById("modal-user");
-  if (modal) {
-    console.log('[Modal] Before close - classList:', modal.classList.toString());
-    
-    modal.classList.add("qb-hidden");
-    modal.style.display = ""; // Clear inline style
-    modal.setAttribute("aria-hidden", "true");
-    
-    console.log('[Modal] After close - classList:', modal.classList.toString());
-  }
-  
-  // Reset modal state
-  smartBorrowState = {
-    cartItems: [],
-    availableBooks: [],
-    filteredBooks: [],
-    isLoading: false,
-    errorMessage: null,
-    searchQuery: ''
-  };
-  
-  // Clear inputs when closing
-  const searchInput = document.getElementById("smartSearchInput");
-  if (searchInput) {
-    searchInput.value = "";
-  }
-  
-  sessionStorage.removeItem("currentBorrowBookId");
-}
-
-// Smart Search Handler (unified ISBN and title/author search)
-let smartSearchTimeout;
-
-// Load available books for modal
-async function loadAvailableBooksForModal() {
-  console.log('[LoadBooks] Starting load...');
-  smartBorrowState.isLoading = true;
-  smartBorrowState.errorMessage = null;
-  updateSmartSearchDisplay();
-
-  try {
-    console.log('[LoadBooks] Fetching from /api/books...');
-    const response = await fetchWithCsrf("/api/books");
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch books: ${response.status}`);
-    }
-
-    const result = await response.json();
-    let books = result.data || result || [];
-    
-    console.log('[LoadBooks] Raw books fetched:', books.length);
-    
-    // Filter only available books (available_quantity > 0)
-    books = books.filter(b => {
-      const qty = Number(b.available_quantity ?? b.available_qty ?? b.quantity ?? 0);
-      return qty > 0;
-    });
-    
-    console.log('[LoadBooks] After filtering available:', books.length);
-    
-    // Normalize book IDs
-    books = books.map(b => ({
-      ...b,
-      id: b.book_id ?? b.id ?? b.accession_no,
-      available_quantity: Number(b.available_quantity ?? b.available_qty ?? b.quantity ?? 0)
-    }));
-
-    smartBorrowState.availableBooks = books;
-    smartBorrowState.filteredBooks = books;
-    smartBorrowState.errorMessage = null;
-    
-    console.log('[LoadBooks] Books loaded successfully. Available:', books.length);
-  } catch (error) {
-    console.error("Error loading available books:", error);
-    smartBorrowState.availableBooks = [];
-    smartBorrowState.filteredBooks = [];
-    smartBorrowState.errorMessage = "Error loading books. Please try again.";
-  } finally {
-    smartBorrowState.isLoading = false;
-    console.log('[LoadBooks] Load complete. Updating display...');
-    updateSmartSearchDisplay();
-  }
-}
-
-function handleSmartSearch(query) {
-  clearTimeout(smartSearchTimeout);
-  smartSearchTimeout = setTimeout(() => {
-    performSmartSearch(query);
-  }, 400);
-}
-
-async function performSmartSearch(query) {
-  smartBorrowState.searchQuery = query?.trim() || '';
-  
-  if (!smartBorrowState.searchQuery) {
-    smartBorrowState.filteredBooks = smartBorrowState.availableBooks;
-    smartBorrowState.errorMessage = null;
-    updateSmartSearchDisplay();
-    return;
-  }
-
-  try {
-    const lowerQuery = smartBorrowState.searchQuery.toLowerCase();
-    
-    const filtered = smartBorrowState.availableBooks.filter((b) => {
-      const titleMatch = b.title && b.title.toLowerCase().includes(lowerQuery);
-      const authorMatch = b.author && b.author.toLowerCase().includes(lowerQuery);
-      const isbnMatch = b.isbn && b.isbn.toString().toLowerCase().includes(lowerQuery);
-      return titleMatch || authorMatch || isbnMatch;
-    });
-
-    smartBorrowState.filteredBooks = filtered;
-    smartBorrowState.errorMessage = filtered.length === 0 
-      ? "No books found matching your search" 
-      : null;
-  } catch (error) {
-    console.error("Error searching for book:", error);
-    smartBorrowState.filteredBooks = [];
-    smartBorrowState.errorMessage = "Error searching. Please try again.";
-  } finally {
-    updateSmartSearchDisplay();
-  }
-}
-
-// Normalize book ID from various possible fields
-function normalizeBookId(book) {
-  return book.book_id ?? book.id ?? book.accession_no;
-}
-
-// Add book to cart or increment quantity if already in cart
-function addToCart(book) {
-  if (!book) {
-    console.error('[AddToCart] Book object is null/undefined');
-    return;
-  }
-
-  const bookId = normalizeBookId(book);
-  console.log('[AddToCart] Adding book:', { title: book.title, bookId: bookId, available: book.available_quantity });
-  
-  const existing = smartBorrowState.cartItems.find(i => i.bookId == bookId);
-  
-  if (existing) {
-    console.log('[AddToCart] Book already in cart, incrementing qty from', existing.qty);
-    if (existing.qty < existing.availableQty) {
-      existing.qty++;
-    }
-  } else {
-    const newItem = {
-      bookId: bookId,
-      title: book.title,
-      author: book.author || 'Unknown',
-      isbn: book.isbn || 'N/A',
-      accessionNo: book.accession_no || book.accessionNo || book.isbn,
-      availableQty: Number(book.available_quantity ?? book.available_qty ?? book.quantity ?? 1),
-      qty: 1
-    };
-    console.log('[AddToCart] Adding new item to cart:', { title: newItem.title, bookId, availableQty: newItem.availableQty });
-    smartBorrowState.cartItems.push(newItem);
-  }
-  
-  console.log('[AddToCart] Cart now has', smartBorrowState.cartItems.length, 'items');
-  
-  updateSmartSearchDisplay();
-  updateConfirmButtonState();
-}
-
-// Select book from filtered results
-function selectBookFromResults(bookId) {
-  const book = smartBorrowState.filteredBooks.find(b => normalizeBookId(b) == bookId);
-  if (book && book.available_quantity > 0) {
-    addToCart(book);
-    smartBorrowState.errorMessage = null;
-    updateSmartSearchDisplay();
-    updateConfirmButtonState();
-  }
-}
-
-// Update smart search display in modal
-function updateSmartSearchDisplay() {
-  const cartContainer = document.getElementById("bookDetailsContainer");
-  const availableBooksContainer = document.getElementById("availableBooksContainer");
-  
-  if (!cartContainer || !availableBooksContainer) return;
-
-  renderCart();
-
-  if (smartBorrowState.isLoading) {
-    availableBooksContainer.innerHTML = '<div style="color: #4ba14e; font-style: italic; text-align: center; padding: 15px;">Loading books...</div>';
-    return;
-  }
-
-  if (smartBorrowState.errorMessage) {
-    availableBooksContainer.innerHTML = `<div style="color: #f44336; font-weight: bold; text-align: center; padding: 15px;">${smartBorrowState.errorMessage}</div>`;
-    return;
-  }
-
-  const booksToShow = smartBorrowState.filteredBooks;
-  
-  if (booksToShow.length > 0) {
-    const resultsHtml = booksToShow.map(book => {
-      const bookId = normalizeBookId(book);
-      const isAvailable = book.available_quantity > 0;
-      const isInCart = smartBorrowState.cartItems.some(i => i.bookId == bookId);
-      return `
-        <button 
-          class="qb-book ${isInCart ? 'qb-selected' : ''} ${!isAvailable ? 'qb-unavailable' : ''}"
-          type="button" 
-          data-book-id="${bookId}"
-          onclick="${isAvailable && !isInCart ? `selectBookFromResults(${bookId})` : ''}" 
-          ${!isAvailable || isInCart ? 'disabled' : ''}
-        >
-          <div class="qb-book-title">${book.title}</div>
-          <div class="qb-book-sub">${book.author || 'Unknown'} | ISBN: ${book.isbn || 'N/A'}</div>
-          <div class="qb-book-sub">
-            ${isInCart 
-              ? 'In Cart' 
-              : (isAvailable ? `Available (${book.available_quantity})` : 'Not available')}
-          </div>
-        </button>
-      `;
-    }).join('');
-    availableBooksContainer.innerHTML = resultsHtml;
-  } else {
-    availableBooksContainer.innerHTML = `
-      <div style="color: #999; font-style: italic; text-align: center; padding: 15px;">
-        ${smartBorrowState.searchQuery ? 'No books found matching your search' : 'No available books at the moment'}
-      </div>
-    `;
-  }
-}
-
-// Render cart items
-function renderCart() {
-  const cartContainer = document.getElementById("bookDetailsContainer");
-  if (!cartContainer) return;
-
-  if (smartBorrowState.cartItems.length === 0) {
-    cartContainer.innerHTML = '<div style="color: #999; font-style: italic; text-align: center; padding: 20px;">No book selected yet. Search below to add books.</div>';
-    return;
-  }
-
-  const cartHtml = smartBorrowState.cartItems.map(item => `
-    <div class="qb-cart-item" data-book-id="${item.bookId}">
-      <div class="qb-cart-title">${item.title}</div>
-      <div class="qb-qty">
-        <button class="qb-qty-btn" type="button" onclick="changeQuantity(${item.bookId}, -1)" aria-label="Decrease quantity">-</button>
-        <input class="qb-qty-input" type="number" min="1" max="${item.availableQty}" value="${item.qty}" onchange="setQuantity(${item.bookId}, this.value)" />
-        <button class="qb-qty-btn" type="button" onclick="changeQuantity(${item.bookId}, 1)" aria-label="Increase quantity" ${item.qty >= item.availableQty ? 'disabled' : ''}>+</button>
-      </div>
-      <button class="qb-remove-btn" type="button" onclick="removeFromCart(${item.bookId})" aria-label="Remove from cart" title="Remove">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-  `).join('');
-
-  cartContainer.innerHTML = cartHtml;
-}
-
-// Change quantity by delta
-function changeQuantity(bookId, delta) {
-  const item = smartBorrowState.cartItems.find(i => i.bookId === bookId);
-  if (!item) return;
-
-  const newQty = item.qty + delta;
-  if (newQty < 1) {
-    removeFromCart(bookId);
-    return;
-  }
-  if (newQty > item.availableQty) return;
-
-  item.qty = newQty;
-  renderCart();
-  updateConfirmButtonState();
-}
-
-// Set quantity directly from input
-function setQuantity(bookId, value) {
-  const item = smartBorrowState.cartItems.find(i => i.bookId === bookId);
-  if (!item) return;
-
-  const qty = parseInt(value, 10);
-  if (isNaN(qty) || qty < 1) {
-    removeFromCart(bookId);
-    return;
-  }
-
-  item.qty = Math.min(qty, item.availableQty);
-  renderCart();
-  updateConfirmButtonState();
-}
-
-// Remove item from cart
-function removeFromCart(bookId) {
-  smartBorrowState.cartItems = smartBorrowState.cartItems.filter(i => i.bookId !== bookId);
-  renderCart();
-  updateSmartSearchDisplay();
-  updateConfirmButtonState();
-}
-
-// Update confirm button state
-function updateConfirmButtonState() {
-  const confirmBtn = document.getElementById("confirmBorrowBtn");
-  const returnDate = document.getElementById("returnDate");
-  
-  if (!confirmBtn) return;
-
-  const hasBooks = smartBorrowState.cartItems.length > 0;
-  const hasDate = returnDate && returnDate.value;
-
-  console.log('[UpdateButton] Cart items:', smartBorrowState.cartItems.length, 'Return date:', hasDate);
-  
-  confirmBtn.disabled = !hasBooks || !hasDate;
-}
-
-// Handle borrow confirmation
-async function handleBorrow() {
-  const messageContainer = document.getElementById("borrowMessageContainer");
-  const confirmBtn = document.getElementById("confirmBorrowBtn");
-  const originalBtnText = confirmBtn.textContent;
-
-  if (smartBorrowState.cartItems.length === 0) {
-    if (messageContainer) {
-      messageContainer.innerHTML = '<div style="background: #fff3cd; border: 2px solid #ffc107; padding: 12px; border-radius: 8px; margin: 10px 0;"><p style="margin: 0; color: #856404; font-weight: bold;">Please add books to cart first</p></div>';
-    }
-    return;
-  }
-
-  const returnDate = document.getElementById("returnDate").value;
-  if (!returnDate) {
-    if (messageContainer) {
-      messageContainer.innerHTML = '<div style="background: #fff3cd; border: 2px solid #ffc107; padding: 12px; border-radius: 8px; margin: 10px 0;"><p style="margin: 0; color: #856404; font-weight: bold;">Please select a return date</p></div>';
-    }
-    return;
-  }
-
-  try {
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = "Processing...";
-    if (messageContainer) {
-      messageContainer.innerHTML = '<div style="background: #e3f2fd; border: 2px solid #2196f3; padding: 12px; border-radius: 8px; margin: 10px 0;"><p style="margin: 0; color: #1976d2; font-style: italic;">Processing your request...</p></div>';
-    }
-
-    const studentId = sessionStorage.getItem("studentId");
-    if (!studentId) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-    let successCount = 0;
-    let failedBooks = [];
-    
-    for (const item of smartBorrowState.cartItems) {
-      try {
-        for (let i = 0; i < item.qty; i++) {
-          const response = await fetchWithCsrf("/api/students/borrow-book", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bookId: item.bookId,
-              studentId: studentId,
-              returnDate: returnDate,
-            }),
-          });
-
-          const result = await response.json();
-
-          if (!response.ok) {
-            throw new Error(result.error || result.message || "Failed to borrow book");
-          }
-          
-          successCount++;
-        }
-      } catch (error) {
-        console.error(`Failed to borrow ${item.title}:`, error);
-        failedBooks.push({ title: item.title, error: error.message });
-      }
-    }
-
-    if (messageContainer) {
-      if (failedBooks.length === 0) {
-        messageContainer.innerHTML = `
-          <div style="background: #d4edda; border: 2px solid #28a745; padding: 15px; border-radius: 8px; margin: 10px 0;">
-            <p style="margin: 0; color: #155724; font-weight: bold; font-size: 1.1em;">${successCount} book(s) borrowed successfully!</p>
-            <p style="margin: 8px 0 0 0; color: #155724;">Due date: ${new Date(returnDate).toLocaleDateString()}</p>
-          </div>
-        `;
-      } else if (successCount > 0) {
-        messageContainer.innerHTML = `
-          <div style="background: #fff3cd; border: 2px solid #ffc107; padding: 15px; border-radius: 8px; margin: 10px 0;">
-            <p style="margin: 0; color: #856404; font-weight: bold;">Partially successful</p>
-            <p style="margin: 8px 0 0 0; color: #856404;">${successCount} book(s) borrowed, ${failedBooks.length} failed</p>
-          </div>
-        `;
-      } else {
-        throw new Error(`Failed to borrow books: ${failedBooks[0]?.error || 'Unknown error'}`);
-      }
-    }
-
-    setTimeout(() => {
-      smartBorrowState.cartItems = [];
-      selectedBooks.clear();
-      updateSelectionUI();
-      updateSelectAllCheckbox();
-      closeModal();
-      if (messageContainer) messageContainer.innerHTML = '';
-      const searchValue = document.querySelector(".search-bar input")?.value || "";
-      const filterValue = document.querySelector(".filter-dropdown select")?.value || "";
-      if (window.loadBooks) loadBooks(searchValue, filterValue);
-    }, 2000);
-
-  } catch (error) {
-    console.error("Borrow error:", error);
-    if (messageContainer) {
-      messageContainer.innerHTML = `
-        <div style="background: #f8d7da; border: 2px solid #dc3545; padding: 15px; border-radius: 8px; margin: 10px 0;">
-          <p style="margin: 0; color: #721c24; font-weight: bold;">Error: ${error.message}</p>
-        </div>
-      `;
-    }
-    confirmBtn.disabled = false;
-    confirmBtn.textContent = originalBtnText;
-  }
-}
 
 // ==================================================
 // AUTHENTICATION AND INITIALIZATION
@@ -615,6 +58,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       alert('Please log in with student credentials to access this page.');
     }
     sessionStorage.clear();
+    if (isTimeoutLogout) {
+      sessionStorage.setItem('timeout-logout', 'true');
+    }
     window.location.href = "/login";
     return;
   }
@@ -625,18 +71,16 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (userNameEl) userNameEl.textContent = sessionStorage.getItem("userName") || "Student";
   if (userIDEl) userIDEl.textContent = sessionStorage.getItem("userID") || "STD-0000-000";
 
+  // After a successful Quick Borrow, clear selection and refresh the book list
+  window.onQuickBorrowSuccess = function () {
+    selectedBooks.clear();
+    updateSelectionUI();
+    updateSelectAllCheckbox();
+    loadAllBooks();
+  };
+
   await loadAllBooks();
   setupFilterListeners();
-});
-
-// ESC key to close modal
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    const modal = document.getElementById("modal-user");
-    if (modal && !modal.classList.contains("qb-hidden")) {
-      closeModal();
-    }
-  }
 });
 
 // Logout functions
@@ -651,15 +95,24 @@ function closeLogoutModal() {
 }
 
 function logout() {
-  sessionStorage.clear();
-  window.location.href = "/login";
+  fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' }
+  }).catch(() => {
+    // Ignore network errors; client-side redirect still proceeds.
+  }).finally(() => {
+    sessionStorage.clear();
+    window.location.href = "/login";
+  });
 }
 
 // Function to load all books initially (no filters)
 async function loadAllBooks() {
   try {
     console.log('[LoadAllBooks] Fetching all books...');
-    const response = await fetchWithCsrf('/api/books');
+    const response = await fetchWithCsrf('/api/books?ts=' + Date.now());
     
     if (!response.ok) {
       throw new Error(`Failed to fetch books: ${response.status}`);
@@ -1047,8 +500,9 @@ document.addEventListener("DOMContentLoaded", function() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ bookIds: Array.from(selectedBooks), studentId }),
         });
+        if (response.status === 401) throw new Error("Session expired. Please log in again.");
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Failed to borrow books");
+        if (!response.ok) throw new Error(result.message || result.error || "Failed to borrow books");
 
         alert(`Successfully borrowed ${result.successCount} book(s)!\n\nDue date: ${result.dueDate}`);
         const modal = document.getElementById("bulk-borrow-modal");

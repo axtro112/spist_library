@@ -62,13 +62,17 @@
       .join(" ");
   }
 
+  async function _fetchDashboardStats() {
+    const doFetch = typeof fetchWithCsrf === "function" ? fetchWithCsrf : fetch;
+    const res = await doFetch("/api/admin/dashboard/stats", { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to fetch dashboard statistics");
+    const result = await res.json();
+    return result.data || result;
+  }
+
   async function _refreshActivities() {
     try {
-      const res = await fetch("/api/admin/dashboard/stats");
-      if (!res.ok) throw new Error("Failed to fetch dashboard statistics");
-
-      const result    = await res.json();
-      const statsData = result.data || result;
+      const statsData = await _fetchDashboardStats();
       const list      = document.getElementById("activityList");
       if (!list) return;
 
@@ -104,11 +108,7 @@
    * ------------------------------------------------------------------ */
   async function _refreshStats() {
     try {
-      const res = await fetch("/api/admin/dashboard/stats");
-      if (!res.ok) throw new Error("Failed to fetch dashboard statistics");
-
-      const result    = await res.json();
-      const statsData = result.data || result;
+      const statsData = await _fetchDashboardStats();
 
       Core.utils.setText("totalBooks",          statsData.total_books        || 0);
       Core.utils.setText("activeBorrowings",    statsData.activeBorrowings   || 0);

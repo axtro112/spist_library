@@ -49,7 +49,10 @@
         window.currentAdminId = session.adminId;
 
         if (!session.isLoggedIn || session.userRole !== "admin") {
-          alert("Please log in with admin credentials to access this page.");
+          const isTimeoutLogout = sessionStorage.getItem('timeout-logout') === 'true';
+          if (!isTimeoutLogout) {
+            alert("Please log in with admin credentials to access this page.");
+          }
           window.location.href = "/login";
           return;
         }

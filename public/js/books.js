@@ -1,5 +1,159 @@
 let currentBookIdForDeletion = null;
 let students = [];
+let allBooks = [];
+
+const filters = {
+  search: "",
+  category: "",
+  status: "",
+};
+let booksCategoryLastRefreshAt = 0;
+let booksCategoryRefreshing = false;
+const BOOKS_CATEGORY_REFRESH_MS = 15000;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BOOK METADATA VALIDATION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+const bookMetaValidation = {
+  validateTitle(title) {
+    const trimmed = (title || "").trim();
+    if (!trimmed) return { valid: false, error: "Title is required" };
+    if (trimmed.length < 2) return { valid: false, error: "Title must be at least 2 characters" };
+    if (trimmed.length > 255) return { valid: false, error: "Title must be less than 255 characters" };
+    return { valid: true };
+  },
+
+  validateAuthor(author) {
+    const trimmed = (author || "").trim();
+    if (!trimmed) return { valid: false, error: "Author is required" };
+    if (trimmed.length < 2) return { valid: false, error: "Author must be at least 2 characters" };
+    if (trimmed.length > 255) return { valid: false, error: "Author must be less than 255 characters" };
+    return { valid: true };
+  },
+
+  validateISBN(isbn) {
+    const trimmed = (isbn || "").trim();
+    if (!trimmed) return { valid: false, error: "ISBN is required" };
+    // Allow ISBN-10 (10 digits/X), ISBN-13 (13 digits), or looser barcode format (5-20 chars)
+    const isbnPattern = /^(?:\d{10}X?|\d{13}|[\d\-]{5,20})$/i;
+    if (!isbnPattern.test(trimmed)) {
+      return { valid: false, error: "ISBN must be 10–13 digits or valid barcode format" };
+    }
+    return { valid: true };
+  },
+
+  validateCategory(category) {
+    const trimmed = (category || "").trim();
+    if (!trimmed) return { valid: false, error: "Category is required" };
+    if (trimmed.length > 100) return { valid: false, error: "Category must be less than 100 characters" };
+    return { valid: true };
+  },
+
+  validateStatus(status) {
+    const trimmed = (status || "").trim();
+    const validStatuses = ["available", "active", "maintenance", "retired", "borrowed"];
+    if (!trimmed) return { valid: false, error: "Status is required" };
+    if (!validStatuses.includes(trimmed)) {
+      return { valid: false, error: `Status must be one of: ${validStatuses.join(", ")}` };
+    }
+    return { valid: true };
+  },
+
+  validateBookForm(formData) {
+    const errors = [];
+    const titleVal = this.validateTitle(formData.title);
+    if (!titleVal.valid) errors.push(titleVal.error);
+    const authorVal = this.validateAuthor(formData.author);
+    if (!authorVal.valid) errors.push(authorVal.error);
+    const isbnVal = this.validateISBN(formData.isbn);
+    if (!isbnVal.valid) errors.push(isbnVal.error);
+    const categoryVal = this.validateCategory(formData.category);
+    if (!categoryVal.valid) errors.push(categoryVal.error);
+    const statusVal = this.validateStatus(formData.status);
+    if (!statusVal.valid) errors.push(statusVal.error);
+    return {
+      valid: errors.length === 0,
+      errors: errors,
+    };
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UI SYNC HELPERS (after copy changes)
+// ═══════════════════════════════════════════════════════════════════════════
+const copySync = {
+  async refreshTableRow(bookId) {
+    console.log("[copySync] Refreshing table row for book:", bookId);
+    // After copy changes, reload book list to show updated quantities
+    await loadBooks();
+    if (typeof buildCategoryOptions === 'function') {
+      await loadCategories();
+    }
+  },
+
+  async refreshAfterCopiesChange() {
+    console.log("[copySync] Copies were modified, syncing UI...");
+    await reloadBooksAndStats();
+  },
+};
+
+function normalizeCategory(category) {
+  return (category || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function formatCategoryLabel(category) {
+  const trimmed = (category || "").trim().replace(/\s+/g, " ");
+  if (!trimmed) return "";
+  return trimmed
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function buildCategoryOptions(books) {
+  const categoryFilter = document.getElementById("categoryFilter");
+  if (!categoryFilter) {
+    console.error("[Books Filter] Category filter element not found!");
+    return;
+  }
+
+  const currentValue = categoryFilter.value || "";
+  const normalizedCurrent = normalizeCategory(currentValue);
+
+  const categoryMap = new Map();
+  (books || []).forEach((book) => {
+    const raw = (book && book.category ? String(book.category) : "").trim().replace(/\s+/g, " ");
+    const normalized = normalizeCategory(raw);
+    if (!normalized) return;
+    if (!categoryMap.has(normalized)) {
+      categoryMap.set(normalized, {
+        value: raw,
+        label: formatCategoryLabel(raw)
+      });
+    }
+  });
+
+  const sorted = Array.from(categoryMap.entries())
+    .map(([normalized, data]) => ({ normalized, ...data }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  categoryFilter.innerHTML = '<option value="">All Categories</option>';
+
+  sorted.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category.value;
+    option.textContent = category.label;
+    if (normalizedCurrent && normalizedCurrent === category.normalized) {
+      option.selected = true;
+    }
+    categoryFilter.appendChild(option);
+  });
+
+  if (!sorted.some((category) => category.normalized === normalizedCurrent)) {
+    categoryFilter.value = "";
+  }
+}
 
 function closeModal() {
   const modals = document.querySelectorAll(".modal");
@@ -23,7 +177,61 @@ function formatDate(dateString) {
   });
 }
 
+function hydrateSessionFromPageDataset() {
+  const body = document.body;
+  if (!body) return;
+
+  const dataRole = body.getAttribute("data-role") || "";
+  const dataAdminId = body.getAttribute("data-admin-id") || "";
+  const dataAdminRole = body.getAttribute("data-admin-role") || "";
+
+  if (dataRole === "admin" && dataAdminId) {
+    sessionStorage.setItem("isLoggedIn", "true");
+    sessionStorage.setItem("userRole", "admin");
+    sessionStorage.setItem("adminId", dataAdminId);
+    if (dataAdminRole) {
+      sessionStorage.setItem("adminRole", dataAdminRole);
+    }
+  }
+}
+
+async function recoverAdminSessionFromServerIfNeeded() {
+  if (sessionStorage.getItem("isLoggedIn") && sessionStorage.getItem("userRole")) {
+    return;
+  }
+
+  if (window.AuthHelper && typeof window.AuthHelper.ensureAdminSessionFromServer === "function") {
+    await window.AuthHelper.ensureAdminSessionFromServer();
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/debug/session", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      keepalive: true,
+    });
+
+    if (!response.ok) return;
+    const payload = await response.json().catch(() => null);
+    const user = payload && payload.sessionData && payload.sessionData.user;
+
+    if (user && user.userRole === "admin" && user.id) {
+      sessionStorage.setItem("isLoggedIn", "true");
+      sessionStorage.setItem("userRole", "admin");
+      sessionStorage.setItem("adminId", String(user.id));
+      if (user.role) sessionStorage.setItem("adminRole", user.role);
+    }
+  } catch (_) {
+    // No-op: normal guard runs below if recovery fails.
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async function () {
+  hydrateSessionFromPageDataset();
+  await recoverAdminSessionFromServerIfNeeded();
+
   const isLoggedIn = sessionStorage.getItem("isLoggedIn");
   const userRole = sessionStorage.getItem("userRole");
 
@@ -58,13 +266,21 @@ document.addEventListener("DOMContentLoaded", async function () {
   
   // Set up search and filter event listeners
   setupSearchAndFilters();
+
+  const booksCategoryRefreshHandle = setInterval(() => {
+    refreshCategoriesIfNeeded(false);
+  }, BOOKS_CATEGORY_REFRESH_MS);
+
+  window.addEventListener('beforeunload', () => {
+    clearInterval(booksCategoryRefreshHandle);
+  }, { once: true });
 });
 
 // Load unique categories from all books to populate the dropdown
 async function loadCategories() {
   console.log('[Books Filter] Loading categories...');
   try {
-    const response = await fetchWithCsrf('/api/admin/books');
+    const response = await fetchWithCsrf('/api/admin/books?ts=' + Date.now());
     if (!response.ok) {
       console.error('[Books Filter] Failed to fetch books for categories');
       return;
@@ -73,29 +289,25 @@ async function loadCategories() {
     const result = await response.json();
     const books = result.data || []; // Extract books from response wrapper
     console.log('[Books Filter] Total books loaded:', books.length);
-    
-    const categories = [...new Set(books.map(b => b.category).filter(c => c && c.trim()))];
-    categories.sort();
-    console.log('[Books Filter] Unique categories found:', categories);
-    
-    const categoryFilter = document.getElementById('categoryFilter');
-    if (categoryFilter) {
-      // Keep the "All Categories" option and add the rest
-      const currentValue = categoryFilter.value;
-      categoryFilter.innerHTML = '<option value="">All Categories</option>';
-      categories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat;
-        categoryFilter.appendChild(option);
-      });
-      categoryFilter.value = currentValue;
-      console.log('[Books Filter] Category dropdown populated with', categories.length, 'categories');
-    } else {
-      console.error('[Books Filter] Category filter element not found!');
-    }
+
+    buildCategoryOptions(books);
+    booksCategoryLastRefreshAt = Date.now();
+    console.log('[Books Filter] Category dropdown populated from live data');
   } catch (error) {
     console.error('[Books Filter] Error loading categories:', error);
+  }
+}
+
+async function refreshCategoriesIfNeeded(force) {
+  const isStale = (Date.now() - booksCategoryLastRefreshAt) > BOOKS_CATEGORY_REFRESH_MS;
+  if (!force && !isStale) return;
+  if (booksCategoryRefreshing) return;
+
+  booksCategoryRefreshing = true;
+  try {
+    await loadCategories();
+  } finally {
+    booksCategoryRefreshing = false;
   }
 }
 
@@ -126,19 +338,29 @@ function setupSearchAndFilters() {
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
-      loadBooks();
+      filters.search = (searchInput.value || '').trim();
+      applyCombinedFilters();
     }, 300); // Wait 300ms after user stops typing
   });
   
   // Apply filters immediately when changed
   categoryFilter.addEventListener('change', () => {
     console.log('[Books Filter] Category changed to:', categoryFilter.value);
-    loadBooks();
+    filters.category = categoryFilter.value || '';
+    applyCombinedFilters();
+  });
+
+  categoryFilter.addEventListener('focus', () => {
+    refreshCategoriesIfNeeded(true);
+  });
+  categoryFilter.addEventListener('mousedown', () => {
+    refreshCategoriesIfNeeded(true);
   });
   
   statusFilter.addEventListener('change', () => {
     console.log('[Books Filter] Status changed to:', statusFilter.value);
-    loadBooks();
+    filters.status = statusFilter.value || '';
+    applyCombinedFilters();
   });
   
   // Clear all filters button
@@ -147,33 +369,84 @@ function setupSearchAndFilters() {
     searchInput.value = '';
     categoryFilter.value = '';
     statusFilter.value = '';
-    loadBooks();
+    filters.search = '';
+    filters.category = '';
+    filters.status = '';
+    applyCombinedFilters();
   });
   
   console.log('[Books Filter] All event listeners attached successfully');
 }
 
-function getFilterParams() {
-  const search = document.getElementById('searchInput')?.value || '';
-  const category = document.getElementById('categoryFilter')?.value || '';
-  const status = document.getElementById('statusFilter')?.value || '';
-  
-  console.log('[Books Filter] Current filter values:', { search, category, status });
-  
-  const params = new URLSearchParams();
-  if (search.trim()) params.append('search', search.trim());
-  if (category.trim()) params.append('category', category.trim());
-  if (status.trim()) params.append('status', status.trim());
-  
-  console.log('[Books Filter] Filter params:', params.toString());
-  
-  return params.toString();
+function getBookAvailability(book) {
+  const totalQty = book.quantity || 1;
+  const availableQty = (book.available_quantity !== undefined && book.available_quantity !== null)
+    ? book.available_quantity
+    : totalQty;
+
+  return { totalQty, availableQty };
+}
+
+function matchesStatusFilter(book, statusValue) {
+  if (!statusValue) return true;
+
+  const selected = String(statusValue).trim().toLowerCase();
+  const currentStatus = String(book.status || '').trim().toLowerCase();
+  const availability = getBookAvailability(book);
+  const isAllBorrowed = availability.availableQty === 0;
+
+  if (selected === 'available') {
+    return currentStatus !== 'maintenance' && !isAllBorrowed;
+  }
+
+  if (selected === 'all borrowed' || selected === 'borrowed') {
+    return isAllBorrowed;
+  }
+
+  if (selected === 'maintenance') {
+    return currentStatus === 'maintenance';
+  }
+
+  return currentStatus === selected;
+}
+
+function applyCombinedFilters() {
+  const search = (filters.search || '').toLowerCase();
+  const category = normalizeCategory(filters.category || '');
+  const status = filters.status || '';
+
+  const filteredBooks = (allBooks || []).filter((book) => {
+    const title = String(book.title || '').toLowerCase();
+    const author = String(book.author || '').toLowerCase();
+    const isbn = String(book.isbn || '').toLowerCase();
+
+    const searchMatch =
+      !search ||
+      title.includes(search) ||
+      author.includes(search) ||
+      isbn.includes(search);
+
+    const categoryMatch =
+      !category || normalizeCategory(book.category) === category;
+
+    const statusMatch = matchesStatusFilter(book, status);
+
+    return searchMatch && categoryMatch && statusMatch;
+  });
+
+  displayBooks(filteredBooks);
+  updateResultCount(filteredBooks.length, (allBooks || []).length);
+}
+
+function updateResultCount(filteredCount, totalCount) {
+  const resultCountEl = document.getElementById('resultCount');
+  if (!resultCountEl) return;
+  resultCountEl.textContent = `Showing ${filteredCount} of ${totalCount} books`;
 }
 
 async function loadBooks() {
   try {
-    const filterParams = getFilterParams();
-    const url = `/api/admin/books${filterParams ? '?' + filterParams : ''}`;
+    const url = '/api/admin/books';
     
     console.log("[FRONTEND] Fetching books from:", url);
     const response = await fetchWithCsrf(url);
@@ -182,12 +455,22 @@ async function loadBooks() {
     if (!response.ok) {
       const data = await response.json();
       console.error("[FRONTEND] API error:", data);
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.removeItem('adminId');
+        sessionStorage.removeItem('adminRole');
+        sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('isLoggedIn');
+        window.location.href = '/login';
+        return;
+      }
       throw new Error(data.message || "Failed to fetch books");
     }
     const result = await response.json();
-    const books = result.data || []; // Extract books from response wrapper
-    console.log("[FRONTEND] Books data received:", books.length, "books");
-    displayBooks(books);
+    allBooks = result.data || []; // Extract books from response wrapper
+    console.log("[FRONTEND] Books data received:", allBooks.length, "books");
+
+    buildCategoryOptions(allBooks);
+    applyCombinedFilters();
   } catch (error) {
     console.error("Error:", error);
     alert("Failed to load books. Please try again later.");
@@ -217,8 +500,24 @@ function displayBooks(books) {
   tbody.innerHTML = "";
 
   if (books.length === 0) {
-    console.warn("[FRONTEND] No books to display (empty array)");
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">No books found</td></tr>';
+    const totalBooks = (allBooks || []).length;
+    const hasActiveFilters = Boolean((filters.search || '').trim() || (filters.category || '').trim() || (filters.status || '').trim());
+
+    if (totalBooks === 0) {
+      console.info("[FRONTEND] Empty data set from API: no books available to render.");
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">No books available</td></tr>';
+    } else if (hasActiveFilters) {
+      console.info("[FRONTEND] No books match current filters.", {
+        search: filters.search,
+        category: filters.category,
+        status: filters.status,
+        totalBooks: totalBooks
+      });
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">No books match current filters</td></tr>';
+    } else {
+      console.info("[FRONTEND] No books to display for current lifecycle/tab state.");
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">No books found</td></tr>';
+    }
     return;
   }
 
@@ -261,6 +560,10 @@ function createBookRow(book) {
     : totalQty;
   row.dataset.available = String(availableQty);
   row.dataset.quantity  = String(totalQty);
+  if (book.display_status) row.dataset.displayStatus = String(book.display_status).toLowerCase();
+  if (book.borrow_status) row.dataset.borrowStatus = String(book.borrow_status).toLowerCase();
+  if (book.current_status) row.dataset.currentStatus = String(book.current_status).toLowerCase();
+  if (book.due_date) row.dataset.dueDate = String(book.due_date);
   let statusText = `Available (${availableQty}/${totalQty})`;
   let statusClass = "status-available";
 
@@ -269,9 +572,28 @@ function createBookRow(book) {
     statusClass = "status-borrowed";
   }
 
-  const isBorrowed =
-    book.current_status && (book.current_status.toLowerCase() === "borrowed" ||
-    book.current_status.toLowerCase() === "overdue");
+  const lifecycleStatus = String(book.display_status || book.borrow_status || '').toLowerCase();
+  const isPendingPickupLifecycle = lifecycleStatus === 'pending_pickup' || lifecycleStatus === 'claim_expired';
+  const borrowStatus = String(book.borrow_status || '').toLowerCase();
+  const dueDateObj = book.due_date ? new Date(book.due_date) : null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isLifecycleOverdue = lifecycleStatus === 'overdue' || borrowStatus === 'overdue' ||
+    (borrowStatus === 'borrowed' && dueDateObj && !Number.isNaN(dueDateObj.getTime()) && dueDateObj < today);
+  const isLifecycleActive = ['picked_up', 'pending_return', 'borrowed', 'overdue', 'active'].includes(lifecycleStatus) ||
+    (borrowStatus === 'borrowed' || borrowStatus === 'overdue');
+  const isBorrowed = isLifecycleActive && !isPendingPickupLifecycle;
+
+  let lifecycleChip = '';
+  if (isLifecycleOverdue) {
+    lifecycleChip = '<span class="books-lifecycle-chip overdue">Overdue</span>';
+  } else if (isPendingPickupLifecycle) {
+    lifecycleChip = '<span class="books-lifecycle-chip pending">Pending Pickup</span>';
+  } else if (isLifecycleActive) {
+    lifecycleChip = '<span class="books-lifecycle-chip active">Active</span>';
+  }
+
+  const statusHtml = `<span class="books-status-chip ${statusClass}">${statusText}</span>${lifecycleChip}`;
 
   // Gmail-style bulk operations: Add checkbox column
   row.innerHTML = `
@@ -290,7 +612,7 @@ function createBookRow(book) {
     <td>${book.category}</td>
     <td>${book.isbn}</td>
     <td>${formatDate(book.added_date)}</td>
-    <td class="${statusClass}">${statusText}</td>
+    <td class="${statusClass}">${statusHtml}</td>
     <td class="borrowed-by ${isBorrowed ? "active" : ""}">${
     book.borrowed_by || "-"
   }</td>
@@ -300,8 +622,8 @@ function createBookRow(book) {
           <span class="kebab-icon">&#8942;</span><span class="caret-icon">&#9662;</span>
         </button>
         <ul class="actions-menu" role="menu">
-          <li role="none"><a href="#" class="dropdown-item action-scan-qr" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined">qr_code_2</span>Scan QR</a></li>
-          <li role="none"><a href="#" class="dropdown-item action-edit" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined">edit</span>Edit</a></li>
+          <li role="none"><a href="#" class="dropdown-item action-manage-copies" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined">qr_code_2</span>Manage Copies</a></li>
+          <li role="none"><a href="#" class="dropdown-item action-edit" role="menuitem" data-book-id="${book.id}"><span class="material-symbols-outlined">edit</span>Edit Metadata</a></li>
           <li role="none"><a href="#" class="dropdown-item action-delete ${isBorrowed ? 'action-delete-disabled' : ''}" role="menuitem" data-book-id="${book.id}" ${isBorrowed ? 'aria-disabled="true"' : ''}><span class="material-symbols-outlined">delete</span>Delete</a></li>
         </ul>
       </div>
@@ -353,7 +675,22 @@ document.addEventListener('click', function (e) {
     return;
   }
 
-  /* ── 2. Scan QR action ────────────────────────────────────────────── */
+  /* ── 2A. Manage Copies action ──────────────────────────────────────── */
+  var manageCopiesItem = e.target.closest('.action-manage-copies');
+  if (manageCopiesItem) {
+    e.preventDefault();
+    var bookId = manageCopiesItem.dataset.bookId;
+    if (!bookId) { console.error('Actions dropdown: missing book ID for Manage Copies'); return; }
+    closeAllActionDropdowns();
+    if (typeof bookCopyManager !== 'undefined') {
+      bookCopyManager.showCopies(bookId);
+    } else {
+      alert('Book copy manager not loaded. Please refresh the page.');
+    }
+    return;
+  }
+
+  /* ── 2B. Scan QR action (legacy, routes to Manage Copies) ──────────── */
   var scanQrItem = e.target.closest('.action-scan-qr');
   if (scanQrItem) {
     e.preventDefault();
@@ -368,7 +705,7 @@ document.addEventListener('click', function (e) {
     return;
   }
 
-  /* ── 3. Edit action ───────────────────────────────────────────────── */
+  /* ── 3. Edit Metadata action ──────────────────────────────────────── */
   var editItem = e.target.closest('.action-edit');
   if (editItem) {
     e.preventDefault();
@@ -401,11 +738,18 @@ document.addEventListener('click', function (e) {
   }
 });
 
-// ── Unified Book Editor ─────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// BOOK EDITOR: Opens copiesModal (managed by book-copies.js)
+// This is the unified entry point for:
+// - Editing book metadata (title/author/category/isbn/status) → Edit Book tab
+// - Managing copies & accessions → Copies tab
+// - Both functions are handled within the copiesModal (book-copies.js)
+// ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * Single entry point for opening the edit modal.
+ * Single entry point for opening the edit modal (copiesModal).
  * Works identically whether triggered by the Edit or Scan QR menu item.
+ * The Edit Book tab handles metadata; Copies tab handles accessions.
  */
 async function openBookEditor({ bookId }) {
   const book = await loadBookForEdit(bookId);
@@ -451,12 +795,15 @@ function handleEditClick(book) {
 }
 
 function populateEditModal(book) {
-  // Delegate to the merged modal (book-copies.js)
+  // PRIMARY FLOW: Delegate to book-copies.js (copiesModal has Edit Book tab + Copies tab)
   if (typeof bookCopyManager !== 'undefined') {
+    console.log('[populateEditModal] Delegating to bookCopyManager');
     bookCopyManager.openEditTab(book);
     return;
   }
-  // Fallback: open the standalone #adminEdit if bookCopyManager isn't loaded yet
+
+  // FALLBACK: Manual population (in case bookCopyManager isn't loaded)
+  console.warn('[populateEditModal] bookCopyManager not available, falling back');
   const formElements = {
     title: document.getElementById("titleEdit"),
     author: document.getElementById("authorEdit"),
@@ -520,26 +867,26 @@ function populateEditModal(book) {
 async function handleAddBook(e) {
   e.preventDefault();
 
-  const quantityValue = document.getElementById("No#Books").value;
-  const adminId = sessionStorage.getItem("adminId"); // Get admin ID from session
-  
   const formData = {
     title: document.getElementById("title").value.trim(),
     author: document.getElementById("author").value.trim(),
-    quantity: quantityValue ? parseInt(quantityValue, 10) : 1,
     category: document.getElementById("category").value.trim(),
     isbn: document.getElementById("isbn").value.trim(),
-    adminId: adminId ? parseInt(adminId, 10) : null, // Include admin ID
+    quantity: parseInt(document.getElementById("No#Books").value || "1", 10),
+    status: document.getElementById("status").value.trim(),
+    adminId: parseInt(sessionStorage.getItem("adminId") || "0", 10),
   };
 
-  // Validate required fields
-  if (!formData.title || !formData.author || formData.quantity === null || !formData.category || !formData.isbn) {
-    alert("Please fill in all fields");
+  // Validate metadata ONLY (metadata concern, not copy creation)
+  const validation = bookMetaValidation.validateBookForm(formData);
+  if (!validation.valid) {
+    alert("Validation Failed:\n\n" + validation.errors.join("\n"));
     return;
   }
 
-  if (!validateISBN(formData.isbn)) {
-    alert("Please enter a valid ISBN/barcode");
+  // Quantity determines how many copies/accessions are auto-created.
+  if (formData.quantity < 0 || formData.quantity > 999) {
+    alert("Quantity must be between 0 and 999");
     return;
   }
 
@@ -553,7 +900,18 @@ async function handleAddBook(e) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || "Failed to add book");
 
-    alert("Book added successfully!");
+    const payload = data.data || {};
+    const copiesCreated = payload.copies_created || 0;
+    const firstCopy = Array.isArray(payload.copies) && payload.copies.length > 0
+      ? payload.copies[0]
+      : null;
+
+    let successMessage = `Book added successfully!\n\nAuto-generated copies: ${copiesCreated}`;
+    if (firstCopy && firstCopy.accession_number) {
+      successMessage += `\nFirst accession: ${firstCopy.accession_number}`;
+    }
+
+    alert(successMessage);
     closeModal();
     await reloadBooksAndStats();
     document.getElementById("addBookForm").reset();

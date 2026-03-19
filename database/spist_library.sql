@@ -62,6 +62,39 @@ CREATE TABLE IF NOT EXISTS `admins` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Administrator accounts';
 
 -- --------------------------------------------
+-- Table: departments
+-- Purpose: Canonical list of academic courses (normalized lookup)
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS `departments` (
+  `id`         INT          NOT NULL AUTO_INCREMENT,
+  `code`       VARCHAR(20)  NOT NULL COMMENT 'Short code, e.g. BSIT',
+  `name`       VARCHAR(255) NOT NULL COMMENT 'Full official course name',
+  `created_at` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_dept_name` (`name`),
+  UNIQUE KEY `uq_dept_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Master list of academic courses/departments';
+
+-- Seed all official SPIST courses
+INSERT INTO `departments` (`code`, `name`) VALUES
+  ('BSCpE',     'BS Computer Engineering'),
+  ('BSCS',      'BS Computer Science'),
+  ('BSIT',      'BS Information Technology'),
+  ('BSTM',      'BS Tourism Management'),
+  ('BSBA-MM',   'BS Business Administration - Major in Marketing Management'),
+  ('BSBA-OM',   'BS Business Administration - Major in Operations Management'),
+  ('BSA',       'BS Accountancy'),
+  ('BSHM',      'BS Hospitality Management'),
+  ('BEEd',      'Bachelor in Elementary Education'),
+  ('BSEd-ENG',  'Bachelor in Secondary Education - Major in English'),
+  ('BSEd-MATH', 'Bachelor in Secondary Education - Major in Mathematics'),
+  ('BSEd-FIL',  'Bachelor in Secondary Education - Major in Filipino'),
+  ('BSEd-SS',   'Bachelor in Secondary Education - Major in Social Studies'),
+  ('BSEd-SCI',  'Bachelor in Secondary Education - Major in Science')
+ON DUPLICATE KEY UPDATE `code` = VALUES(`code`);
+
+-- --------------------------------------------
 -- Table: students
 -- Purpose: Store student accounts and profile information
 -- --------------------------------------------
@@ -71,7 +104,8 @@ CREATE TABLE IF NOT EXISTS `students` (
   `fullname` varchar(100) NOT NULL COMMENT 'Student full name',
   `email` varchar(100) NOT NULL COMMENT 'Unique email address for login',
   `password` varchar(255) NULL COMMENT 'Bcrypt hashed password (null for Google-only accounts)',
-  `department` varchar(50) NOT NULL COMMENT 'Academic department (e.g., BSCS, BSIT)',
+  `department` varchar(255) NOT NULL COMMENT 'Academic department full name (e.g., BS Computer Science)',
+  `department_id` INT NULL COMMENT 'FK to departments lookup table',
   `year_level` varchar(20) NOT NULL COMMENT 'Current year level (e.g., 1st Year, 2nd Year)',
   `student_type` ENUM('undergraduate', 'graduate', 'transferee') NOT NULL DEFAULT 'undergraduate' COMMENT 'Student classification',
   `contact_number` varchar(20) DEFAULT NULL COMMENT 'Phone number for notifications',
@@ -84,7 +118,9 @@ CREATE TABLE IF NOT EXISTS `students` (
   UNIQUE KEY `student_id` (`student_id`),
   UNIQUE KEY `email` (`email`),
   KEY `idx_department` (`department`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  KEY `idx_students_dept_id` (`department_id`),
+  CONSTRAINT `fk_students_department_id` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Student accounts and profiles';
 
 -- --------------------------------------------
@@ -369,6 +405,15 @@ SET @sql := IF(@col_exists = 0,
   'SELECT ''soft-delete columns already exist in admins'' AS message');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- Add last_overdue_notified_at for anti-spam overdue emails (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'book_borrowings' AND COLUMN_NAME = 'last_overdue_notified_at');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `book_borrowings`
+   ADD COLUMN `last_overdue_notified_at` DATETIME NULL COMMENT ''Timestamp of last overdue reminder (anti-spam)'' AFTER `due_date`',
+  'SELECT ''Column last_overdue_notified_at already exists in book_borrowings'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- Add pickup/return tracking columns to book_borrowings (if not exist)
 SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'book_borrowings' AND COLUMN_NAME = 'picked_up_at');
@@ -505,18 +550,19 @@ INSERT IGNORE INTO `admins` (`fullname`, `email`, `password`, `role`, `is_active
 ('System Administrator', 'admin@spist.edu', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'super_admin', TRUE),
 ('John Admin', 'john.admin@spist.edu', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'system_admin', TRUE),
 ('Jane Manager', 'jane.manager@spist.edu', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'system_admin', TRUE),
-('Jowel Galang', 'hahacctmo145@gmail.com', '$2b$10$WwLQ8t2l17rh4O042lCB.efw7kXNoOyTSoBJ1zVXU7oqiSCGCFqFK', 'super_admin', TRUE)
+('Jowel Galang', 'hahacctmo145@gmail.com', '$2b$10$l862qK8qcNsSv29YqWnlruxLIhYLdxSisGj4IfiyHx59EzhfuvIgC', 'super_admin', TRUE)
 ON DUPLICATE KEY UPDATE
   `password` = VALUES(`password`),
   `is_active` = TRUE;
 
 -- Insert sample student accounts (password: student123)
 INSERT IGNORE INTO `students` (`student_id`, `fullname`, `email`, `password`, `department`, `year_level`, `student_type`, `contact_number`, `status`) VALUES
-('STD-2024-001', 'Juan dela Cruz', 'juan.delacruz@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BSCS', '3', 'undergraduate', '09123456789', 'active'),
-('STD-2024-002', 'Maria Santos', 'maria.santos@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BSIT', '2', 'undergraduate', '09234567890', 'active'),
-('STD-2024-003', 'Pedro Garcia', 'pedro.garcia@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BSCS', '4', 'undergraduate', '09345678901', 'active'),
-('STD-2024-004', 'Ana Reyes', 'ana.reyes@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BSIT', '1', 'undergraduate', '09456789012', 'active'),
-('STD-2024-005', 'Jose Rizal', 'jose.rizal@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BSCS', '3', 'transferee', '09567890123', 'active')
+('STD-2024-001', 'Juan dela Cruz', 'juan.delacruz@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Computer Science', '3', 'undergraduate', '09123456789', 'active'),
+('STD-2024-002', 'Maria Santos', 'maria.santos@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Information Technology', '2', 'undergraduate', '09234567890', 'active'),
+('STD-2024-003', 'Pedro Garcia', 'pedro.garcia@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Computer Science', '4', 'undergraduate', '09345678901', 'active'),
+('STD-2024-004', 'Ana Reyes', 'ana.reyes@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Information Technology', '1', 'undergraduate', '09456789012', 'active'),
+('STD-2024-005', 'Jose Rizal', 'jose.rizal@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Computer Science', '3', 'transferee', '09567890123', 'active'),
+('C22-4587-01', 'Jowel Carreon Galang Jr.', 'c22-4587-01@spist.edu.ph', '$2b$10$ey6hFg.6R7bk.Y9t.VlMkuceiU36DBWD.ZA/divfrF3vgx/.1fd9S', 'BS Computer Science', '4th', 'undergraduate', '09771683520', 'active')
 ON DUPLICATE KEY UPDATE `student_id` = `student_id`;
 
 -- Insert sample books (ISBN must be unique)
@@ -589,9 +635,45 @@ SELECT 'audit_logs', COUNT(*) FROM audit_logs;
 -- 4. Update notification preferences for any new users
 --
 -- For troubleshooting:
--- - Check foreign key relationships: 
+-- - Check foreign key relationships:
 --   SELECT * FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE();
--- - Check indexes: 
+-- - Check indexes:
 --   SELECT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE();
 --
+
+-- ============================================================
+-- View: v_notifications  (normalized read interface)
+-- Always returns live book title, due_date, and status by
+-- joining the source tables, with stored values as fallback.
+-- ============================================================
+CREATE OR REPLACE VIEW `v_notifications` AS
+SELECT
+  n.id,
+  n.user_type,
+  n.user_id,
+  n.title,
+  n.message,
+  n.type,
+  n.is_read,
+  n.created_at,
+  -- Canonical entity reference (coalesces across three overlapping column groups)
+  COALESCE(n.link_type,  n.target_type,  n.related_table)      AS entity_type,
+  COALESCE(n.link_id,    n.target_id,    CAST(n.related_id AS CHAR)) AS entity_id,
+  -- Book info: live title preferred, stored copy as fallback
+  n.book_id,
+  COALESCE(b.title,      n.book_title)   AS book_title,
+  n.borrowing_id,
+  -- Due date and status: live values preferred, stored copies as fallback
+  COALESCE(bb.due_date,  n.due_date)     AS due_date,
+  COALESCE(bb.status,    n.status)       AS borrowing_status
+FROM `notifications` n
+LEFT JOIN `books`           b  ON n.book_id     = b.id
+LEFT JOIN `book_borrowings` bb ON n.borrowing_id = bb.id;
+
+-- Back-fill department_id for sample students
+UPDATE `students` s
+  JOIN `departments` d ON d.name = s.department
+  SET s.department_id = d.id
+WHERE s.department_id IS NULL;
+
 -- ============================================

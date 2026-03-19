@@ -42,32 +42,267 @@ A comprehensive, production-ready web-based library management system developed 
 ##  Quick Start
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/axtro112/spist_library.git
-cd spist_library
+# SPIST Library Management System — Setup Guide
 
-# 2. Install dependencies
-npm install
+Step-by-step instructions to run this system on any device.
 
-# 3. Setup database
-mysql -u root -p -e "CREATE DATABASE spist_library;"
-mysql -u root -p spist_library < database/spist_library_schema.sql
+---
 
-# 4. (Optional) Import sample data
-mysql -u root -p spist_library < database/sample_data.sql
+## Requirements
 
-# 5. Configure environment
-cp .env.example .env
-# Edit .env with your database and email settings
+| Software | Version | Download |
+|----------|---------|----------|
+| Node.js  | v18 or higher (project uses v24.11.1) | https://nodejs.org |
+| MySQL    | v8.0 or higher | https://dev.mysql.com/downloads/mysql/ |
+| Git      | Any recent version | https://git-scm.com |
 
-# 6. Start server
-npm start
+---
+
+## Step 1 — Install Node.js
+
+1. Go to https://nodejs.org
+/check if  the nnnode is already install  in  the devices  types thids inn  the terminal  nnode --version 
+2. Download the **LTS** version (v18 or higher)
+3. Run the installer — keep all default settings
+4. Verify installation:
+   ```bash
+   node --version
+   npm --version
+   ```
+   You should see version numbers printed (e.g. `v24.11.1` and `11.6.2`)
+
+---
+
+## Step 2 — Install MySQL
+
+1. Go to https://dev.mysql.com/downloads/mysql/
+2. Download and install **MySQL Community Server v8.0**
+3. During installation, set a **root password** (remember this — you will need it)
+4. Make sure the MySQL service is running:
+   - **Windows:** Open Services → find "MySQL80" → Start
+   - **Mac/Linux:** `sudo service mysql start`
+5. Verify:
+   ```bash
+   mysql --version
+   ```
+
+---
+
+## Step 3 — Get the Project
+
+**Option A — Clone from Git (recommended):**
+```bash
+git clone <your-repository-url>
+cd spist-library-management-system
 ```
+
+**Option B — Copy the folder manually:**
+- Copy the entire project folder to the new device
+- Open a terminal and `cd` into the project folder
+- Make sure `node_modules/` folder is NOT included (it will be installed fresh)
+
+---
+
+## Step 4 — Install Dependencies
+
+Inside the project folder, run:
+```bash
+npm ci
+```
+
+This installs the exact same package versions as the original machine using `package-lock.json`.
+
+> ⚠️ If `npm ci` fails, try `npm install` as a fallback.
+
+---
+
+## Step 5 — Create the `.env` File
+
+The `.env` file contains sensitive configuration and is **not included in git**. You must create it manually.
+
+1. In the project root folder, create a new file named exactly `.env`
+2. Paste the following content and fill in your values:
+
+```env 
+
+# Database Configuration
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=spist_library
+DB_PORT=3306
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+
+# CORS Configuration (comma-separated list of allowed origins)
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+# Google OAuth 2.0 Configuration
+# Get these credentials from: https://console.cloud.google.com/
+# 1. Create a new project or select existing project
+# 2. Enable Google+ API
+# 3. Go to Credentials → Create Credentials → OAuth 2.0 Client ID
+# 4. Set Authorized JavaScript origins: http://localhost:3000
+# 5. Set Authorized redirect URIs: http://localhost:3000/auth/google/callback
+
+GOOGLE_CLIENT_ID=906990089534-6bavd9e9e6emt0hdh8m2aal44dv2niju.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=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
+GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
+
+# Security Secrets (CRITICAL - Keep these secret!)
+#  IMPORTANT: These are NEW secure production-ready secrets
+#  DO NOT commit these to version control
+#  Change these values before deploying to production with your own domain
+
+# Session Secret - Used for encrypting session data (64 characters)
+SESSION_SECRET=b1ef6050406d886b712a551329e3e897c1ecbbb043bab803e12dcf81551bd3e5
+
+# JWT Secret - Used for JSON Web Token signing (64 characters)
+JWT_SECRET=c537995538c61d983efae48d7e62a7b9ecd397e0fa4299b6ecb6bdf7897dd4ba
+
+# Email Configuration (for password reset & borrowing notifications)
+EMAIL_USER=hahacctmo145@gmail.com
+EMAIL_PASS=bzhsyapgsajdoiyb
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_FROM=noreply@spistlibrary.edu.ph
+
+# Rate Limiting Configuration
+RATE_LIMIT_WINDOW=15
+RATE_LIMIT_MAX=100
+
+# Session Configuration
+SESSION_MAX_AGE=1800000
+SESSION_SECURE_COOKIE=false
+
+
+> ✅ The only field you **must** change is `DB_PASSWORD` — set it to your MySQL root password.
+> 
+> ✅ `SESSION_SECRET` and `JWT_SECRET` can be any random string — just make them long.
+
+---
+
+## Step 6 — Set Up the Database
+
+**6a. Create the database:**
+```bash
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS spist_library;"
+```
+Enter your MySQL password when prompted.
+
+**6b. Import the database schema and data:**
+```bash
+mysql -u root -p spist_library < database/spist_library.sql
+```
+Enter your MySQL password when prompted.
+
+**6c. Verify the import:**
+```bash
+mysql -u root -p -e "USE spist_library; SHOW TABLES;"
+```
+You should see a list of tables printed.
+
+---
+
+## Step 7 — Start the Server
+
+```bash
+node server.js
+```
+
+You should see:
+```
+Server running on port 3000
+Open http://localhost:3000 in your browser
+Successfully connected to database: spist_library
+```
+
+Then open your browser and go to:
+```
+http://localhost:3000
+```
+
+---
+
+## Step 8 — Default Login Credentials
+
+After importing the database, use these to log in for the first time:
+
+| Role        | Username / Email              | Password   |
+|-------------|-------------------------------|------------|
+| Super Admin | (check your database)         | admin123   |
+| Admin       | (check your database)         | admin123   |
+| Student     | (student ID)@spist.edu.ph     | (set by admin) |
+
+> ⚠️ Change default passwords immediately after first login.
+
+---
+
+## Common Errors & Fixes
+
+### ❌ `Error: ECONNREFUSED` or `Can't connect to MySQL`
+- MySQL is not running → Start the MySQL service
+- Wrong DB_PASSWORD in `.env` → Check and correct it
+- Wrong DB_HOST → Should be `localhost` for local setup
+
+### ❌ `Error: listen EADDRINUSE :::3000`
+- Something is already using port 3000
+- Fix: Change `PORT=3000` to `PORT=3001` in `.env`, then go to `http://localhost:3001`
+
+### ❌ `Cannot find module '...'`
+- `node_modules` is missing → Run `npm ci` again
+
+### ❌ `npm ci` fails
+- Try `npm install` instead
+
+### ❌ Database import fails
+- Make sure the database was created first (Step 6a)
+- Check MySQL is running
+
+---
+
+## Development Mode (with auto-restart)
+
+Instead of `node server.js`, use:
+```bash
+npm run dev
+```
+This uses `nodemon` which automatically restarts the server whenever you save a file.
+
+---
+
+## Project Structure (Quick Reference)
+
+```
+spist-library-management-system/
+├── server.js              ← Main server entry point
+├── package.json           ← Project dependencies
+├── package-lock.json      ← Exact dependency versions (do not edit)
+├── .env                   ← Environment config (create manually, not in git)
+├── database/
+│   └── spist_library.sql  ← Full database dump (import this)
+├── src/
+│   ├── routes/            ← API routes
+│   ├── controllers/       ← Business logic
+│   └── config/            ← Database config
+├── views/                 ← EJS page templates
+└── public/                ← CSS, JS, images
+```
+
+---
+
+*SPIST Library Management System — Southern Philippines Institute of Science & Technology*
+
 
 **Access application at:** `http://localhost:3000`
 
 **Default credentials** (if using sample_data.sql):
 - Admin: `admin@spist.edu` / `admin123`
+- System Admin: 'admin@spist.edu' / 'systemadmin123'
 - Student: `STD-2024-001` / `student123`
 
  **IMPORTANT**: Change default passwords immediately!

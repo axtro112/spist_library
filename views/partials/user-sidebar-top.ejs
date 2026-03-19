@@ -13,15 +13,7 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
-  <!-- Student base styles -->
-  <link rel="stylesheet" href="/css/common.css" />
-  <link rel="stylesheet" href="/css/student.css" />
-  <link rel="stylesheet" href="/css/backup.css" />
-  <link rel="stylesheet" href="/css/notifications.css" />
-  <!-- User sidebar layout (overrides student.css body/layout) -->
-  <link rel="stylesheet" href="/css/user/user-layout.css" />
-  <!-- Shared books/table styles -->
-  <link rel="stylesheet" href="/css/user/user-books.css" />
+  <link rel="stylesheet" href="/css/system.css" />
 
   <!-- Extra head content (per-page CSS/JS) -->
   <%- extraHead || '' %>
@@ -29,28 +21,16 @@
   <!-- Shared JS -->
   <script src="/js/csrf-helper.js"></script>
   <script src="/js/session-timeout.js"></script>
+  <script src="/js/core/api.js"></script>
+  <script src="/js/core/modal.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/ui.js"></script>
   <script src="/js/notifications.js"></script>
+  <script src="/js/student/layout.js" defer></script>
   <script src="/js/user.js" defer></script>
   <script src="/js/sidebar-toggle.js" defer></script>
-  <!-- Shared logout/modal utilities available on EVERY user page -->
-  <script>
-    function showLogoutModal() {
-      const m = document.getElementById('logoutModal');
-      if (m) m.style.display = 'flex';
-    }
-    function closeLogoutModal() {
-      const m = document.getElementById('logoutModal');
-      if (m) m.style.display = 'none';
-    }
-    function logout() {
-      sessionStorage.clear();
-      window.location.href = '/login';
-    }
-  </script>
 </head>
-<body>
+<body data-role="student" data-student-id="<%= studentId || '' %>" data-user-role="<%= userRole || '' %>">
 <div class="u-wrapper">
 
   <!-- ═══════════════ SIDEBAR ═══════════════ -->
@@ -73,24 +53,12 @@
       <a href="/student-borrowed" class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
         <i class="bi bi-journal-bookmark-fill"></i><span>Borrowed Books</span>
       </a>
-      <a href="/student-books" class="<%= activePage === 'browse-books' ? 'active' : '' %>">
-        <i class="bi bi-search"></i><span>Browse Books</span>
-      </a>
       <a href="#" onclick="showLogoutModal(); return false;" style="margin-top: auto;">
         <i class="bi bi-box-arrow-right"></i><span>Logout</span>
       </a>
     </nav>
 
     <div class="u-sidebar-footer">
-      <div class="u-user-info">
-        <div class="u-user-avatar">
-          <i class="bi bi-person-fill"></i>
-        </div>
-        <div>
-          <div class="u-user-name" id="userName">Student</div>
-          <div class="u-user-id" id="userID">STD-0000-000</div>
-        </div>
-      </div>
     </div>
   </aside>
 

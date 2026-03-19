@@ -5,7 +5,7 @@
 
 /* ── STAT CARDS (Dashboard) ── */
 .u-stats-row {
-  display: grid;
+  display: grid;  
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 16px;
   margin-bottom: 22px;
@@ -281,18 +281,84 @@
   margin-bottom: 12px;
 }
 
-/* ── CALENDAR PLACEHOLDER (Dashboard) ── */
-.u-calendar-placeholder {
-  height: 180px;
-  background: #f9fbe7;
-  border: 2px dashed #c8e6c9;
-  border-radius: 8px;
+/* ── MINI CALENDAR (Dashboard) ── */
+.u-cal { font-size: 13px; user-select: none; }
+.u-cal-nav {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #a5d6a7;
-  font-size: 14px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
+.u-cal-title { font-weight: 600; color: #2e7d32; font-size: 14px; }
+.u-cal-btn {
+  background: none;
+  border: 1px solid #c8e6c9;
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1.2;
+  color: #388e3c;
+}
+.u-cal-btn:hover { background: #e8f5e9; }
+.u-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.u-cal-dname {
+  text-align: center;
+  font-weight: 600;
+  color: #aaa;
+  font-size: 11px;
+  padding: 3px 0 5px;
+}
+.u-cal-day {
+  text-align: center;
+  padding: 5px 2px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #444;
+  min-height: 26px;
+  line-height: 16px;
+}
+.u-cal-empty { visibility: hidden; }
+.u-cal-today {
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-weight: 700;
+  border: 1px solid #a5d6a7;
+}
+.u-cal-due {
+  background: #fff3e0;
+  color: #e65100;
+  font-weight: 600;
+  border: 1px solid #ffcc80;
+  cursor: default;
+  position: relative;
+}
+.u-cal-today.u-cal-due {
+  background: #ffe0b2;
+  color: #bf360c;
+  border-color: #ff8f00;
+}
+.u-cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #888;
+}
+.u-cal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.u-cal-dot-today { background: #e8f5e9; border: 1px solid #a5d6a7; }
+.u-cal-dot-due   { background: #fff3e0; border: 1px solid #ffcc80; }
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {

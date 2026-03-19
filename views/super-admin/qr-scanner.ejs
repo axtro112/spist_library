@@ -1,0 +1,148 @@
+<%
+  var extraHead = [
+    '<style>',
+    '.qr-scanner-container{max-width:500px;margin:0 auto;text-align:center;}',
+    '#qr-reader{width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:260px;}',
+    '.qr-status-text{margin:14px 0 10px;font-size:14px;color:var(--text-muted,#6b7280);min-height:20px;}',
+    '.qr-status-text.qr-status-info{color:#2563eb;}',
+    '.qr-status-text.qr-status-success{color:#16a34a;}',
+    '.qr-status-text.qr-status-error{color:#dc2626;}',
+    '.qr-btn-row{display:flex;gap:10px;justify-content:center;margin-top:10px;}',
+    '.qr-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:12px;}',
+    '.qr-info-item{display:flex;flex-direction:column;gap:2px;}',
+    '.qr-info-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted,#9ca3af);}',
+    '.qr-info-value{font-size:14px;color:var(--text-primary,#111827);word-break:break-word;}',
+    '.qr-warning{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:8px;padding:10px 14px;color:#dc2626;font-size:13px;font-weight:500;}',
+    '.qr-recent-item{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-color,rgba(0,0,0,.08));font-size:13px;}',
+    '.qr-recent-accession{font-family:monospace;font-weight:600;min-width:100px;}',
+    '.qr-recent-title{flex:1;color:var(--text-primary,#111827);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+    '.qr-recent-time{color:var(--text-muted,#9ca3af);white-space:nowrap;}',
+    '.badge-success{background:rgba(22,163,74,.15);color:#15803d;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}',
+    '.badge-warning{background:rgba(217,119,6,.15);color:#b45309;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}',
+    '.badge-danger{background:rgba(220,38,38,.15);color:#dc2626;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}',
+    '.badge-secondary{background:rgba(107,114,128,.15);color:#4b5563;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}',
+    '#qrResultModal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:1050;padding:16px;}',
+    '@media(max-width:576px){.qr-info-grid{grid-template-columns:1fr;}}',
+    '<\/style>',
+    '<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"><\/script>',
+    '<script src="/js/super-admin/qr-scanner.js" defer><\/script>'
+  ].join('');
+%>
+<%- include('../partials/super-admin-layout', {
+  title: 'QR Code Scanner - SPIST Library',
+  adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
+  activePage: 'qr-scanner',
+  extraHead: extraHead,
+  body: `
+    <div class="section-header">
+      <div>
+        <h1>QR Code Scanner</h1>
+        <p style="color:var(--text-muted,#6b7280);margin:4px 0 0;">Scan a book copy QR code to look up details and manage borrow operations.</p>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="qr-scanner-container">
+        <div id="qr-reader"></div>
+        <p id="qrStatusText" class="qr-status-text">Ready to scan. Click Start Camera to begin.</p>
+        <div class="qr-btn-row">
+          <button id="startScanBtn" class="sa-btn sa-btn-primary" onclick="qrScanner.start()">
+            <i class="bi bi-camera-video"></i> Start Camera
+          </button>
+          <button id="stopScanBtn" class="sa-btn" style="display:none;" onclick="qrScanner.stop()">
+            <i class="bi bi-camera-video-off"></i> Stop Camera
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Scans Panel -->
+    <div class="section-card" id="recentScansPanel" style="margin-top:16px;display:none;">
+      <h3 style="font-size:15px;margin:0 0 12px;font-weight:600;">Recent Scans</h3>
+      <div id="recentScansList"></div>
+    </div>
+
+    <!-- QR Result Modal -->
+    <div id="qrResultModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
+      <div class="modal-content" style="max-width:520px;width:100%;">
+        <div class="modal-header">
+          <h2 id="qrModalTitle" style="margin:0;font-size:18px;">Book Copy Details</h2>
+          <button class="modal-close" onclick="qrScanner.closeModal()" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+
+          <div style="margin-bottom:14px;">
+            <span id="qrmStatusBadge" class="badge-secondary"></span>
+          </div>
+
+          <div class="qr-info-grid">
+            <div class="qr-info-item" style="grid-column:1/-1;">
+              <span class="qr-info-label">Title</span>
+              <span class="qr-info-value" id="qrmTitle" style="font-weight:600;font-size:15px;">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Author</span>
+              <span class="qr-info-value" id="qrmAuthor">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Category</span>
+              <span class="qr-info-value" id="qrmCategory">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Accession No.</span>
+              <span class="qr-info-value" id="qrmAccession" style="font-family:monospace;font-weight:600;">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Copy Condition</span>
+              <span class="qr-info-value" id="qrmCondition">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Borrow Status</span>
+              <span class="qr-info-value" id="qrmCopyStatus">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Current Borrower</span>
+              <span class="qr-info-value" id="qrmBorrower">—</span>
+            </div>
+            <div class="qr-info-item">
+              <span class="qr-info-label">Due Date</span>
+              <span class="qr-info-value" id="qrmDueDate">—</span>
+            </div>
+          </div>
+
+          <div id="qrmBlockedWarning" class="qr-warning" style="display:none;">
+            This copy is currently unavailable for borrowing (maintenance or lost status).
+          </div>
+
+          <div id="qrmReturnConditionWrap" style="display:none;margin-top:16px;">
+            <label for="qrmReturnCondition" style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">
+              Copy Condition at Return
+            </label>
+            <select id="qrmReturnCondition" class="sa-filter-select" style="width:100%;">
+              <option value="excellent">Excellent</option>
+              <option value="good" selected>Good</option>
+              <option value="fair">Fair</option>
+              <option value="poor">Poor</option>
+              <option value="damaged">Damaged</option>
+            </select>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button id="qrmPickupBtn" class="sa-btn sa-btn-success" style="display:none;" onclick="qrScanner.confirmPickup()">
+            <i class="bi bi-check-circle"></i> Confirm Pickup
+          </button>
+          <button id="qrmReturnBtn" class="sa-btn sa-btn-primary" style="display:none;" onclick="qrScanner.confirmReturn()">
+            <i class="bi bi-arrow-return-left"></i> Confirm Return
+          </button>
+          <button id="qrmDetailsBtn" class="sa-btn" style="display:none;" onclick="qrScanner.viewDetails()">
+            <i class="bi bi-eye"></i> View Borrow Details
+          </button>
+          <button class="sa-btn" onclick="qrScanner.closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  `
+}) %>

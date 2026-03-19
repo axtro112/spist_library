@@ -57,11 +57,24 @@
       var result = await SA.utils.safeFetch('/api/admin/dashboard/stats');
       if (!result) return null;
       var data = result.data || result;
+
+      // Keep pending pickup aligned with lifecycle tab logic by counting
+      // records from the borrowed-books endpoint filtered as pending_pickup.
+      var pendingPickupCount = data.pendingPickup || 0;
+      var pendingResult = await SA.utils.safeFetch('/api/admin/borrowings?status=pending_pickup');
+      if (pendingResult) {
+        var pendingData = pendingResult.data || pendingResult;
+        if (Array.isArray(pendingData)) {
+          pendingPickupCount = pendingData.length;
+        }
+      }
+
       SA.utils.setText('totalBooks',         data.total_books         || 0);
       SA.utils.setText('activeBorrowings',   data.activeBorrowings    || 0);
       SA.utils.setText('registeredStudents', data.registeredStudents  || 0);
       SA.utils.setText('overdueBooks',       data.overdueBooks        || 0);
       SA.utils.setText('totalAdmins',        data.totalAdmins         || 0);
+      SA.utils.setText('pendingPickup',      pendingPickupCount);
       return data;
     }
 
@@ -155,7 +168,7 @@
           '<div class="activity-content">' +
             '<div class="activity-main">' +
               '<span class="activity-type">' + _formatActivityType(activity.type) + '</span>' +
-              '<span class="activity-detail">' + activity.detail + '</span>' +
+              '<span class="activity-detail"> ' + activity.detail + '</span>' +
             '</div>' +
             '<div class="time" data-timestamp="' + ts.toISOString() + '" title="' + ts.toLocaleString() + '">' +
               _getTimeAgo(ts) +
@@ -183,7 +196,9 @@
     // ── init ────────────────────────────────────────────────────────────────
     async function init() {
       if (!SA.utils.guardSuperAdmin()) return;
-
+      // Extended delay to ensure backend session is fully loaded from store
+      // on hard refresh (100ms gives enough time for MySQL session store)
+      await new Promise(resolve => setTimeout(resolve, 100));
       var session = SA.utils.getSession();
       await SA.utils.loadAdminHeader(session.adminId);
 

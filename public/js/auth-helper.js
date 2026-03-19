@@ -4,11 +4,43 @@
  */
 
 const AuthHelper = {
+  _syncInFlight: null,
+
+  _readCookie(name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = document.cookie.match(new RegExp('(?:^|; )' + escaped + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : '';
+  },
+
+  _hydrateFromCookies() {
+    const adminRoleCookie = this._readCookie('adminRole');
+    if (adminRoleCookie && !sessionStorage.getItem('adminRole')) {
+      sessionStorage.setItem('adminRole', adminRoleCookie);
+    }
+
+    const adminNameCookie = this._readCookie('adminName');
+    if (adminNameCookie && !sessionStorage.getItem('userName')) {
+      sessionStorage.setItem('userName', adminNameCookie);
+    }
+
+    const adminEmailCookie = this._readCookie('adminEmail');
+    if (adminEmailCookie && !sessionStorage.getItem('adminEmail')) {
+      sessionStorage.setItem('adminEmail', adminEmailCookie);
+    }
+
+    if (adminRoleCookie) {
+      if (sessionStorage.getItem('isLoggedIn') !== 'true') sessionStorage.setItem('isLoggedIn', 'true');
+      if (!sessionStorage.getItem('userRole')) sessionStorage.setItem('userRole', 'admin');
+    }
+  },
+
   /**
    * Get current authenticated user data from sessionStorage
    * @returns {Object} User session data
    */
   getSession() {
+    this._hydrateFromCookies();
+
     return {
       isLoggedIn: sessionStorage.getItem("isLoggedIn") === "true",
       userRole: sessionStorage.getItem("userRole"),
@@ -19,12 +51,69 @@ const AuthHelper = {
   },
 
   /**
+   * Recover admin session markers from server session when storage is stale.
+   * @returns {Promise<Object|null>} recovered user object or null
+   */
+  async ensureAdminSessionFromServer() {
+    const current = this.getSession();
+    if (current.isLoggedIn && current.userRole === 'admin' && current.adminId) {
+      return {
+        id: Number(current.adminId),
+        role: current.adminRole || '',
+      };
+    }
+
+    if (this._syncInFlight) {
+      return this._syncInFlight;
+    }
+
+    this._syncInFlight = (async () => {
+      try {
+        const response = await fetch('/api/debug/session', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+          keepalive: true
+        });
+
+        if (!response.ok) return null;
+        const payload = await response.json().catch(() => null);
+        const user = payload && payload.sessionData && payload.sessionData.user;
+
+        if (!user || user.userRole !== 'admin' || !user.id) {
+          return null;
+        }
+
+        sessionStorage.setItem('isLoggedIn', 'true');
+        sessionStorage.setItem('userRole', 'admin');
+        sessionStorage.setItem('adminId', String(user.id));
+        if (user.role) sessionStorage.setItem('adminRole', user.role);
+        if (user.email) sessionStorage.setItem('adminEmail', user.email);
+        if (user.fullname) sessionStorage.setItem('userName', user.fullname);
+
+        return user;
+      } catch (_) {
+        return null;
+      } finally {
+        this._syncInFlight = null;
+      }
+    })();
+
+    return this._syncInFlight;
+  },
+
+  /**
    * Fetch current admin data from API and validate against session
    * @returns {Promise<Object>} Admin data from API
    */
   async fetchCurrentAdmin() {
-    const session = this.getSession();
+    let session = this.getSession();
     
+    if (!session.isLoggedIn || session.userRole !== "admin" || !session.adminId) {
+      await this.ensureAdminSessionFromServer();
+      session = this.getSession();
+    }
+
     if (!session.isLoggedIn || session.userRole !== "admin" || !session.adminId) {
       throw new Error("Not authenticated as admin");
     }
@@ -32,14 +121,19 @@ const AuthHelper = {
     console.log('[AuthHelper] Fetching admin data for ID:', session.adminId);
     
     try {
-      const response = await fetch(`/api/admin/${session.adminId}`);
+      const doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
+      const response = await doFetch(`/api/admin/${session.adminId}`, { credentials: 'include' });
       
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          // Session expired or invalid
+        if (response.status === 401) {
+          // Session expired — not authenticated at all
           this.clearSession();
           window.location.href = "/login";
           throw new Error("Session expired. Please log in again.");
+        }
+        if (response.status === 403) {
+          // Authenticated but access denied — do NOT log the user out
+          throw new Error("Access denied. You do not have permission to perform this action.");
         }
         throw new Error(`Failed to fetch admin data: ${response.status}`);
       }
@@ -110,7 +204,11 @@ const AuthHelper = {
    */
   clearSession() {
     console.log('[AuthHelper] Clearing all session data');
+    const isTimeoutLogout = sessionStorage.getItem('timeout-logout') === 'true';
     sessionStorage.clear();
+    if (isTimeoutLogout) {
+      sessionStorage.setItem('timeout-logout', 'true');
+    }
   },
 
   /**
@@ -135,7 +233,12 @@ const AuthHelper = {
   async logout() {
     try {
       // Call logout API if available
-      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {
+      await fetch('/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(() => {
         // Ignore errors, just clear session
       });
     } finally {

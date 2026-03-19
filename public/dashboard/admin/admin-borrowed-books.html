@@ -54,7 +54,10 @@
 
         if (!session.isLoggedIn || session.userRole !== "admin") {
           console.warn('[Admin Books] Not authenticated as admin, redirecting...');
-          alert("Please log in with admin credentials to access this page.");
+          const isTimeoutLogout = sessionStorage.getItem('timeout-logout') === 'true';
+          if (!isTimeoutLogout) {
+            alert("Please log in with admin credentials to access this page.");
+          }
           window.location.href = "/login";
           return;
         }

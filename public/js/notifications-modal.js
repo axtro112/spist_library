@@ -308,7 +308,20 @@ class NotificationModal {
         return;
       }
 
-      // === STEP 1: SET ACTIVE DEEP LINK STATE (SINGLE SOURCE OF TRUTH) ===
+      // ── USER-SIDE ROUTER ─────────────────────────────────────────────────
+      // Students clicking DUE_SOON or OVERDUE go directly to /user/due-books.
+      // No admin modal, no admin routes.
+      const _currentRole = this.getRoleContext();
+      const _rawType = (notif.type || '').toUpperCase();
+      if (_currentRole === 'student' &&
+          (_rawType === 'DUE_SOON' || _rawType === 'OVERDUE')) {
+        if (markAsReadFn && notif.id) {
+          markAsReadFn(notif.id).catch(() => {});
+        }
+        window.location.assign('/student-borrowed');
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────
       activeDeepLink = {
         notificationId: notif.id,
         type: notif.type,
@@ -826,15 +839,20 @@ class NotificationModal {
           const basePath = role === 'super_admin' ? '/super-admin-users' : '/admin-users';
           href = studentId ? `${basePath}?openViolations=${studentId}` : basePath;
         } else {
-          // Students see their own borrowed books
+          // Students: go to due-books page
           href = '/student-borrowed';
-          label = 'Go to Borrowings';
+          label = 'View Borrowed Books';
         }
         break;
       case 'student':
       case 'user':
-        label = 'Go to User Profile';
-        href = role === 'super_admin' ? '/super-admin-users' : '/admin-users';
+        if (role === 'student') {
+          label = 'View Borrowed Books';
+          href = '/student-borrowed';
+        } else {
+          label = 'Go to User Profile';
+          href = role === 'super_admin' ? '/super-admin-users' : '/admin-users';
+        }
         break;
       case 'admin':
         label = 'Go to Admins';
@@ -860,11 +878,22 @@ class NotificationModal {
   }
 
   getRoleContext() {
+    // 1. data-role on body (set by user-side EJS layouts)
+    const bodyRole = document.body && document.body.dataset.role;
+    if (bodyRole) return bodyRole;
+    // 2. window.USER_ROLE if explicitly set
+    if (window.USER_ROLE) return window.USER_ROLE;
+    // 3. sessionStorage (set by login.js)
     const role = sessionStorage.getItem('userRole');
     const adminRole = sessionStorage.getItem('adminRole');
     if (role === 'student') return 'student';
     if (role === 'admin' && adminRole === 'super_admin') return 'super_admin';
     if (role === 'admin') return 'admin';
+    // 4. URL prefix fallback
+    const path = window.location.pathname;
+    if (path.startsWith('/user/') || path.startsWith('/student-')) return 'student';
+    if (path.startsWith('/super-admin')) return 'super_admin';
+    if (path.startsWith('/admin')) return 'admin';
     return 'guest';
   }
 

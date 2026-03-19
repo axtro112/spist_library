@@ -52,7 +52,10 @@
         // System Admin access control (allows both system_admin and super_admin)
         if (isLoggedIn !== "true" || userRole !== "admin") {
           console.error('[System Admin Trash] Authentication FAILED at first check');
-          alert("Access denied. Admin privileges required.");
+          const isTimeoutLogout = sessionStorage.getItem('timeout-logout') === 'true';
+          if (!isTimeoutLogout) {
+            alert("Access denied. Admin privileges required.");
+          }
           window.location.href = "/login";
           return;
         }

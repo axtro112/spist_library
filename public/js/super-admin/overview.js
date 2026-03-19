@@ -81,10 +81,20 @@
     // ── Fetch helper ──────────────────────────────────────────
     async function _fetch(url) {
       try {
-        var res = await fetch(url, { credentials: 'same-origin' });
+        var doFetch = (typeof fetchWithCsrf === 'function') ? fetchWithCsrf : fetch;
+        var res = await doFetch(url, { credentials: 'same-origin' });
         var ct  = res.headers.get('content-type') || '';
         var payload = ct.includes('application/json') ? await res.json() : await res.text();
         if (!res.ok) {
+          var isAdminApi = typeof url === 'string' && url.indexOf('/api/admin/') === 0;
+          if (isAdminApi && res.status === 401 && !window.__adminAuthRedirecting) {
+            window.__adminAuthRedirecting = true;
+            sessionStorage.removeItem('adminId');
+            sessionStorage.removeItem('adminRole');
+            sessionStorage.removeItem('userRole');
+            sessionStorage.removeItem('isLoggedIn');
+            setTimeout(function () { window.location.href = '/login'; }, 600);
+          }
           var msg = (payload && payload.message) ||
                     (typeof payload === 'string' ? payload : '') ||
                     ('HTTP ' + res.status);
@@ -267,6 +277,7 @@
     // Endpoints:
     //   GET /api/admin/books/:bookId/profile
     //   GET /api/admin/books/:bookId/copies   (accession numbers)
+    //   GET /api/admin/books/:bookId/borrowings (borrow history)
     async function _loadBook(bookId) {
       var bookRes = await _fetch('/api/admin/books/' + encodeURIComponent(bookId) + '/profile');
       if (!bookRes.ok) return _renderError('Failed to load book details.');
@@ -347,9 +358,56 @@
         '</ul>';
       }
 
+      // Borrow history (latest records with borrower names)
+      var historyRes = await _fetch('/api/admin/books/' + encodeURIComponent(bookId) + '/borrowings?status=all');
+      var historyHTML = _empty('No borrowing history found for this book.');
+      var historyCount = 0;
+
+      if (historyRes.ok) {
+        var historyPayload = _pick(historyRes.data) || {};
+        var borrowings = historyPayload.borrowings || [];
+        var summary = historyPayload.summary || {};
+        if (!Array.isArray(borrowings)) borrowings = [];
+
+        historyCount = Number(summary.total || borrowings.length || 0);
+
+        if (borrowings.length > 0) {
+          var recent = borrowings.slice(0, 12);
+          historyHTML =
+            '<div class="sa-overview-kv" style="margin-bottom:10px;">' +
+              _kv('Total', String(historyCount)) +
+              _kv('Active', String(summary.active || 0)) +
+              _kv('Overdue', String(summary.overdue || 0)) +
+              _kv('Returned', String(summary.returned || 0)) +
+            '</div>' +
+            '<ul class="sa-overview-list">' +
+            recent.map(function (r) {
+              var student = r.student_name || r.student_id || 'Unknown borrower';
+              var when = r.borrowed_on ? new Date(r.borrowed_on).toLocaleDateString() : 'Unknown date';
+              var acc = r.accession_number ? ' · ' + _esc(r.accession_number) : '';
+              var state = String(r.status || 'unknown').toLowerCase();
+              var badge = _badge(r.status || 'unknown', 'gray');
+              if (state === 'returned') badge = _badge('Returned', 'green');
+              else if (state === 'overdue') badge = _badge('Overdue', 'red');
+              else if (state === 'borrowed' || state === 'approved') badge = _badge('Borrowed', 'amber');
+
+              return '<li>' +
+                '<span style="font-weight:600">' + _esc(student) + '</span>' +
+                ' · ' + _esc(when) + acc + ' ' + badge +
+              '</li>';
+            }).join('') +
+            '</ul>';
+
+          if (historyCount > recent.length) {
+            historyHTML += '<div class="sa-overview-empty" style="margin-top:8px;">Showing latest ' + recent.length + ' of ' + historyCount + ' records.</div>';
+          }
+        }
+      }
+
       _setBody(
         _card('Book Details', 'bi bi-book-fill', detailsHTML) +
-        _card('Copies (' + copies.length + ')', 'bi bi-collection-fill', copiesHTML)
+        _card('Copies (' + copies.length + ')', 'bi bi-collection-fill', copiesHTML) +
+        _card('Borrow History (' + historyCount + ')', 'bi bi-clock-history', historyHTML)
       );
     }
 

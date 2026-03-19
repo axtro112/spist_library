@@ -1,18 +1,14 @@
 <%
-  var extraHead = '<link rel="stylesheet" href="/css/super-admin/borrowed.css"><script src="/js/borrowed-books.js" defer><\/script><script src="/js/super-admin/borrowed.js" defer><\/script><style>html,body{overflow:hidden!important;height:100%!important;}.sa-wrapper{height:100vh;overflow:hidden;}.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}<\/style>';
+  var extraHead = '<script src="/js/admin/borrowed.js" defer><\/script><script src="/js/borrowed-books.js" defer><\/script><script src="/js/super-admin/borrowed.js" defer><\/script>';
 %>
 <%- include('../partials/super-admin-layout', {
   title: 'Borrowed Books Management - SPIST Library',
   adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
   activePage: 'borrowed',
   extraHead: extraHead,
   body: `
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        SuperAdmin.BorrowedPage.init();
-      });
-    <\/script>
-
     <div class="section-header">
       <div>
         <h1>Borrowed Books Management</h1>
@@ -40,6 +36,7 @@
         <select id="statusFilter" class="sa-filter-select">
           <option value="">All Status</option>
           <option value="pending_pickup">Pending Pickup</option>
+          <option value="claim_expired">Claim Expired</option>
           <option value="picked_up">Picked Up</option>
           <option value="overdue">Overdue</option>
           <option value="returned">Returned</option>
@@ -58,6 +55,27 @@
       <div class="d-flex align-items-center mb-2">
         <span id="resultCount" class="result-count"></span>
       </div>
+
+          <!-- Lifecycle Status Tabs -->
+    <div class="borrow-lifecycle-panel">
+      <div class="borrow-tabs">
+        <button class="borrow-tab active" data-status="pending_pickup">
+          <i class="bi bi-box-seam"></i>
+          <span>Pending Pickup</span>
+          <span class="tab-badge" id="count-pending-pickup">0</span>
+        </button>
+        <button class="borrow-tab" data-status="pending_return">
+          <i class="bi bi-arrow-return-left"></i>
+          <span>Pending Return</span>
+          <span class="tab-badge" id="count-pending-return">0</span>
+        </button>
+        <button class="borrow-tab" data-status="returned">
+          <i class="bi bi-clock-history"></i>
+          <span>History</span>
+          <span class="tab-badge" id="count-returned">0</span>
+        </button>
+      </div>
+    </div>
 
       <div class="sa-table-wrapper">
         <table class="borrowings-table">

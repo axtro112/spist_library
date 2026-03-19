@@ -1,4 +1,4 @@
-﻿const express = require("express");
+﻿﻿const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
@@ -8,6 +8,15 @@ const response = require("../utils/response");
 const logger = require("../utils/logger");
 const passport = require("../config/passport");
 require("dotenv").config();
+
+function saveSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
 
 const authenticateAdmin = async (email, password) => {
   const adminResults = await db.query("SELECT * FROM admins WHERE email = ?", [
@@ -72,6 +81,8 @@ router.post("/login", async (req, res) => {
         userRole: "admin",
         role: admin.role
       };
+
+      await saveSession(req);
       
       return res.json({
         success: true,
@@ -91,6 +102,8 @@ router.post("/login", async (req, res) => {
         email: student.email,
         userRole: "student"
       };
+
+      await saveSession(req);
       
       return res.json({
         success: true,
@@ -327,7 +340,7 @@ router.get(
 router.get(
   "/google/callback",
   passport.authenticate("google", { failureRedirect: "/login.html" }),
-  (req, res) => {
+  async (req, res) => {
     // Successful authentication
     const user = req.user;
     
@@ -339,6 +352,8 @@ router.get(
         userRole: "admin",
         role: user.role,
       };
+
+      await saveSession(req);
 
       // Set admin cookies for client-side use
       res.cookie("adminRole", user.role, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
@@ -359,6 +374,8 @@ router.get(
         email: user.email,
         userRole: "student",
       };
+
+      await saveSession(req);
 
       // Set student cookies for client-side use
       res.cookie("studentId", user.userId, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });

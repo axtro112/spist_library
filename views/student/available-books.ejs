@@ -1,0 +1,73 @@
+<%- include('../partials/user-sidebar-top', {
+  pageTitle: 'Available Books - SPIST Library',
+  studentId: studentId,
+  userRole: userRole,
+  activePage: 'available-books',
+  extraHead: '<link rel="stylesheet" href="/css/student/quick-borrow.css"><script src="/js/student/quick-borrow-modal.js?v=2025-03-18" defer><\/script><script src="/js/student/available-books.js?v=2025-03-18-FIXED" defer><\/script><script src="/js/student/overview.js?v=2026-03-18" defer><\/script>'
+}) %>
+
+<%- include('../partials/student-overview-cards') %>
+
+<!-- ═══ Section Header ═══ -->
+<div class="u-section-header">
+  <h2>Available Books</h2>
+</div>
+
+<!-- ═══ Main Card ═══ -->
+<div class="u-section-card">
+
+  <!-- Filter Bar -->
+  <div class="u-filter-bar">
+   <div id="borrowFilterBar" class="sa-filter-bar">
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+    <input type="checkbox" id="selectAllBooks" class="form-check-input" title="Select all books">
+  </div>
+
+  <div class="sa-search-wrap" style="flex:1;min-width:220px;">
+    <i class="bi bi-search"></i>
+    <input type="text" id="booksSearchInput" placeholder="Search by title, author...">
+  </div>
+
+  <select id="booksCategoryFilter" class="sa-filter-select" style="min-width:170px;">
+    <option value="">All Categories</option>
+  </select>
+
+  <select id="booksStatusFilter" class="sa-filter-select" style="min-width:150px;">
+    <option value="">All Status</option>
+    <option value="Available">Available</option>
+    <option value="All Borrowed">Borrowed</option>
+    <option value="maintenance">Maintenance</option>
+  </select>
+
+  <button id="clearFiltersBtn" class="sa-clear-btn" title="Clear all filters">
+    <i class="bi bi-funnel-fill"></i> Clear
+  </button>
+</div>
+  <!-- Table -->
+  <div class="sa-table-scroll">
+    <div class="u-table-wrapper">
+      <table class="user-table">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">Select</th>
+          <th style="width:60px;">ID</th>
+          <th>Title</th>
+          <th>Author</th>
+          <th>Category</th>
+          <th>ISBN</th>
+          <th style="width:110px;text-align:center;">Available</th>
+          <th style="width:110px;">Action</th>
+        </tr>
+      </thead>
+      <tbody id="availBooksBody">
+        <tr><td colspan="8" class="text-center">Loading…</td></tr>
+      </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /.u-section-card -->
+
+<%- include('../partials/quick-borrow-modal') %>
+
+<%- include('../partials/user-sidebar-bottom') %>

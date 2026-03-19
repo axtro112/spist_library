@@ -11,6 +11,33 @@ const db = require('../utils/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const response = require('../utils/response');
 const logger = require('../utils/logger');
+const {
+  getNextAccessionNumber,
+  generateQrCodeDataUrl,
+  generateQrCodePngBuffer,
+  getQrCodeImagePath,
+} = require('../utils/accession');
+
+/**
+ * GET /api/book-copies/qr/:accessionNumber
+ * Render PNG QR code for a copy accession number
+ */
+router.get('/qr/:accessionNumber', requireAuth, async (req, res) => {
+  try {
+    const { accessionNumber } = req.params;
+    const qrPng = await generateQrCodePngBuffer(accessionNumber);
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(qrPng);
+  } catch (error) {
+    logger.error('Error generating QR code image', {
+      error: error.message,
+      accessionNumber: req.params.accessionNumber,
+    });
+    return response.error(res, 'Failed to generate QR code image', error);
+  }
+});
 
 /**
  * GET /api/book-copies/:bookId
@@ -108,16 +135,11 @@ router.post('/', requireAdmin, async (req, res) => {
       return response.validationError(res, 'Book ID is required');
     }
     
-    // Get current year and next sequence
-    const currentYear = new Date().getFullYear();
-    
     let accessionNumber, copyNumber;
 
     await db.withTransaction(async (conn) => {
-      // Generate accession number based on total existing copies count
-      const totalRows = await conn.queryAsync('SELECT COUNT(*) as total FROM book_copies');
-      const sequence = (totalRows[0].total || 0) + 1;
-      accessionNumber = `ACC-${currentYear}-${String(sequence).padStart(5, '0')}`;
+      // Generate accession number from yearly sequence with row lock
+      accessionNumber = await getNextAccessionNumber(conn);
 
       // Get next copy number for this book
       const maxCopyRows = await conn.queryAsync(
@@ -143,10 +165,33 @@ router.post('/', requireAdmin, async (req, res) => {
         'UPDATE books SET quantity = quantity + 1, available_quantity = available_quantity + 1 WHERE id = ?',
         [book_id]
       );
+
+      await conn.queryAsync(
+        `INSERT INTO book_copy_audit (accession_number, action, new_value, performed_by, notes)
+         VALUES (?, 'created', ?, ?, ?)`,
+        [
+          accessionNumber,
+          JSON.stringify({ condition_status: condition_status || 'excellent', location: location || 'Main Library' }),
+          req.session?.user?.id || req.session?.adminId || null,
+          'Copy created via Add Copy',
+        ]
+      );
     });
 
+    const qrCodeDataUrl = await generateQrCodeDataUrl(accessionNumber);
+    const qrCodeImageUrl = getQrCodeImagePath(accessionNumber);
+
     logger.info('New book copy created', { accessionNumber, bookId: book_id, copyNumber });
-    response.success(res, { accession_number: accessionNumber, copy_number: copyNumber }, 'Copy added successfully');
+    response.success(
+      res,
+      {
+        accession_number: accessionNumber,
+        copy_number: copyNumber,
+        qr_code_data_url: qrCodeDataUrl,
+        qr_code_image_url: qrCodeImageUrl,
+      },
+      'Copy added successfully'
+    );
     
   } catch (error) {
     logger.error('Error creating book copy', { error: error.message });

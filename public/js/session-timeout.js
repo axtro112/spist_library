@@ -1,300 +1,340 @@
 /**
- * Session Timeout Handler
- * Tracks user activity and shows warning before automatic logout
+ * Session Timeout Manager
+ * Cross-tab safe idle tracking with keepalive and duplicate-init protection.
  */
 
-(function() {
-  const TIMEOUT_DURATION = 30 * 60 * 1000; // 30 minutes
-  const WARNING_TIME = 25 * 60 * 1000; // Show warning at 25 minutes
-  const CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
-
-  console.log('[Session Timeout] Initializing with settings:', {
-    timeout: TIMEOUT_DURATION / 1000 + 's',
-    warning: WARNING_TIME / 1000 + 's',
-    checkInterval: CHECK_INTERVAL / 1000 + 's'
-  });
-
-  let lastActivity = Date.now();
-  let warningShown = false;
-  let checkInterval;
-
-  // Activity events to track
-  const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-
-  // Update last activity timestamp
-  function updateActivity() {
-    lastActivity = Date.now();
-    warningShown = false;
-    hideWarning();
+(function sessionTimeoutBootstrap() {
+  if (window.__spistSessionTimeoutManager) {
+    return;
   }
 
-  // Check if session has expired
-  function checkTimeout() {
-    const now = Date.now();
-    const timeSinceActivity = now - lastActivity;
+  const CONFIG = {
+    idleTimeoutMs: 30 * 60 * 1000, // 30 minutes
+    warningBeforeMs: 5 * 60 * 1000, // 5 minutes
+    checkEveryMs: 15 * 1000, // 15 seconds
+    keepAliveEveryMs: 5 * 60 * 1000, // 5 minutes
+    activityWriteThrottleMs: 15 * 1000 // throttle writes
+  };
 
-    console.log('[Session Timeout] Check:', {
-      timeSinceActivity: Math.floor(timeSinceActivity / 1000) + 's',
-      warningTime: Math.floor(WARNING_TIME / 1000) + 's',
-      timeoutTime: Math.floor(TIMEOUT_DURATION / 1000) + 's'
-    });
+  const DEBUG_COUNTDOWN_LOG = true;
 
-    // Show warning if approaching timeout
-    if (timeSinceActivity >= WARNING_TIME && !warningShown) {
-      console.log('[Session Timeout] Showing warning modal');
-      showWarning();
-      warningShown = true;
+  const STORAGE_KEY_LAST_ACTIVITY = 'spist:last-activity';
+  const STORAGE_KEY_TIMEOUT_MARKER = 'timeout-logout';
+  const MODAL_ID = 'session-timeout-modal';
+  const ACTIVITY_EVENTS = [
+    'mousedown',
+    'mousemove',
+    'keydown',
+    'scroll',
+    'touchstart',
+    'click',
+    'input',
+    'focus'
+  ];
+
+  const state = {
+    lastActivity: Date.now(),
+    warningShown: false,
+    isLoggingOut: false,
+    checkTimer: null,
+    keepAliveTimer: null,
+    countdownTimer: null,
+    lastWriteAt: 0
+  };
+
+  function nowMs() {
+    return Date.now();
+  }
+
+  function isLoginPage() {
+    return /^\/login(?:\/)?$/i.test(window.location.pathname);
+  }
+
+  function readStoredActivity() {
+    const raw = localStorage.getItem(STORAGE_KEY_LAST_ACTIVITY);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  function writeStoredActivity(ts) {
+    localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, String(ts));
+  }
+
+  function setActivity(forceWrite) {
+    const ts = nowMs();
+    state.lastActivity = ts;
+
+    if (state.warningShown) {
+      state.warningShown = false;
+      hideWarning();
     }
 
-    // Logout if timeout exceeded
-    if (timeSinceActivity >= TIMEOUT_DURATION) {
-      console.log('[Session Timeout] Timeout reached, logging out');
-      logout();
+    const shouldWrite = forceWrite || (ts - state.lastWriteAt >= CONFIG.activityWriteThrottleMs);
+    if (shouldWrite) {
+      state.lastWriteAt = ts;
+      writeStoredActivity(ts);
     }
   }
 
-  // Show timeout warning modal
+  function syncActivityFromStorage() {
+    const stored = readStoredActivity();
+    if (stored && stored > state.lastActivity) {
+      state.lastActivity = stored;
+      if (state.warningShown) {
+        state.warningShown = false;
+        hideWarning();
+      }
+    }
+  }
+
+  function getIdleMs() {
+    return nowMs() - state.lastActivity;
+  }
+
+  function getWarningWindowMs() {
+    return Math.max(0, CONFIG.idleTimeoutMs - CONFIG.warningBeforeMs);
+  }
+
+  function hideWarning() {
+    const modal = document.getElementById(MODAL_ID);
+    if (modal) {
+      modal.remove();
+    }
+    if (state.countdownTimer) {
+      clearInterval(state.countdownTimer);
+      state.countdownTimer = null;
+    }
+  }
+
+  function getCountdownSeconds() {
+    const remainingMs = CONFIG.idleTimeoutMs - getIdleMs();
+    return Math.max(0, Math.ceil(remainingMs / 1000));
+  }
+
   function showWarning() {
-    const existingModal = document.getElementById('session-timeout-modal');
-    if (existingModal) {
-      existingModal.remove();
+    if (document.getElementById(MODAL_ID)) {
+      return;
     }
 
     const modal = document.createElement('div');
-    modal.id = 'session-timeout-modal';
-    modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 10000;
-      backdrop-filter: blur(2px);
-    `;
+    modal.id = MODAL_ID;
+    modal.style.cssText = [
+      'position: fixed',
+      'top: 0',
+      'left: 0',
+      'width: 100%',
+      'height: 100%',
+      'background: rgba(0, 0, 0, 0.6)',
+      'display: flex',
+      'justify-content: center',
+      'align-items: center',
+      'z-index: 10000'
+    ].join(';');
 
-    const timeRemaining = Math.ceil((TIMEOUT_DURATION - WARNING_TIME) / 1000);
+    const seconds = getCountdownSeconds();
+
+    if (DEBUG_COUNTDOWN_LOG) {
+      console.log('[SessionTimeout] Warning shown. Countdown starts at', seconds, 'seconds');
+    }
 
     modal.innerHTML = `
-      <div style="
-        background: white;
-        padding: 40px;
-        border-radius: 12px;
-        max-width: 500px;
-        width: 90%;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        animation: slideDown 0.3s ease-out;
-      ">
-        <div style="
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          margin-bottom: 24px;
-        ">
-          <div style="
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(253, 160, 133, 0.4);
-          ">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-          </div>
-          <h2 style="
-            margin: 0;
-            color: #2d5c3f;
-            font-size: 26px;
-            font-weight: 700;
-            text-align: center;
-          ">Session Expiring Soon</h2>
-        </div>
-
-        <div style="
-          background: linear-gradient(135deg, #fff5e6 0%, #ffe4e1 100%);
-          border-left: 4px solid #fda085;
-          padding: 16px 20px;
-          border-radius: 8px;
-          margin-bottom: 24px;
-        ">
-          <p style="
-            margin: 0;
-            color: #555;
-            line-height: 1.6;
-            font-size: 15px;
-            text-align: center;
-          ">
-            Your session will expire in <strong style="
-              color: #d32f2f;
-              font-size: 24px;
-              display: inline-block;
-              font-weight: 700;
-            "><span id="countdown">${timeRemaining}</span></strong> seconds due to inactivity.
-          </p>
-          <p style="
-            margin: 12px 0 0 0;
-            color: #666;
-            line-height: 1.5;
-            font-size: 14px;
-            text-align: center;
-          ">
-            Click "Stay Logged In" to continue your session.
-          </p>
-        </div>
-
-        <div style="
-          display: flex;
-          gap: 12px;
-          flex-direction: column;
-        ">
-          <button id="stay-logged-in" style="
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #4A8B5C 0%, #3d7349 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(74, 139, 92, 0.3);
-          " 
-          onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(74, 139, 92, 0.4)'"
-          onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(74, 139, 92, 0.3)'"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
-              <path d="M9 11l3 3L22 4"></path>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-            </svg>
-            Stay Logged In
-          </button>
-          <button id="logout-now" style="
-            width: 100%;
-            padding: 14px;
-            background: white;
-            color: #666;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-          "
-          onmouseover="this.style.borderColor='#d32f2f'; this.style.color='#d32f2f'"
-          onmouseout="this.style.borderColor='#e0e0e0'; this.style.color='#666'"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            Logout Now
-          </button>
+      <div style="background:#fff;padding:28px;border-radius:10px;max-width:460px;width:90%;box-shadow:0 8px 24px rgba(0,0,0,.2)">
+        <h3 style="margin:0 0 10px 0;color:#2d5c3f">Session Expiring Soon</h3>
+        <p style="margin:0 0 14px 0;color:#555;line-height:1.5">
+          You will be logged out due to inactivity in
+          <strong id="session-timeout-countdown" style="color:#c62828">${seconds}</strong>
+          seconds.
+        </p>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button id="session-stay-logged-in" type="button" style="border:0;background:#2d7a3e;color:#fff;padding:10px 16px;border-radius:7px;cursor:pointer">Stay Logged In</button>
+          <button id="session-logout-now" type="button" style="border:1px solid #ccc;background:#fff;color:#444;padding:10px 16px;border-radius:7px;cursor:pointer">Logout Now</button>
         </div>
       </div>
-      <style>
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      </style>
     `;
 
     document.body.appendChild(modal);
 
-    // Countdown timer
-    const countdownEl = document.getElementById('countdown');
-    let remaining = timeRemaining;
-    const countdownInterval = setInterval(() => {
-      remaining--;
+    const stayBtn = document.getElementById('session-stay-logged-in');
+    const logoutBtn = document.getElementById('session-logout-now');
+    const countdownEl = document.getElementById('session-timeout-countdown');
+
+    if (stayBtn) {
+      stayBtn.addEventListener('click', () => {
+        setActivity(true);
+      });
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        doLogout('manual');
+      });
+    }
+
+    state.countdownTimer = setInterval(() => {
+      const remaining = getCountdownSeconds();
       if (countdownEl) {
-        countdownEl.textContent = remaining;
+        countdownEl.textContent = String(remaining);
+      }
+      if (DEBUG_COUNTDOWN_LOG) {
+        console.log('[SessionTimeout] Seconds remaining:', remaining);
       }
       if (remaining <= 0) {
-        clearInterval(countdownInterval);
-        logout();
+        doLogout('timeout');
       }
     }, 1000);
+  }
 
-    // Stay logged in button
-    document.getElementById('stay-logged-in').addEventListener('click', () => {
-      clearInterval(countdownInterval);
-      updateActivity();
+  function shouldSendKeepAlive() {
+    if (document.hidden) {
+      return false;
+    }
+    return getIdleMs() < CONFIG.idleTimeoutMs;
+  }
+
+  function sendKeepAlive() {
+    if (!shouldSendKeepAlive()) {
+      return;
+    }
+
+    fetch('/auth/csrf-token', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      keepalive: true
+    }).catch(() => {
+      // Keepalive is best-effort.
+    });
+  }
+
+  function stopTimers() {
+    if (state.checkTimer) {
+      clearInterval(state.checkTimer);
+      state.checkTimer = null;
+    }
+    if (state.keepAliveTimer) {
+      clearInterval(state.keepAliveTimer);
+      state.keepAliveTimer = null;
+    }
+    hideWarning();
+  }
+
+  function doLogout(reason) {
+    if (state.isLoggingOut) {
+      return;
+    }
+
+    state.isLoggingOut = true;
+    stopTimers();
+    sessionStorage.setItem(STORAGE_KEY_TIMEOUT_MARKER, reason === 'timeout' ? 'true' : 'manual');
+
+    fetch('/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' }
+    }).catch(() => {
+      // Ignore network errors; always redirect.
+    }).finally(() => {
+      window.location.href = '/login';
+    });
+  }
+
+  function runTimeoutCheck() {
+    syncActivityFromStorage();
+    const idleMs = getIdleMs();
+    const warningAt = getWarningWindowMs();
+    const remainingMs = Math.max(0, CONFIG.idleTimeoutMs - idleMs);
+
+    if (DEBUG_COUNTDOWN_LOG) {
+      console.log('[SessionTimeout] check', {
+        idleSeconds: Math.floor(idleMs / 1000),
+        remainingSeconds: Math.ceil(remainingMs / 1000),
+        warningStartsInSeconds: Math.max(0, Math.ceil((warningAt - idleMs) / 1000)),
+        warningShown: state.warningShown,
+        hidden: document.hidden
+      });
+    }
+
+    if (idleMs >= CONFIG.idleTimeoutMs) {
+      doLogout('timeout');
+      return;
+    }
+
+    if (idleMs >= warningAt) {
+      if (!state.warningShown) {
+        state.warningShown = true;
+        showWarning();
+      }
+      return;
+    }
+
+    if (state.warningShown) {
+      state.warningShown = false;
       hideWarning();
-    });
-
-    // Logout now button
-    document.getElementById('logout-now').addEventListener('click', () => {
-      clearInterval(countdownInterval);
-      logout();
-    });
-  }
-
-  // Hide warning modal
-  function hideWarning() {
-    const modal = document.getElementById('session-timeout-modal');
-    if (modal) {
-      modal.remove();
     }
   }
 
-  // Logout and redirect to login page
-  function logout() {
-    // Clear any intervals
-    if (checkInterval) {
-      clearInterval(checkInterval);
+  function onStorageChange(event) {
+    if (event.key !== STORAGE_KEY_LAST_ACTIVITY) {
+      return;
     }
-
-    // Set flag to indicate this is a timeout logout
-    sessionStorage.setItem('timeout-logout', 'true');
-    
-    // Clear session storage
-    sessionStorage.clear();
-    
-    // Clear local storage (optional)
-    localStorage.clear();
-
-    // Show logout message
-    alert('Your session has expired due to inactivity. You will be redirected to the login page.');
-
-    // Redirect to login
-    window.location.href = '/login';
+    syncActivityFromStorage();
   }
 
-  // Initialize timeout tracking
+  function onVisibilityChange() {
+    if (!document.hidden) {
+      setActivity(true);
+      sendKeepAlive();
+    }
+  }
+
+  function bindActivityEvents() {
+    ACTIVITY_EVENTS.forEach((eventName) => {
+      document.addEventListener(eventName, () => {
+        setActivity(false);
+      }, true);
+    });
+  }
+
+  function startTimers() {
+    state.checkTimer = setInterval(runTimeoutCheck, CONFIG.checkEveryMs);
+    state.keepAliveTimer = setInterval(sendKeepAlive, CONFIG.keepAliveEveryMs);
+  }
+
   function init() {
-    console.log('[Session Timeout] Starting session timeout tracker');
-    
-    // Track user activity
-    activityEvents.forEach(event => {
-      document.addEventListener(event, updateActivity, true);
-    });
+    if (isLoginPage()) {
+      return;
+    }
 
-    // Start checking for timeout
-    checkInterval = setInterval(checkTimeout, CHECK_INTERVAL);
-    console.log('[Session Timeout] Check interval started');
+    if (DEBUG_COUNTDOWN_LOG) {
+      console.log('[SessionTimeout] init', {
+        idleTimeoutMs: CONFIG.idleTimeoutMs,
+        warningBeforeMs: CONFIG.warningBeforeMs,
+        checkEveryMs: CONFIG.checkEveryMs,
+        keepAliveEveryMs: CONFIG.keepAliveEveryMs,
+        path: window.location.pathname
+      });
+    }
 
-    // Initial activity timestamp
-    updateActivity();
+    // Start a fresh idle window on page bootstrap so stale timestamps
+    // from older sessions do not trigger immediate timeout redirects.
+    state.lastActivity = nowMs();
+    writeStoredActivity(state.lastActivity);
+
+    bindActivityEvents();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('storage', onStorageChange);
+
+    startTimers();
+    runTimeoutCheck();
   }
 
-  // Start when DOM is ready
+  window.__spistSessionTimeoutManager = {
+    init,
+    touch: () => setActivity(true),
+    getLastActivity: () => state.lastActivity
+  };
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

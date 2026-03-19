@@ -290,7 +290,7 @@ const importBooks = async (books) => {
           `UPDATE books
              SET title = ?, author = ?, category = ?, quantity = ?,
                  available_quantity = LEAST(available_quantity, ?),
-                 status = ?
+                 status = ?, deleted_at = NULL
            WHERE isbn = ?`,
           [
             book.title.trim(),

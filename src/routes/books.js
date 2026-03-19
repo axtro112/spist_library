@@ -8,13 +8,21 @@ const { requireAuth } = require("../middleware/auth");
 // GET /api/books - Get all books with optional search and category filters
 router.get("/", requireAuth, async (req, res) => {
   try {
+    // Prevent browser caching - user-specific data must be fetched fresh each time
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    
     const { search, category } = req.query;
+    // Show ALL books to students (not just available ones), but flag which are available
+    // This allows students to see the complete catalog and know which books are on the shelf
     let query = `
       SELECT b.*, a.fullname as added_by_name,
         CASE WHEN b.available_quantity > 0 THEN 1 ELSE 0 END as is_available
       FROM books b
       LEFT JOIN admins a ON b.added_by = a.id
-      WHERE b.status = 'available' AND b.deleted_at IS NULL
+      WHERE b.deleted_at IS NULL
+        AND COALESCE(b.status, 'available') NOT IN ('maintenance', 'retired', 'missing')
     `;
     const params = [];
 
@@ -47,8 +55,13 @@ router.get("/", requireAuth, async (req, res) => {
 // GET /api/books/categories - Get all unique categories
 router.get("/categories", requireAuth, async (req, res) => {
   try {
+    // Prevent browser caching
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    
     const query =
-      "SELECT DISTINCT category FROM books WHERE status = 'available' AND deleted_at IS NULL AND category IS NOT NULL AND category != '' ORDER BY category ASC";
+      "SELECT DISTINCT category FROM books WHERE deleted_at IS NULL AND category IS NOT NULL AND category != '' ORDER BY category ASC";
     const categories = await db.query(query);
     logger.info('Categories fetched successfully', { count: categories.length });
     response.success(res, categories);
@@ -58,9 +71,49 @@ router.get("/categories", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/books/popular - Get most frequently borrowed books
+router.get("/popular", requireAuth, async (req, res) => {
+  try {
+    // Prevent browser caching
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const query = `
+      SELECT
+        b.id,
+        b.title,
+        b.author,
+        b.category,
+        b.isbn,
+        b.quantity,
+        b.available_quantity,
+        COUNT(bb.id) AS borrow_count
+      FROM books b
+      LEFT JOIN book_borrowings bb ON b.id = bb.book_id
+      WHERE b.status = 'available' AND b.deleted_at IS NULL
+      GROUP BY b.id, b.title, b.author, b.category, b.isbn, b.quantity, b.available_quantity
+      ORDER BY borrow_count DESC, b.title ASC
+      LIMIT ?
+    `;
+    const books = await db.query(query, [limit]);
+    logger.info('Popular books fetched', { count: books.length });
+    response.success(res, books);
+  } catch (error) {
+    logger.error('Error fetching popular books', { error: error.message });
+    response.error(res, 'Error fetching popular books', error);
+  }
+});
+
 // GET /api/books/:id - Get single book by ID (for notification modal deep link)
 router.get("/:id", requireAuth, async (req, res) => {
   try {
+    // Prevent browser caching
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    
     const bookId = req.params.id;
 
     const query = `

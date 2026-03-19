@@ -45,10 +45,8 @@ async function createBorrowTransactionAndEmail(
       throw new Error('Invalid return date format');
     }
 
-    // Calculate claim expiration: Next day at 5:00 PM (17:00)
-    const claimExpiresAt = new Date();
-    claimExpiresAt.setDate(claimExpiresAt.getDate() + 1); // Tomorrow
-    claimExpiresAt.setHours(17, 0, 0, 0); // Set to 5:00 PM
+    // Strict pickup window: exactly 24 hours from borrow creation time
+    const claimExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // Execute within a database transaction
     const results = await db.withTransaction(async (conn) => {

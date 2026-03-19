@@ -193,8 +193,8 @@
 .form-actions button[type="submit"]:hover { background: #388e3c; }
 .form-actions .delete-confirm-btn { background: #f44336; color: white; }
 .form-actions .delete-confirm-btn:hover { background: #d32f2f; }
-.form-actions .cancel-btn { background: #f5f5f5; color: #666; }
-.form-actions .cancel-btn:hover { background: #e0e0e0; }
+.form-actions .cancel-btn { background: #ef4444; color: #ffffff; }
+.form-actions .cancel-btn:hover { background: #dc2626; }
 .form-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .modal-error { background: #ffebee; color: #c62828; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; display: none; font-size: 0.9rem; }
@@ -211,8 +211,45 @@
 .user-table .btn i { margin-right: 0.25rem; }
 
 /* ----------------------------------
+   Two-column form layout (Add/Edit User modals)
+   ---------------------------------- */
+#adminModal .sa-modal-content,
+#adminEdit  .sa-modal-content {
+  max-width: 720px;
+}
+
+#adminModal .sa-modal-body,
+#adminEdit  .sa-modal-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1.4rem;
+  padding: 1.4rem 1.75rem 0.6rem;
+}
+
+/* Error banner + full-span fields */
+#adminModal .sa-modal-error,
+#adminEdit  .sa-modal-error,
+#adminModal .sa-col-full,
+#adminEdit  .sa-col-full {
+  grid-column: 1 / -1;
+}
+
+/* Full-width select stays half-wide so it doesn't look stretched */
+#adminEdit .sa-col-full select {
+  max-width: calc(50% - 0.7rem);
+}
+
+/* ----------------------------------
    Responsive
    ---------------------------------- */
+@media (max-width: 600px) {
+  #adminModal .sa-modal-body,
+  #adminEdit  .sa-modal-body {
+    grid-template-columns: 1fr;
+  }
+  #adminEdit .sa-col-full select { max-width: 100%; }
+}
+
 @media (max-width: 480px) {
   .sa-modal-content { max-width: 100%; border-radius: 12px; }
   .sa-modal-footer  { flex-direction: column; }

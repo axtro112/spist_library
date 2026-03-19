@@ -10,7 +10,7 @@ class NotificationUserModal {
     this.currentStudentId = null;
     this.currentNotificationId = null;
     this.init();
-  }s
+  }
 
   init() {
     this.createModalHTML();

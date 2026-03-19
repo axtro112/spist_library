@@ -80,7 +80,16 @@ function logout() {
   if (window.AuthHelper) {
     window.AuthHelper.logout();
   } else {
-    sessionStorage.clear();
-    window.location.href = "/login";
+    fetch('/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' }
+    }).catch(() => {
+      // Ignore network errors; client-side logout still proceeds.
+    }).finally(() => {
+      sessionStorage.clear();
+      window.location.href = "/login";
+    });
   }
 }

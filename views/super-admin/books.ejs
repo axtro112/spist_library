@@ -1,18 +1,14 @@
 <%
-  var extraHead = '<link rel="stylesheet" href="/css/super-admin/bulk-operations.css"><link rel="stylesheet" href="/css/super-admin/book-details-modal.css"><link rel="stylesheet" href="/css/super-admin/admins-modal.css"><link rel="stylesheet" href="/css/super-admin/components/overview.css"><script src="/js/admin.js" defer><\/script><script src="/js/books.js" defer><\/script><script src="/js/book-copies.js" defer><\/script><script src="/js/books-import-export.js" defer><\/script><script src="/js/bulk-operations.js" defer><\/script><script src="/js/book-details-modal.js" defer><\/script><script src="/js/super-admin/books.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script><style>html,body{overflow:hidden!important;height:100%!important;}.sa-wrapper{height:100vh;overflow:hidden;}.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}.sa-content{height:calc(100vh - var(--sa-header-h));overflow-y:auto!important;overflow-x:hidden;}.actions-menu{list-style:none!important;padding-left:0!important;margin:0!important;}.actions-menu li{list-style:none!important;}<\/style>';
+  var extraHead = '<script src="/js/admin/books.js" defer><\/script><script src="/js/admin.js" defer><\/script><script src="/js/books.js" defer><\/script><script src="/js/book-copies.js" defer><\/script><script src="/js/books-import-export.js" defer><\/script><script src="/js/bulk-operations.js" defer><\/script><script src="/js/books-lifecycle-tabs.js" defer><\/script><script src="/js/book-details-modal.js" defer><\/script><script src="/js/super-admin/books.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script>';
 %>
 <%- include('../partials/super-admin-layout', {
   title: 'Book Management - SPIST Library',
   adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
   activePage: 'books',
   extraHead: extraHead,
   body: `
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        SuperAdmin.BooksPage.init();
-      });
-    <\/script>
-
     <div class="section-header d-flex align-items-center justify-content-between flex-wrap gap-3">
       <div>
         <h2><i class="bi bi-book me-2"></i>Book Management</h2>
@@ -85,7 +81,26 @@
         </button>
       </div>
 
-      <div class="sa-table-wrapper">
+      <div class="d-flex align-items-center mb-2">
+        <span id="resultCount" class="result-count">Showing 0 of 0 books</span>
+      </div>
+
+      <div class="books-lifecycle-tabs" data-component="books-tabs">
+        <button type="button" class="books-tab active" data-tab="all">
+          All Books
+          <span class="tab-badge" id="count-all">0</span>
+        </button>
+        <button type="button" class="books-tab" data-tab="active">
+          Active Books
+          <span class="tab-badge" id="count-active">0</span>
+        </button>
+        <button type="button" class="books-tab overdue-tab" data-tab="overdue">
+          Overdue Books
+          <span class="tab-badge overdue-badge" id="count-overdue">0</span>
+        </button>
+      </div>
+
+      <div class="sa-table-wrapper" data-books-table-wrapper>
         <table class="user-table">
           <thead>
             <tr>
@@ -107,30 +122,41 @@
       </div>
     </div>
 
-    <!-- Add Book Modal -->
+    <!-- Add Book Modal (METADATA ONLY) -->
+    <!-- This modal creates/updates book metadata (title/author/isbn/category/status) -->
+    <!-- Individual copy/accession management is handled via Manage Copies (see book-copies.js) -->
     <div id="adminModal" class="modal">
       <div class="modal-content">
         <h2>Add New Book</h2>
         <form id="addBookForm" method="POST">
           <div class="form-group">
-            <label for="title">Title</label>
-            <input type="text" id="title" name="title" required />
+            <label for="title">Title <span style="color:#e53e3e;">*</span></label>
+            <input type="text" id="title" name="title" required placeholder="Enter book title" />
           </div>
           <div class="form-group">
-            <label for="author">Author</label>
-            <input type="text" id="author" name="author" required />
+            <label for="author">Author <span style="color:#e53e3e;">*</span></label>
+            <input type="text" id="author" name="author" required placeholder="Enter author name" />
           </div>
           <div class="form-group">
-            <label for="No#Books">No#Books</label>
-            <input type="number" id="No#Books" name="No#Books" value="0" min="0" max="10" required />
+            <label for="No#Books">Initial Quantity <span style="color:#999;font-size:0.85rem;font-weight:normal;">(copies and accession numbers will be auto-generated)</span></label>
+            <input type="number" id="No#Books" name="No#Books" value="1" min="0" max="999" />
           </div>
           <div class="form-group">
-            <label for="category">Category</label>
-            <input type="text" id="category" name="category" required />
+            <label for="category">Category <span style="color:#e53e3e;">*</span></label>
+            <input type="text" id="category" name="category" required placeholder="Enter category (e.g., Fiction, Science)" />
           </div>
           <div class="form-group">
-            <label for="isbn">ISBN</label>
-            <input type="text" id="isbn" name="isbn" required />
+            <label for="isbn">ISBN / Barcode <span style="color:#e53e3e;">*</span></label>
+            <input type="text" id="isbn" name="isbn" required placeholder="Enter ISBN-10, ISBN-13, or barcode" />
+          </div>
+          <div class="form-group">
+            <label for="status">Status <span style="color:#e53e3e;">*</span></label>
+            <select id="status" name="status" required>
+              <option value="">-- Select Status --</option>
+              <option value="available" selected>Available</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="retired">Retired</option>
+            </select>
           </div>
           <div class="form-actions">
             <button type="submit" class="submit-btn">Add Book</button>

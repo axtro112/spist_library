@@ -15,6 +15,8 @@
 
   /* ── 1. Detect which sidebar element exists ───────────────────── */
   var sidebar =
+    document.querySelector('aside.sa-sidebar') ||
+    document.querySelector('.u-sidebar') ||
     document.querySelector('aside.sidebar-container') ||
     document.querySelector('aside.sidebar');
 
@@ -67,7 +69,7 @@
   overlay.addEventListener('click', closeSidebar);
 
   // Close sidebar when a nav link is clicked (mobile UX)
-  sidebar.querySelectorAll('.nav a').forEach(function (link) {
+  sidebar.querySelectorAll('a').forEach(function (link) {
     link.addEventListener('click', function () {
       // Small delay so the navigation starts before closing animation
       setTimeout(closeSidebar, 150);
@@ -83,7 +85,7 @@
 
   // Auto-close if window resizes above the breakpoint
   window.addEventListener('resize', function () {
-    if (window.innerWidth > 992 && sidebar.classList.contains('open')) {
+    if (window.innerWidth > 768 && sidebar.classList.contains('open')) {
       closeSidebar();
     }
   });

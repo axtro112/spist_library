@@ -1,320 +1,549 @@
-document.addEventListener("DOMContentLoaded", function () {
-  const studentId = sessionStorage.getItem("studentId");
-  if (!studentId) {
-    window.location.href = "/login";
-    return;
+/*
+FILE: student-borrowed.js
+
+PURPOSE
+Render student borrowed-books lifecycle tabs:
+- Pending Pickup
+- Active Borrowed
+- History
+
+CONNECTED TO
+views/student/borrowed-books.ejs
+*/
+(function () {
+  'use strict';
+
+  var allRecords = [];
+  var currentTab = 'active';
+  var filters = {
+    search: '',
+    category: '',
+    status: ''
+  };
+  var searchTimer = null;
+  var isRefreshingCategories = false;
+  var lastCategoryRefreshAt = 0;
+  var CATEGORY_REFRESH_INTERVAL_MS = 15000;
+
+  function formatDate(value) {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString();
   }
 
-  loadBorrowingHistory();
-  
-  // Auto-refresh borrowing history every 30 seconds
-  setInterval(() => {
-    loadBorrowingHistory();
-  }, 30000);
-
-  // Initialize borrowing details modal
-  initBorrowingDetailsModal();
-
-  // Check for deep link parameters
-  checkDeepLinkParams();
-});
-
-function checkDeepLinkParams() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const borrowingId = urlParams.get('openBorrowing');
-  
-  // Validate: must exist, not be "undefined", not empty
-  const isValid = borrowingId && borrowingId !== 'undefined' && borrowingId !== 'null' && borrowingId.trim() !== '';
-  
-  if (isValid) {
-    console.log('[Deep Link] Opening borrowing modal for:', borrowingId, '(from URL)');
-    // Clean URL BEFORE opening to prevent refresh re-trigger
-    window.history.replaceState({}, document.title, window.location.pathname);
-    // Wait for table to load, then open modal
-    setTimeout(() => {
-      openBorrowingDetailsModal(borrowingId);
-    }, 800);
-  } else {
-    console.log('[Deep Link] No valid deep-link params detected - modal stays closed');
+  function durationDays(start, end) {
+    if (!start || !end) return 'N/A';
+    const a = new Date(start);
+    const b = new Date(end);
+    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 'N/A';
+    const ms = Math.max(0, b.getTime() - a.getTime());
+    return Math.ceil(ms / (1000 * 60 * 60 * 24)) + ' day(s)';
   }
-}
 
-async function loadBorrowingHistory() {
-  try {
-    const response = await fetchWithCsrf(
-      `/api/students/borrowing-history/${sessionStorage.getItem("studentId")}`
-    );
-    if (!response.ok) {
-      throw new Error("Failed to fetch borrowing history");
+  function setCount(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value || 0);
+  }
+
+  function setTabState(activeKey) {
+    currentTab = activeKey;
+
+    const pendingBtn = document.getElementById('pendingTabBtn');
+    const activeBtn = document.getElementById('activeTabBtn');
+    const historyBtn = document.getElementById('historyTabBtn');
+
+    const pendingSection = document.getElementById('pendingSection');
+    const activeSection = document.getElementById('activeSection');
+    const historySection = document.getElementById('historySection');
+
+    if (pendingBtn) {
+      pendingBtn.classList.toggle('active', activeKey === 'pending');
+      pendingBtn.setAttribute('aria-selected', activeKey === 'pending' ? 'true' : 'false');
+    }
+    if (activeBtn) {
+      activeBtn.classList.toggle('active', activeKey === 'active');
+      activeBtn.setAttribute('aria-selected', activeKey === 'active' ? 'true' : 'false');
+    }
+    if (historyBtn) {
+      historyBtn.classList.toggle('active', activeKey === 'history');
+      historyBtn.setAttribute('aria-selected', activeKey === 'history' ? 'true' : 'false');
     }
 
-    const result = await response.json();
-    const borrowingHistory = result.data || []; // Extract data from response wrapper
-    const tableBody = document.querySelector(".user-table tbody");
+    if (pendingSection) pendingSection.style.display = activeKey === 'pending' ? '' : 'none';
+    if (activeSection) activeSection.style.display = activeKey === 'active' ? '' : 'none';
+    if (historySection) historySection.style.display = activeKey === 'history' ? '' : 'none';
 
-    if (borrowingHistory.length === 0) {
-      // Show empty state
-      document.querySelector(".table-wrapper").style.display = "none";
-      const emptyState = document.createElement("div");
-      emptyState.className = "empty-state";
-      emptyState.innerHTML = `
-                <span class="material-symbols-outlined">menu_book</span>
-                <h3>No Borrowing History</h3>
-                <p>You haven't borrowed any books yet. Start exploring our collection!</p>
-                <a href="/student-books" class="browse-books-btn">Browse Books</a>
-            `;
-      document.querySelector(".maincontent").appendChild(emptyState);
+    syncSelectAllState();
+  }
+
+  function getVisibleRowCheckboxes() {
+    var selector = '.borrowed-row-checkbox[data-tab="' + currentTab + '"]';
+    return Array.from(document.querySelectorAll(selector));
+  }
+
+  function syncSelectAllState() {
+    var selectAll = document.getElementById('selectAllBooks');
+    if (!selectAll) return;
+
+    var rowCheckboxes = getVisibleRowCheckboxes();
+    if (!rowCheckboxes.length) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
       return;
     }
 
-    // Clear existing table content
-    tableBody.innerHTML = "";
+    var checkedCount = rowCheckboxes.filter(function (checkbox) {
+      return checkbox.checked;
+    }).length;
 
-    // Add borrowing history to table
-    borrowingHistory.forEach((book) => {
-      const row = document.createElement("tr");
-      
-      // Add data attribute for highlighting
-      if (book.id) {
-        row.setAttribute('data-borrowing-id', book.id);
-      }
-      
-      // Format due date with deadline indicator
-      let dueDateDisplay = formatDate(book.due_date);
-      
-      // Add deadline status indicator (plain text, no color styling)
-      if (book.deadline_status === 'overdue' && !book.return_date) {
-        dueDateDisplay += ' <span style="font-size: 0.85em; font-weight: 600;">(Overdue)</span>';
-      } else if (book.deadline_status === 'due_today' && !book.return_date) {
-        dueDateDisplay += ' <span style="font-size: 0.85em; font-weight: 600;">(Due Today)</span>';
-      }
-      
-      row.innerHTML = `
-                <td>${book.title}</td>
-                <td>${book.author}</td>
-                <td>${formatDate(book.borrow_date)}</td>
-                <td>${dueDateDisplay}</td>
-                <td>${
-                  book.return_date
-                    ? formatDate(book.return_date)
-                    : "Not returned"
-                }</td>
-                <td>${book.duration} days</td>
-            `;
-      tableBody.appendChild(row);
+    selectAll.checked = checkedCount > 0 && checkedCount === rowCheckboxes.length;
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < rowCheckboxes.length;
+  }
+
+  function normalizeCategory(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  function normalizeStatus(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function formatStatusLabel(value) {
+    const normalized = normalizeStatus(value);
+    if (!normalized) return '';
+    return normalized
+      .split('_')
+      .map(function (part) {
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      })
+      .join(' ');
+  }
+
+  function getLifecycleStageFromStatus(value) {
+    const status = normalizeStatus(value);
+
+    if (status === 'pending_pickup' || status === 'claim_expired' || status === 'pending') {
+      return 'pending';
+    }
+
+    if (
+      status === 'borrowed' ||
+      status === 'overdue' ||
+      status === 'picked_up' ||
+      status === 'pending_return' ||
+      status === 'active'
+    ) {
+      return 'active';
+    }
+
+    if (status === 'returned' || status === 'completed' || status === 'history') {
+      return 'history';
+    }
+
+    return '';
+  }
+
+  function populateCategoryFilter(records) {
+    const select = document.getElementById('booksCategoryFilter');
+    if (!select) return;
+
+    const current = normalizeCategory(select.value);
+    const map = new Map();
+
+    (records || []).forEach(function (r) {
+      const raw = String(r.category || '').trim().replace(/\s+/g, ' ');
+      const normalized = normalizeCategory(raw);
+      if (!normalized || map.has(normalized)) return;
+      map.set(normalized, raw);
     });
-  } catch (error) {
-    console.error("Error:", error);
-    // Show error message to user
-    const errorDiv = document.createElement("div");
-    errorDiv.className = "error-message";
-    errorDiv.textContent =
-      "Failed to load borrowing history. Please try again later.";
-    document.querySelector(".maincontent").prepend(errorDiv);
-  }
-}
 
-function formatDate(dateString) {
-  if (!dateString) return "N/A";
-  const options = { year: "numeric", month: "short", day: "numeric" };
-  return new Date(dateString).toLocaleDateString("en-US", options);
-}
+    const sorted = Array.from(map.entries()).sort(function (a, b) {
+      return a[1].localeCompare(b[1]);
+    });
 
-function initBorrowingDetailsModal() {
-  // Create modal HTML if not exists
-  if (document.getElementById('borrowingDetailsModal')) return;
+    select.innerHTML = '<option value="">All Categories</option>';
+    sorted.forEach(function (entry) {
+      const option = document.createElement('option');
+      option.value = entry[1];
+      option.textContent = entry[1];
+      if (current && entry[0] === current) option.selected = true;
+      select.appendChild(option);
+    });
 
-  const modalHTML = `
-    <div id="borrowingDetailsModal" class="borrowing-modal-overlay" style="display: none;">
-      <div class="borrowing-modal">
-        <div class="borrowing-modal-header">
-          <h3 class="borrowing-modal-title">Borrowing Details</h3>
-          <button class="borrowing-modal-close" aria-label="Close">&times;</button>
-        </div>
-        <div class="borrowing-modal-body" id="borrowingModalBody">
-          <div class="borrowing-loading">
-            <div class="borrowing-spinner"></div>
-            <p>Loading...</p>
-          </div>
-        </div>
-        <div class="borrowing-modal-footer">
-          <button class="borrowing-modal-btn borrowing-modal-btn-secondary" id="borrowingModalClose">Close</button>
-        </div>
-      </div>
-    </div>
-  `;
+    const hasCurrent = sorted.some(function (entry) {
+      return entry[0] === current;
+    });
 
-  document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-  // Bind close events
-  const modal = document.getElementById('borrowingDetailsModal');
-  const closeBtn = modal.querySelector('.borrowing-modal-close');
-  const closeBtnFooter = document.getElementById('borrowingModalClose');
-
-  const closeModal = () => {
-    modal.style.display = 'none';
-    document.body.style.overflow = '';
-  };
-
-  closeBtn.addEventListener('click', closeModal);
-  closeBtnFooter.addEventListener('click', closeModal);
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) closeModal();
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal.style.display === 'flex') {
-      closeModal();
+    if (current && !hasCurrent) {
+      select.value = '';
+      filters.category = '';
     }
-  });
-}
-
-async function openBorrowingDetailsModal(borrowingId) {
-  const modal = document.getElementById('borrowingDetailsModal');
-  const modalBody = document.getElementById('borrowingModalBody');
-
-  if (!modal || !modalBody) {
-    console.error('[Student Borrowed] Modal not initialized');
-    return;
   }
 
-  // Show modal with loading state
-  modal.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  modalBody.innerHTML = `
-    <div class="borrowing-loading">
-      <div class="borrowing-spinner"></div>
-      <p>Loading borrowing details...</p>
-    </div>
-  `;
+  async function loadCategoryOptions() {
+    try {
+      var doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
+      var resp = await doFetch('/api/books/categories?ts=' + Date.now());
+      if (!resp.ok) throw new Error('Failed to fetch categories: ' + resp.status);
 
-  try {
-    // Fetch borrowing details
-    const response = await fetchWithCsrf(`/api/book-borrowings/detail/${borrowingId}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch borrowing details');
+      var result = await resp.json();
+      var categories = result.data || [];
+      populateCategoryFilter(categories.map(function (item) {
+        return { category: item.category };
+      }));
+
+      lastCategoryRefreshAt = Date.now();
+    } catch (err) {
+      console.error('[StudentBorrowed] loadCategoryOptions:', err);
     }
+  }
 
-    const result = await response.json();
-    const borrowing = result.data;
+  async function refreshCategoriesIfNeeded(force) {
+    var isStale = (Date.now() - lastCategoryRefreshAt) > CATEGORY_REFRESH_INTERVAL_MS;
+    if (!force && !isStale) return;
+    if (isRefreshingCategories) return;
 
-    if (!borrowing) {
-      throw new Error('Borrowing not found');
+    isRefreshingCategories = true;
+    try {
+      await loadCategoryOptions();
+    } finally {
+      isRefreshingCategories = false;
+    }
+  }
+
+  function populateStatusFilter(records) {
+    const select = document.getElementById('booksStatusFilter');
+    if (!select) return;
+
+    const current = normalizeStatus(select.value);
+    const map = new Map();
+
+    (records || []).forEach(function (r) {
+      const normalized = normalizeStatus(r.status);
+      if (!normalized || map.has(normalized)) return;
+      map.set(normalized, formatStatusLabel(normalized));
+    });
+
+    const sorted = Array.from(map.entries()).sort(function (a, b) {
+      return a[1].localeCompare(b[1]);
+    });
+
+    select.innerHTML = '<option value="">All Status</option>';
+    sorted.forEach(function (entry) {
+      const option = document.createElement('option');
+      option.value = entry[0];
+      option.textContent = entry[1];
+      if (current && entry[0] === current) option.selected = true;
+      select.appendChild(option);
+    });
+  }
+
+  function renderPending(rows) {
+    const tbody = document.getElementById('pendingBorrowedTbody');
+    const empty = document.getElementById('pendingBorrowedEmpty');
+    if (!tbody || !empty) return;
+
+    if (!rows.length) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      return;
     }
 
-    // Highlight the row in the table
-    highlightBorrowingRow(borrowingId);
-
-    // Render borrowing details
-    renderBorrowingDetails(borrowing);
-
-  } catch (error) {
-    console.error('[Student Borrowed] Error loading borrowing:', error);
-    modalBody.innerHTML = `
-      <div class="borrowing-error">
-        <span class="material-symbols-outlined" style="font-size: 48px; color: #c62828;">error</span>
-        <h4>Failed to Load Borrowing</h4>
-        <p>${error.message || 'This borrowing record could not be found.'}</p>
-      </div>
-    `;
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.map(function (r) {
+      var borrowingId = Number(r.borrow_id || r.id || 0);
+      var status = normalizeStatus(r.status);
+      var statusLabel = status === 'claim_expired' ? 'Claim Expired' : 'Pending Pickup';
+      return '<tr>' +
+        '<td style="text-align:center;"><input type="checkbox" class="form-check-input borrowed-row-checkbox" data-tab="pending" data-borrow-id="' + borrowingId + '"></td>' +
+        '<td>' + (r.title || 'N/A') + '</td>' +
+        '<td>' + (r.author || 'N/A') + '</td>' +
+        '<td>' + formatDate(r.borrow_date) + '</td>' +
+        '<td>' + (r.claim_expires_at ? formatDate(r.claim_expires_at) : 'Pending') + '</td>' +
+        '<td><span class="status-pill borrowed">' + statusLabel + '</span></td>' +
+        '<td><button type="button" class="cancel-btn" onclick="window.StudentBorrowed.cancelBorrowRequest(' + borrowingId + ')">Cancel Request</button></td>' +
+      '</tr>';
+    }).join('');
   }
-}
 
-function renderBorrowingDetails(borrowing) {
-  const modalBody = document.getElementById('borrowingModalBody');
-  
-  const statusClass = borrowing.status === 'overdue' ? 'status-overdue' : 
-                      borrowing.status === 'borrowed' ? 'status-borrowed' : 'status-returned';
-  
-  const statusText = borrowing.status === 'overdue' ? 'OVERDUE' : 
-                     borrowing.status === 'borrowed' ? 'BORROWED' : 'RETURNED';
+  function renderActive(rows) {
+    const tbody = document.getElementById('activeBorrowedTbody');
+    const empty = document.getElementById('activeBorrowedEmpty');
+    if (!tbody || !empty) return;
 
-  const daysOverdue = borrowing.status === 'overdue' && !borrowing.return_date ?
-    Math.floor((new Date() - new Date(borrowing.due_date)) / (1000 * 60 * 60 * 24)) : 0;
+    if (!rows.length) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      return;
+    }
 
-  modalBody.innerHTML = `
-    <div class="borrowing-details">
-      <div class="borrowing-status-badge ${statusClass}">
-        <span class="material-symbols-outlined">schedule</span>
-        ${statusText}
-        ${daysOverdue > 0 ? `<span class="days-overdue">(${daysOverdue} days overdue)</span>` : ''}
-      </div>
-
-      <div class="borrowing-section">
-        <h4><span class="material-symbols-outlined">menu_book</span> Book Information</h4>
-        <div class="borrowing-field">
-          <span class="field-label">Title:</span>
-          <span class="field-value">${escapeHtml(borrowing.title)}</span>
-        </div>
-        <div class="borrowing-field">
-          <span class="field-label">Author:</span>
-          <span class="field-value">${escapeHtml(borrowing.author)}</span>
-        </div>
-        <div class="borrowing-field">
-          <span class="field-label">Category:</span>
-          <span class="field-value">${escapeHtml(borrowing.category || 'N/A')}</span>
-        </div>
-        <div class="borrowing-field">
-          <span class="field-label">ISBN:</span>
-          <span class="field-value">${escapeHtml(borrowing.isbn || 'N/A')}</span>
-        </div>
-      </div>
-
-      <div class="borrowing-section">
-        <h4><span class="material-symbols-outlined">calendar_month</span> Borrowing Timeline</h4>
-        <div class="borrowing-field">
-          <span class="field-label">Borrowed On:</span>
-          <span class="field-value">${formatDate(borrowing.borrow_date)}</span>
-        </div>
-        <div class="borrowing-field">
-          <span class="field-label">Due Date:</span>
-          <span class="field-value">${formatDate(borrowing.due_date)}</span>
-        </div>
-        <div class="borrowing-field">
-          <span class="field-label">Return Date:</span>
-          <span class="field-value">${borrowing.return_date ? formatDate(borrowing.return_date) : '<em>Not returned yet</em>'}</span>
-        </div>
-      </div>
-
-      ${borrowing.approved_by_name ? `
-        <div class="borrowing-section">
-          <h4><span class="material-symbols-outlined">admin_panel_settings</span> Administrative</h4>
-          <div class="borrowing-field">
-            <span class="field-label">Approved By:</span>
-            <span class="field-value">${escapeHtml(borrowing.approved_by_name)}</span>
-          </div>
-        </div>
-      ` : ''}
-
-      ${borrowing.notes ? `
-        <div class="borrowing-section">
-          <h4><span class="material-symbols-outlined">notes</span> Notes</h4>
-          <div class="borrowing-notes">${escapeHtml(borrowing.notes)}</div>
-        </div>
-      ` : ''}
-    </div>
-  `;
-}
-
-function highlightBorrowingRow(borrowingId) {
-  // Remove any existing highlights
-  document.querySelectorAll('.user-table tbody tr').forEach(row => {
-    row.classList.remove('highlight-borrowing');
-  });
-
-  // Find and highlight the matching row
-  const targetRow = document.querySelector(`tr[data-borrowing-id="${borrowingId}"]`);
-  if (targetRow) {
-    targetRow.classList.add('highlight-borrowing');
-    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    console.log('[Student Borrowed] Highlighted row:', borrowingId);
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.map(function (r) {
+      var borrowingId = Number(r.borrow_id || r.id || 0);
+      var status = normalizeStatus(r.status);
+      var statusLabel = status === 'overdue' ? 'Overdue' : (status === 'picked_up' ? 'Picked Up' : 'Borrowed');
+      var statusClass = status === 'overdue' ? 'overdue' : 'borrowed';
+      return '<tr>' +
+        '<td style="text-align:center;"><input type="checkbox" class="form-check-input borrowed-row-checkbox" data-tab="active" data-borrow-id="' + borrowingId + '"></td>' +
+        '<td>' + (r.author || 'N/A') + '</td>' +
+        '<td>' + formatDate(r.borrow_date) + '</td>' +
+        '<td>' + formatDate(r.due_date) + '</td>' +
+        '<td><span class="status-pill ' + statusClass + '">' + statusLabel + '</span></td>' +
+        '<td>' + durationDays(r.borrow_date, r.due_date) + '</td>' +
+      '</tr>';
+    }).join('');
   }
-}
 
-function escapeHtml(str) {
-  if (str === null || str === undefined) return 'N/A';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+  function renderHistory(rows) {
+    const tbody = document.getElementById('borrowHistoryTbody');
+    const empty = document.getElementById('borrowHistoryEmpty');
+    if (!tbody || !empty) return;
+
+    if (!rows.length) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.map(function (r) {
+      var borrowingId = Number(r.borrow_id || r.id || 0);
+      return '<tr>' +
+        '<td style="text-align:center;"><input type="checkbox" class="form-check-input borrowed-row-checkbox" data-tab="history" data-borrow-id="' + borrowingId + '"></td>' +
+        '<td>' + (r.title || 'N/A') + '</td>' +
+        '<td>' + (r.author || 'N/A') + '</td>' +
+        '<td>' + formatDate(r.borrow_date) + '</td>' +
+        '<td>' + formatDate(r.due_date) + '</td>' +
+        '<td>' + formatDate(r.return_date) + '</td>' +
+        '<td>' + durationDays(r.borrow_date, r.return_date || r.due_date) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function splitBorrowings(records) {
+    const pending = [];
+    const active = [];
+    const history = [];
+
+    records.forEach(function (r) {
+      const stage = getLifecycleStageFromStatus(r.status);
+      if (stage === 'pending') {
+        pending.push(r);
+      } else if (stage === 'active') {
+        active.push(r);
+      } else if (stage === 'history') {
+        history.push(r);
+      }
+    });
+
+    return { pending, active, history };
+  }
+
+  function applyCombinedFilters() {
+    const search = normalizeStatus(filters.search);
+    const category = normalizeCategory(filters.category);
+    const status = normalizeStatus(filters.status);
+
+    const filtered = (allRecords || []).filter(function (r) {
+      if (search) {
+        const title = String(r.title || '').toLowerCase();
+        const author = String(r.author || '').toLowerCase();
+        const isbn = String(r.isbn || '').toLowerCase();
+        const accession = String(r.accession_number || '').toLowerCase();
+
+        if (
+          !title.includes(search) &&
+          !author.includes(search) &&
+          !isbn.includes(search) &&
+          !accession.includes(search)
+        ) {
+          return false;
+        }
+      }
+
+      if (category && normalizeCategory(r.category) !== category) {
+        return false;
+      }
+
+      if (status && normalizeStatus(r.status) !== status) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const grouped = splitBorrowings(filtered);
+    setCount('count-pending', grouped.pending.length);
+    setCount('count-active', grouped.active.length);
+    setCount('count-history', grouped.history.length);
+
+    renderPending(grouped.pending);
+    renderActive(grouped.active);
+    renderHistory(grouped.history);
+    setTabState(currentTab);
+    syncSelectAllState();
+  }
+
+  function setupFilters() {
+    const searchInput = document.getElementById('booksSearchInput');
+    const categoryFilter = document.getElementById('booksCategoryFilter');
+    const statusFilter = document.getElementById('booksStatusFilter');
+    const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+    const selectAllCheckbox = document.getElementById('selectAllBooks');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+          filters.search = String(searchInput.value || '').trim();
+          applyCombinedFilters();
+        }, 300);
+      });
+    }
+
+    if (categoryFilter) {
+      categoryFilter.addEventListener('change', function () {
+        filters.category = categoryFilter.value || '';
+        applyCombinedFilters();
+      });
+
+      categoryFilter.addEventListener('focus', function () {
+        refreshCategoriesIfNeeded(true);
+      });
+      categoryFilter.addEventListener('mousedown', function () {
+        refreshCategoriesIfNeeded(true);
+      });
+    }
+
+    if (statusFilter) {
+      statusFilter.addEventListener('change', function () {
+        filters.status = statusFilter.value || '';
+        applyCombinedFilters();
+      });
+    }
+
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', function () {
+        filters.search = '';
+        filters.category = '';
+        filters.status = '';
+
+        if (searchInput) searchInput.value = '';
+        if (categoryFilter) categoryFilter.value = '';
+        if (statusFilter) statusFilter.value = '';
+
+        applyCombinedFilters();
+      });
+    }
+
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', function () {
+        var rowCheckboxes = getVisibleRowCheckboxes();
+        rowCheckboxes.forEach(function (checkbox) {
+          checkbox.checked = selectAllCheckbox.checked;
+        });
+        syncSelectAllState();
+      });
+    }
+
+    document.addEventListener('change', function (event) {
+      if (!event.target || !event.target.classList || !event.target.classList.contains('borrowed-row-checkbox')) {
+        return;
+      }
+      syncSelectAllState();
+    });
+  }
+
+  async function loadBorrowedData() {
+    const studentId = sessionStorage.getItem('studentId');
+    if (!studentId) return;
+
+    try {
+      const doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
+      const response = await doFetch('/api/book-borrowings/' + studentId);
+      if (!response.ok) throw new Error('Failed to fetch borrowed books');
+
+      const result = await response.json();
+      allRecords = (result.data && result.data.books) ? result.data.books : [];
+
+      await loadCategoryOptions();
+      populateStatusFilter(allRecords);
+      applyCombinedFilters();
+    } catch (err) {
+      console.error('[StudentBorrowed] loadBorrowedData:', err);
+      allRecords = [];
+      renderPending([]);
+      renderActive([]);
+      renderHistory([]);
+      setCount('count-pending', 0);
+      setCount('count-active', 0);
+      setCount('count-history', 0);
+    }
+  }
+
+  async function cancelBorrowRequest(borrowingId) {
+    if (!borrowingId) return;
+    if (!window.confirm('Cancel this book request? The reserved copy will be returned to the available pool.')) return;
+
+    try {
+      var doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
+      var response = await doFetch('/api/book-borrowings/' + encodeURIComponent(borrowingId) + '/cancel', {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        var error = await response.json().catch(function () { return {}; });
+        throw new Error(error.message || 'Failed to cancel borrow request');
+      }
+
+      if (typeof window.showToast === 'function') {
+        window.showToast('Borrow request cancelled successfully.', 'success');
+      } else {
+        window.alert('Borrow request cancelled successfully.');
+      }
+
+      await loadBorrowedData();
+    } catch (err) {
+      console.error('[StudentBorrowed] cancelBorrowRequest:', err);
+      if (typeof window.showToast === 'function') {
+        window.showToast('Error: ' + err.message, 'error');
+      } else {
+        window.alert('Error: ' + err.message);
+      }
+    }
+  }
+
+  function initTabs() {
+    const pendingBtn = document.getElementById('pendingTabBtn');
+    const activeBtn = document.getElementById('activeTabBtn');
+    const historyBtn = document.getElementById('historyTabBtn');
+
+    if (pendingBtn) pendingBtn.addEventListener('click', function () { setTabState('pending'); });
+    if (activeBtn) activeBtn.addEventListener('click', function () { setTabState('active'); });
+    if (historyBtn) historyBtn.addEventListener('click', function () { setTabState('history'); });
+  }
+
+  async function init() {
+    if (typeof window.ensureStudentSessionFromServer === 'function') {
+      window.ensureStudentSessionFromServer();
+    }
+
+    setupFilters();
+    initTabs();
+    setTabState('active');
+    await loadBorrowedData();
+
+    var refreshHandle = setInterval(function () {
+      refreshCategoriesIfNeeded(false);
+    }, CATEGORY_REFRESH_INTERVAL_MS);
+
+    window.addEventListener('beforeunload', function () {
+      clearInterval(refreshHandle);
+    }, { once: true });
+  }
+
+  window.StudentBorrowed = window.StudentBorrowed || {};
+  window.StudentBorrowed.cancelBorrowRequest = cancelBorrowRequest;
+  document.addEventListener('DOMContentLoaded', init);
+})();

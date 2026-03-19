@@ -67,6 +67,9 @@ async function createNotification({
   status = null
 }) {
   try {
+    let enableInApp = true;
+    let enableRealtime = true;
+
     // Auto-determine link fields from related fields if not provided
     if (!link_type && related_table && related_id) {
       if (related_table === 'book_borrowings') {
@@ -92,7 +95,12 @@ async function createNotification({
         `INSERT INTO notification_preferences (user_type, user_id) VALUES (?, ?)`,
         [user_type, user_id]
       );
-    } else if (!prefs[0].enable_in_app) {
+    } else {
+      enableInApp = !!prefs[0].enable_in_app;
+      enableRealtime = !!prefs[0].enable_realtime;
+    }
+
+    if (!enableInApp) {
       logger.debug('Notifications disabled for user', { user_type, user_id });
       return null;
     }
@@ -141,7 +149,7 @@ async function createNotification({
     logger.info('Notification created', { notificationId, user_type, user_id, type });
 
     // Send real-time notification via SSE if enabled
-    if (prefs.length > 0 && prefs[0].enable_realtime) {
+    if (enableRealtime) {
       const connectionKey = `${user_type}:${user_id}`;
       const sseClient = sseConnections.get(connectionKey);
       
@@ -200,11 +208,14 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     let query = `
-      SELECT id, title, message, type, related_table, related_id, 
-             is_read, created_at, link_type, link_id, link_url,
-             target_type, target_id, book_id, book_title, borrowing_id, due_date, status
-      FROM notifications
-      WHERE user_type = ? AND user_id = ?
+      SELECT n.id, n.title, n.message, n.type, n.related_table, n.related_id,
+             n.is_read, n.created_at, n.link_type, n.link_id, n.link_url,
+             n.target_type, n.target_id, n.book_id,
+             COALESCE(b.title, n.book_title) AS book_title,
+             n.borrowing_id, n.due_date, n.status
+      FROM notifications n
+      LEFT JOIN books b ON n.book_id = b.id
+      WHERE n.user_type = ? AND n.user_id = ?
     `;
     const params = [userType, userId];
 

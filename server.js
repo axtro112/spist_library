@@ -1,4 +1,4 @@
-﻿const express = require("express");
+﻿﻿const express = require("express");
 const path = require("path");
 const bodyParser = require("body-parser");
 const session = require("express-session");
@@ -7,10 +7,10 @@ const csrf = require("csurf");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const cors = require("cors");
+const fs = require("fs");
 const passport = require("./src/config/passport");
 const authRoutes = require("./src/routes/auth");
 const adminRoutes = require("./src/routes/admin");
-const studentRoutes = require("./src/routes/students");
 const bookBorrowingRoutes = require("./src/routes/book-borrowings");
 const bookReturnRoutes = require("./src/routes/book-return");
 const booksRoutes = require("./src/routes/books");
@@ -18,6 +18,11 @@ const bookCopiesRoutes = require("./src/routes/book-copies");
 const notificationRoutes = require("./src/routes/notifications");
 const { startNotificationScheduler } = require("./src/utils/notificationScheduler");
 require("dotenv").config();
+
+const studentsRoutePath = path.join(__dirname, "src/routes/students.js");
+const studentRoutes = fs.existsSync(studentsRoutePath)
+  ? require("./src/routes/students")
+  : null;
 
 //  Validate critical environment variables on startup
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME', 'SESSION_SECRET'];
@@ -220,7 +225,11 @@ app.get("/api/debug/session", (req, res) => {
 // Mount routes - CSRF disabled for auth routes (protected by rate limiting + bcrypt)
 app.use("/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/students", studentRoutes);
+if (studentRoutes) {
+  app.use("/api/students", studentRoutes);
+} else {
+  console.warn(" Students API routes are disabled: src/routes/students.js not found.");
+}
 app.use("/api/book-borrowings", bookBorrowingRoutes);
 app.use("/api/book-borrowings", bookReturnRoutes);
 app.use("/api/books", booksRoutes);
@@ -271,13 +280,16 @@ app.use((err, req, res, next) => {
 // LANDING PAGE ROUTE (role-aware)
 // ============================================
 app.get('/', (req, res) => {
+  const sessionUser = req.session && req.session.user;
+
   // If user is already authenticated, redirect to their dashboard
-  if (req.session && req.session.adminId) {
-    const role = req.session.adminRole;
+  if (sessionUser && sessionUser.userRole === 'admin') {
+    const role = sessionUser.role;
     if (role === 'super_admin') return res.redirect('/super-admin-dashboard');
     if (role === 'system_admin') return res.redirect('/admin-dashboard');
+    return res.redirect('/admin-dashboard');
   }
-  if (req.session && req.session.userId) {
+  if (sessionUser && sessionUser.userRole === 'student') {
     return res.redirect('/student-dashboard');
   }
   // Not logged in – render landing page
@@ -310,7 +322,11 @@ const adminPages = [
 
 adminPages.forEach((page) => {
   app.get(`/${page}`, (req, res) => {
-    const destination = page === "admin" ? "admin-dashboard" : page;
+    const destination = page === "admin"
+      ? "admin-dashboard"
+      : page === "admin-dashboard"
+        ? "admin-books"
+        : page;
     res.redirect(`/dashboard/admin/${destination}.html`);
   });
 });
@@ -330,6 +346,7 @@ const superAdminPageRoutes = {
   "super-admin-trash": "super-admin/trash",
   "super-admin-audit-logs": "super-admin/audit-logs",
   "super-admin-settings": "super-admin/settings",
+  "super-admin-qr-scanner": "super-admin/qr-scanner",
 };
 
 Object.entries(superAdminPageRoutes).forEach(([route, view]) => {
@@ -340,20 +357,50 @@ Object.entries(superAdminPageRoutes).forEach(([route, view]) => {
     if (!user || user.userRole !== 'admin') {
       return res.redirect('/login');
     }
-    res.render(view, { adminEmail: user.email || '', adminRole: user.role || '' });
+    res.render(view, {
+      adminId: user.id || '',
+      adminEmail: user.email || '',
+      adminRole: user.role || ''
+    });
   });
 });
 
 // Student dashboard — rendered as EJS with new layout
 app.get("/student-dashboard", (req, res) => {
-  res.render("student/dashboard", {});
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.userRole !== 'student') {
+    return res.redirect('/login');
+  }
+
+  res.render("student/dashboard", {
+    studentId: sessionUser.studentId || sessionUser.id || '',
+    userRole: 'student',
+  });
 });
 app.get("/student", (req, res) => res.redirect("/student-dashboard"));
 
 // Student content pages — rendered as EJS with sidebar layout
-app.get("/student-books", (req, res) => res.render("user/browse-books", {}));
-app.get("/student-borrowed", (req, res) => res.render("user/borrowed-books", {}));
-app.get("/student-available", (req, res) => res.render("user/available-books", {}));
+app.get("/student-books", (req, res) => res.redirect("/student-available"));
+app.get("/student-borrowed", (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.userRole !== 'student') {
+    return res.redirect('/login');
+  }
+  res.render("student/borrowed-books", {
+    studentId: sessionUser.studentId || sessionUser.id || '',
+    userRole: 'student',
+  });
+});
+app.get("/student-available", (req, res) => {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || sessionUser.userRole !== 'student') {
+    return res.redirect('/login');
+  }
+  res.render("student/available-books", {
+    studentId: sessionUser.studentId || sessionUser.id || '',
+    userRole: 'student',
+  });
+});
 
 // Handle Chrome DevTools / browser well-known probes cleanly
 // Return 200 JSON for the DevTools config probe so Chrome doesn't log a 404 error.
@@ -377,7 +424,7 @@ app.get("*", (req, res) => {
   const pagesPath = path.join(__dirname, "src/pages", requestedPage);
 
   try {
-    if (require("fs").existsSync(pagesPath)) {
+    if (fs.existsSync(pagesPath)) {
       return res.sendFile(pagesPath);
     }
     res.sendFile(path.resolve(__dirname, "src/pages/home.html"));
@@ -387,11 +434,25 @@ app.get("*", (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open http://localhost:${PORT} in your browser`);
   
   // Start notification scheduler
   startNotificationScheduler();
   console.log('Notification scheduler started');
+});
+
+server.on('error', (error) => {
+  if (error && error.code === 'EADDRINUSE') {
+    console.error('');
+    console.error(`Port ${PORT} is already in use.`);
+    console.error('Stop the existing server process on this port, then start again.');
+    console.error('Tip (PowerShell): Get-NetTCPConnection -LocalPort 3000 -State Listen | Select-Object -ExpandProperty OwningProcess');
+    process.exit(1);
+    return;
+  }
+
+  console.error('Server startup failed:', error);
+  process.exit(1);
 });

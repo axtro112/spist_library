@@ -1,0 +1,180 @@
+<%- include('../partials/user-sidebar-top', {
+  pageTitle: 'Borrowed Books - SPIST Library',
+  studentId: studentId,
+  userRole: userRole,
+  activePage: 'borrowed-books',
+  extraHead: '<script src="/js/student/borrowed.js" defer><\/script><script src="/js/student-borrowed.js" defer><\/script><script src="/js/student/overview.js?v=2026-03-18" defer><\/script>'
+}) %>
+
+<%- include('../partials/student-overview-cards') %>
+
+<!-- ═══ Section Header ═══ -->
+<div class="u-section-header">
+  <h2>Borrowed Books</h2>
+</div>
+
+<!-- ═══ Main Card ═══ -->
+<div class="u-section-card">
+
+<!-- ═══ Filter Bar (Active Borrowed + History) ═══ -->
+<div id="borrowFilterBar" class="sa-filter-bar">
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+    <input type="checkbox" id="selectAllBooks" class="form-check-input" title="Select all books">
+  </div>
+
+  <div class="sa-search-wrap" style="flex:1;min-width:220px;">
+    <i class="bi bi-search"></i>
+    <input type="text" id="booksSearchInput" placeholder="Search by title, author...">
+  </div>
+
+  <select id="booksCategoryFilter" class="sa-filter-select" style="min-width:170px;">
+    <option value="">All Categories</option>
+  </select>
+
+  <select id="booksStatusFilter" class="sa-filter-select" style="min-width:150px;">
+    <option value="">All Status</option>
+  </select>
+
+  <button id="clearFiltersBtn" class="sa-clear-btn" title="Clear all filters">
+    <i class="bi bi-funnel-fill"></i> Clear
+  </button>
+</div>
+
+<div class="borrow-lifecycle-panel">
+  <div class="borrow-tabs" role="tablist" aria-label="Borrowed books tabs">
+    <button id="pendingTabBtn" class="borrow-tab" type="button" role="tab" aria-selected="false">
+      <i class="bi bi-hourglass-split"></i>
+      <span>Pending Pickup</span>
+      <span class="tab-badge" id="count-pending">0</span>
+    </button>
+    <button id="activeTabBtn" class="borrow-tab active" type="button" role="tab" aria-selected="true">
+      <i class="bi bi-arrow-return-left"></i>
+      <span>Active Borrowed</span>
+      <span class="tab-badge" id="count-active">0</span>
+    </button>
+    <button id="historyTabBtn" class="borrow-tab" type="button" role="tab" aria-selected="false">
+      <i class="bi bi-clock-history"></i>
+      <span>History</span>
+      <span class="tab-badge" id="count-history">0</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══ Pending Pickup Section ═══ -->
+<div id="pendingSection" style="display:none;">
+  <div class="u-table-wrapper" id="pendingBorrowedWrapper" style="margin-bottom: 22px;">
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">Select</th>
+          <th>Book Title</th>
+          <th>Author</th>
+          <th>Borrow Date</th>
+          <th>Claim Expires</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="pendingBorrowedTbody"></tbody>
+    </table>
+  </div>
+  <div id="pendingBorrowedEmpty" style="display:none; margin-bottom: 22px; color:#4b5563; font-size:14px; padding: 10px 2px;">
+    No pending pickup books.
+  </div>
+</div>
+
+<div id="activeSection">
+<!-- ═══ Active Borrowed Books Card ═══ -->
+  <div class="u-table-wrapper" id="activeBorrowedWrapper" style="margin-bottom: 22px;">
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">Select</th>
+          <th>Author</th>
+          <th>Borrowed Date</th>
+          <th>Due Date</th>
+          <th>Status</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody id="activeBorrowedTbody">
+        <!-- Populated by student-borrowed.js -->
+      </tbody>
+    </table>
+  </div>
+
+  <div id="activeBorrowedEmpty" style="display:none; margin-bottom: 22px; color:#4b5563; font-size:14px; padding: 10px 2px;">
+    No active borrowed books.
+  </div>
+</div>
+
+<!-- ═══ Borrowing History Card ═══ -->
+<div id="historySection" style="display:none;">
+  <div class="u-table-wrapper" id="borrowHistoryWrapper">
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">Select</th>
+          <th>Book Title</th>
+          <th>Author</th>
+          <th>Borrowed Date</th>
+          <th>Due Date</th>
+          <th>Returned Date</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody id="borrowHistoryTbody">
+        <!-- Populated by student-borrowed.js -->
+      </tbody>
+    </table>
+  </div>
+
+  <div id="borrowHistoryEmpty" style="display:none; color:#4b5563; font-size:14px; padding: 10px 2px;">
+    No returned books in history yet.
+  </div>
+</div>
+</div>
+
+<!-- ═══ Return Book Modal ═══ -->
+<div id="modal-user" class="modal" style="display: none;">
+  <div class="modal-content">
+    <h2>Return Book</h2>
+    <form>
+      <div class="form-group">
+        <label for="bookTitle">Book Title</label>
+        <input type="text" id="bookTitle" value="Introduction to Programming" readonly />
+      </div>
+      <div class="form-group">
+        <label for="author">Author</label>
+        <input type="text" id="author" value="John Smith" readonly />
+      </div>
+      <div class="form-group">
+        <label for="borrowDate">Borrowed Date</label>
+        <input type="text" id="borrowDate" value="Nov 10, 2023" readonly />
+      </div>
+      <div class="form-group">
+        <label for="returnDate">Return Date</label>
+        <input type="date" id="returnDate" value="2023-11-30" />
+      </div>
+      <div class="form-group">
+        <label for="condition">Book Condition</label>
+        <select id="condition" required>
+          <option value="excellent">Excellent</option>
+          <option value="good" selected>Good</option>
+          <option value="fair">Fair</option>
+          <option value="damaged">Damaged</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="notes">Notes (Optional)</label>
+        <textarea id="notes" rows="3" placeholder="Any additional information about the book condition..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="submit-btn">Confirm Return</button>
+        <button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<%- include('../partials/user-sidebar-bottom') %>

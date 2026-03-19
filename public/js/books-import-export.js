@@ -369,6 +369,17 @@ async function handleImportSubmit(e) {
     progressBar.style.width = "100%";
     progressBar.textContent = "100%";
 
+    // Debug: Log import state before display
+    const DEBUG_IMPORT = true; // Set to false to disable debug logs
+    if (DEBUG_IMPORT) {
+      console.log('[IMPORT DEBUG] Summary received:', result.summary);
+      console.log('[IMPORT DEBUG] Current filters:', {
+        search: document.getElementById('searchInput')?.value || '',
+        category: document.getElementById('categoryFilter')?.value || '',
+        status: document.getElementById('statusFilter')?.value || ''
+      });
+    }
+
     displayImportResults(result.summary);
     resultsDiv.style.display = "block";
 
@@ -380,12 +391,25 @@ async function handleImportSubmit(e) {
       ` Zero quantity entries: ${result.summary.zero_quantity_entries.length}`
     );
 
+    // Store import state for post-refresh analysis
+    window.__lastImportSummary = result.summary;
+    window.__importFiltersBefore = {
+      search: document.getElementById('searchInput')?.value || '',
+      category: document.getElementById('categoryFilter')?.value || '',
+      status: document.getElementById('statusFilter')?.value || ''
+    };
+
     // Reload books and stats to reflect imported data
+    if (DEBUG_IMPORT) console.log('[IMPORT DEBUG] Calling reloadBooksAndStats()...');
     if (typeof reloadBooksAndStats === 'function') {
       await reloadBooksAndStats();
     } else if (typeof loadBooks === 'function') {
       await loadBooks();
     }
+
+    // After refresh, check if filters might be hiding books
+    if (DEBUG_IMPORT) console.log('[IMPORT DEBUG] Refresh complete, checking filter state...');
+    checkIfFiltersHidingImportedBooks();
 
     setTimeout(() => {
       resetImportForm();
@@ -475,10 +499,33 @@ function displayImportResults(summary) {
   const resultsContent = document.getElementById("importResultsContent");
   
   const updated = summary.updated_existing || 0;
+  const inserted = summary.successfully_imported || 0;
+  
+  // Generate explanatory note based on import outcome
+  let explanationNote = '';
+  if (inserted === 0 && updated > 0) {
+    explanationNote = `
+      <div style="margin-bottom: 10px; padding: 8px; background-color: #fff8e1; border-left: 3px solid #fbc02d; font-size: 0.9em; color: #333;">
+        <strong>ℹ️ Why no new books?</strong><br>
+        All ${updated} imported ISBN(s) already exist in the system, so rows were <strong>updated</strong> with new data instead of inserted as new records.
+        Check the "Updated books" section below for details.
+      </div>
+    `;
+  } else if (inserted === 0 && updated === 0) {
+    explanationNote = `
+      <div style="margin-bottom: 10px; padding: 8px; background-color: #ffebee; border-left: 3px solid #f44336; font-size: 0.9em; color: #333;">
+        <strong>⚠️ No rows imported or updated</strong><br>
+        Common causes: Missing required fields (title, author, isbn, category), Invalid ISBN format, or all rows already skipped.
+        Review the errors below and try again.
+      </div>
+    `;
+  }
+  
   let html = `
+    ${explanationNote}
     <div style="margin-bottom: 15px; padding: 10px; background-color: #e8f5e9; border-left: 4px solid #4CAF50;">
       <strong>Summary:</strong><br>
-      ✓ New Books Added: ${summary.successfully_imported}<br>
+      ✓ New Books Added: ${inserted}<br>
       ↻ Existing Books Updated: ${updated}<br>
       ✗ Skipped (Missing Fields): ${summary.skipped_missing_fields.length}<br>
        Zero Quantity Entries: ${summary.zero_quantity_entries.length}
@@ -511,6 +558,75 @@ function displayImportResults(summary) {
   }
 
   resultsContent.innerHTML = html;
+}
+
+/**
+ * Check if active filters might be hiding newly imported books
+ * Shows subtle hint if imports completed but table shows no changes due to filters
+ * 
+ * @returns {void}
+ */
+function checkIfFiltersHidingImportedBooks() {
+  const DEBUG_IMPORT = true; // Matches flag in handleImportSubmit
+  const summary = window.__lastImportSummary || {};
+  const filtersBefore = window.__importFiltersBefore || {};
+  
+  if (DEBUG_IMPORT) {
+    console.log('[IMPORT DEBUG] Checking if filters hide books...');
+    console.log('[IMPORT DEBUG] Summary:', { imported: summary.successfully_imported, updated: summary.updated_existing });
+    console.log('[IMPORT DEBUG] Active filters:', filtersBefore);
+  }
+  
+  // Determine if any filters are active
+  const hasActiveFilters = !!(filtersBefore.search || filtersBefore.category || filtersBefore.status);
+  const hadImports = (summary.successfully_imported || 0) > 0 || (summary.updated_existing || 0) > 0;
+  
+  if (DEBUG_IMPORT) {
+    console.log('[IMPORT DEBUG] Active filters?', hasActiveFilters, 'Had imports?', hadImports);
+  }
+  
+  // Only show hint if: imports happened AND filters are active
+  if (hadImports && hasActiveFilters) {
+    // Find or create hint element
+    let hintElement = document.getElementById('importFilterHint');
+    if (!hintElement) {
+      // Create hint near the filter bar
+      const filterContainer = document.querySelector('.filter-bar') || 
+                             document.querySelector('.section-header');
+      if (filterContainer) {
+        hintElement = document.createElement('div');
+        hintElement.id = 'importFilterHint';
+        hintElement.style.cssText = `
+          margin-top: 10px;
+          margin-bottom: 15px;
+          padding: 8px 12px;
+          background-color: #e8f4fd;
+          border-left: 3px solid #0277bd;
+          border-radius: 2px;
+          font-size: 0.85em;
+          color: #333;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        `;
+        hintElement.innerHTML = `
+          <span><strong>ℹ️ Import Finished:</strong> Active filters may be hiding newly imported or updated books. <a href="javascript:void(0)" onclick="document.getElementById('searchInput').value=''; document.getElementById('categoryFilter').value=''; document.getElementById('statusFilter').value=''; typeof loadBooks === 'function' && loadBooks();" style="color: #0277bd; text-decoration: underline; cursor: pointer;">Clear filters</a></span>
+          <span onclick="document.getElementById('importFilterHint').remove();" style="cursor: pointer; font-size: 1.2em; color: #999;">✕</span>
+        `;
+        filterContainer.parentNode.insertBefore(hintElement, filterContainer.nextSibling);
+        
+        if (DEBUG_IMPORT) console.log('[IMPORT DEBUG] Hint shown to user');
+        
+        // Auto-remove hint after 8 seconds
+        setTimeout(() => {
+          if (document.getElementById('importFilterHint')) {
+            document.getElementById('importFilterHint').remove();
+            if (DEBUG_IMPORT) console.log('[IMPORT DEBUG] Hint auto-removed after timeout');
+          }
+        }, 8000);
+      }
+    }
+  }
 }
 
 document.addEventListener("DOMContentLoaded", function () {

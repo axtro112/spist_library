@@ -250,6 +250,11 @@
       window.location.href = '/login';
       return;
     }
+    
+    // Extended delay to ensure backend session is fully loaded from store
+    // on hard refresh (100ms gives enough time for MySQL session store)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     SA.utils.loadAdminHeader(s.adminId);
 
     trashManager = new TrashManager('admins', '/api/admin/admins');

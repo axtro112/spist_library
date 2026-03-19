@@ -4,8 +4,11 @@
   "description": "Library Management System for Southern Philippines Institute of Science & Technology",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node scripts/start-clean.js",
+    "start:raw": "node server.js",
+    "start:clean": "node scripts/start-clean.js",
+    "dev": "nodemon server.js",
+    "backfill:accessions": "node scripts/backfill-accessions.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -26,6 +29,7 @@
     "nodemailer": "^6.9.7",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "qrcode": "^1.5.4",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -10,6 +10,10 @@
   async function init() {
     if (!SA.utils.guardSuperAdmin()) return;
 
+    // Extended delay to ensure backend session is fully loaded from store
+    // on hard refresh (100ms gives enough time for MySQL session store)
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     var session = SA.utils.getSession();
 
     // Expose these for the current-user check used in admin-management.js

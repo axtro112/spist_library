@@ -17,12 +17,7 @@
   <!-- Open Sans -->
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <!-- Existing CSS -->
-  <link rel="stylesheet" href="/css/common.css" />
-  <link rel="stylesheet" href="/css/notifications.css" />
-  <link rel="stylesheet" href="/css/responsive.css" />
-  <!-- Super Admin layout styles -->
-  <link rel="stylesheet" href="/css/super-admin/layout.css" />
+  <link rel="stylesheet" href="/css/system.css" />
 
   <!-- Extra head content (per-page CSS, etc.) -->
   <%- extraHead || '' %>
@@ -32,12 +27,15 @@
   <!-- Super Admin shared utilities — must load before any SA page module -->
   <script src="/js/super-admin/utils.js"></script>
   <script src="/js/session-timeout.js"></script>
+  <script src="/js/core/api.js"></script>
+  <script src="/js/core/modal.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/ui.js"></script>
   <script src="/js/notifications.js"></script>
+  <script src="/js/admin/layout.js" defer></script>
   <script src="/js/super-admin-guard.js" defer></script>
 </head>
-<body>
+<body data-role="admin" data-admin-id="<%= adminId || '' %>" data-admin-role="<%= adminRole || '' %>" data-active-page="<%= activePage || '' %>">
 <div class="sa-wrapper">
 
   <!-- ═══════════════ SIDEBAR ═══════════════ -->
@@ -64,6 +62,9 @@
       </a>
       <a href="/super-admin-borrowed-books"     class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
         <i class="bi bi-journal-bookmark"></i><span class="nav-label">Borrowed Books</span>
+      </a>
+      <a href="/super-admin-qr-scanner"          class="<%= activePage === 'qr-scanner'     ? 'active' : '' %>">
+        <i class="bi bi-qr-code-scan"></i><span class="nav-label">QR Scanner</span>
       </a>
       <div class="sa-nav-divider"></div>
       <a href="/super-admin-trash"              class="<%= activePage === 'trash'         ? 'active' : '' %>">
@@ -136,7 +137,7 @@
     <h2>Confirm Logout</h2>
     <p>Are you sure you want to log out?</p>
     <div class="form-actions">
-      <button class="sa-btn sa-btn-outline" onclick="closeLogoutModal()">Cancel</button>
+      <button class="sa-btn sa-btn-outline cancel-btn" onclick="closeLogoutModal()">Cancel</button>
       <button class="sa-btn sa-btn-danger"  onclick="logout()">Log Out</button>
     </div>
   </div>
@@ -147,49 +148,6 @@
 <script src="/js/sidebar-toggle.js" defer></script>
 <script src="/js/notification-deeplink.js"></script>
 <script src="/js/notification-highlight.js"></script>
-
-<script>
-  // ── LOGOUT HELPERS ──
-  function showLogoutModal()  { document.getElementById('logoutModal').classList.add('show'); }
-  function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('show'); }
-  function hideLogoutModal()  { closeLogoutModal(); }
-  function confirmLogout()    { logout(); }
-  async function logout() {
-    try { await fetch('/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
-    sessionStorage.clear(); localStorage.clear();
-    window.location.href = '/login';
-  }
-
-  // ── NOTIFICATION BELL ──
-  (function() {
-    const bell  = document.getElementById('superAdminNotifBell');
-    const panel = document.getElementById('superAdminNotifPanel');
-    const badge = document.getElementById('superAdminNotifBadge');
-    if (!bell || !panel) return;
-    bell.addEventListener('click', function(e) {
-      e.stopPropagation();
-      const open = panel.style.display === 'block';
-      panel.style.display = open ? 'none' : 'block';
-      bell.setAttribute('aria-expanded', String(!open));
-    });
-    document.addEventListener('click', function(e) {
-      if (!bell.contains(e.target) && !panel.contains(e.target)) panel.style.display = 'none';
-    });
-    async function loadBadge() {
-      try {
-        const r = await fetch('/api/notifications/unread-count');
-        if (r.ok) {
-          const d = await r.json();
-          const c = d.count || 0;
-          badge.textContent = c;
-          badge.style.display = c > 0 ? 'flex' : 'none';
-        }
-      } catch(e) {}
-    }
-    loadBadge();
-    setInterval(loadBadge, 30000);
-  })();
-</script>
 <%- include('./overview-panel') %>
 </body>
 </html>

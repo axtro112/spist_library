@@ -264,7 +264,75 @@ function escapeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Send an overdue book reminder email to a student.
+ *
+ * @param {string} studentEmail
+ * @param {string} studentName
+ * @param {string} studentId
+ * @param {string} bookTitle
+ * @param {Date|string} dueDate
+ * @param {number} daysOverdue
+ * @returns {Promise<{success: boolean, messageId?: string, error?: string}>}
+ */
+async function sendOverdueReminderEmail(studentEmail, studentName, studentId, bookTitle, dueDate, daysOverdue) {
+  try {
+    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+      logger.warn('Email not configured — skipping overdue reminder.', { studentId });
+      return { success: false, error: 'Email not configured' };
+    }
+
+    const dueDateFormatted = new Date(dueDate).toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="UTF-8"></head>
+        <body style="font-family:Arial,sans-serif;color:#333;line-height:1.6;">
+          <div style="max-width:600px;margin:0 auto;padding:20px;">
+            <div style="background:#c62828;color:#fff;padding:20px;border-radius:5px;text-align:center;">
+              <h2>&#128203; SPIST LIBRARY — OVERDUE BOOK REMINDER</h2>
+            </div>
+            <div style="padding:20px;background:#fafafa;border-radius:5px;margin-top:10px;">
+              <p>Good day, <strong>${escapeHtml(studentName)}</strong>,</p>
+              <p>This is a reminder that the following book you borrowed is <strong style="color:#c62828;">overdue by ${daysOverdue} day(s)</strong>:</p>
+              <div style="background:#fff3e0;padding:15px;border-left:4px solid #e65100;border-radius:3px;margin:15px 0;">
+                <strong>Book:</strong> ${escapeHtml(bookTitle)}<br/>
+                <strong>Due Date:</strong> ${dueDateFormatted}<br/>
+                <strong>Days Overdue:</strong> ${daysOverdue} day(s)
+              </div>
+              <p>Please return the book to the SPIST Library as soon as possible to avoid further penalties.</p>
+              <p style="margin-top:30px;color:#666;">Thank you for using SPIST Library Management System!</p>
+            </div>
+            <div style="text-align:center;color:#999;font-size:12px;padding:10px;border-top:1px solid #ddd;margin-top:10px;">
+              <p>This is an automated email. Please do not reply.</p>
+              <p>&copy; 2026 Southern Philippines Institute of Science &amp; Technology Library</p>
+            </div>
+          </div>
+        </body>
+      </html>`;
+
+    const info = await transporter.sendMail({
+      from: `"SPIST Library" <${fromEmail}>`,
+      to: studentEmail,
+      subject: `Overdue Book Reminder — ${escapeHtml(bookTitle)} (${daysOverdue} day(s) overdue)`,
+      html: htmlContent,
+      text: `Good day ${studentName},\n\nYour borrowed book "${bookTitle}" is overdue by ${daysOverdue} day(s). Due date was ${dueDateFormatted}.\n\nPlease return it to the SPIST Library immediately.\n\nThank you.`
+    });
+
+    logger.info('Overdue reminder email sent', { studentId, studentEmail, messageId: info.messageId, daysOverdue });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    logger.error('Failed to send overdue reminder email', { studentId, error: error.message });
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendBorrowingClaimEmail,
+  sendOverdueReminderEmail,
   transporter
 };

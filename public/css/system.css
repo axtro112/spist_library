@@ -1,0 +1,79 @@
+/*
+FILE: system.css
+
+PURPOSE
+System-wide layout and structural styles.
+
+CONNECTED TO
+views/partials/super-admin-layout.ejs
+views/partials/user-sidebar-top.ejs
+
+HANDLES
+layout
+sidebar
+header
+table wrappers
+filter bar
+dashboard shell
+*/
+
+@import url('/css/common.css');
+@import url('/css/notifications.css');
+@import url('/css/responsive.css');
+@import url('/css/backup.css');
+@import url('/css/admin.css');
+@import url('/css/student.css');
+@import url('/css/user-theme.css');
+@import url('/css/student/user-layout.css');
+@import url('/css/student/user-books.css');
+@import url('/css/super-admin/layout.css');
+@import url('/css/super-admin/components/overview.css');
+
+/* Shared full-height app shell for admin pages */
+html,
+body {
+  height: 100%;
+}
+
+.sa-wrapper {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sa-main {
+  min-height: unset !important;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sa-content {
+  height: calc(100vh - var(--sa-header-h));
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
+
+/* Dashboard activity card scrolling */
+.sa-content .section-card:last-child {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.sa-content .section-card:last-child .activity-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.actions-menu {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+}
+
+.actions-menu li {
+  list-style: none !important;
+}

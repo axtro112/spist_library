@@ -928,8 +928,9 @@ body::before {
 }
 
 .cancel-btn {
-  background-color: rgba(255, 255, 255, 0.8);
-  color: #2e7d32;
+  background-color: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);
 }
 
 .submit-btn:hover,
@@ -940,7 +941,7 @@ body::before {
 
 .cancel-btn:hover {
   transform: translateY(-1px);
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: #dc2626;
 }
 
 /* ============================

@@ -20,3 +20,10 @@ yarn-error.log
 # OS
 .DS_Store
 Thumbs.db 
+
+# Local debug/temp artifacts
+.tmp-npm-start.log
+CHECK_DELETE.js
+DEBUG_*.js
+IMPORT_DIAGNOSTIC.js
+test-api.js

@@ -1,31 +1,21 @@
 ﻿<%
   var extraHead = '<script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>' +
-    '<link rel="stylesheet" href="/css/super-admin/notification-user-modal.css">' +
+    '<script src="/js/auth-helper.js" defer><\/script>' +
+    '<script src="/js/core/utils.js" defer><\/script>' +
+    '<script src="/js/system-admin/dashboard.js" defer><\/script>' +
+    '<script src="/js/admin/dashboard.js" defer><\/script>' +
     '<script src="/js/notification-user-modal.js"><\/script>' +
-    '<script src="/js/admin.js" defer><\/script>' +
-    '<script src="/js/super-admin/dashboard.js" defer><\/script>' +
-    '<style>html,body{overflow:hidden!important;height:100%!important;}' +
-    '.sa-wrapper{height:100vh;overflow:hidden;}' +
-    '.sa-main{min-height:unset!important;height:100vh;overflow:hidden;}' +
-    '.sa-content{height:calc(100vh - var(--sa-header-h));overflow:hidden!important;display:flex;flex-direction:column;}' +
-    '.sa-content .section-card:last-child{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;margin-bottom:0;}' +
-    '.sa-content .section-card:last-child .activity-list{flex:1;overflow-y:auto;min-height:0;}<\/style>';
+    '<script src="/js/admin.js" defer><\/script>';
 %>
 
-<%- include('../partials/super-admin-layout', {
-  title: 'Super Admin Dashboard - SPIST Library',
+<%- include('../partials/system-admin-layout', {
+  title: 'System Admin Dashboard - SPIST Library',
   adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
   activePage: 'dashboard',
   extraHead: extraHead,
   body: `
-
-
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        SuperAdmin.Dashboard.init();
-      });
-    <\/script>
-
     <div class="sa-stats-grid">
       <div class="sa-stat-card">
         <div class="sa-stat-icon"><i class="bi bi-book-fill"></i></div>
@@ -63,10 +53,10 @@
         </div>
       </div>
       <div class="sa-stat-card">
-        <div class="sa-stat-icon"><i class="bi bi-activity" style="color:#10b981;"></i></div>
+        <div class="sa-stat-icon"><i class="bi bi-hourglass-split" style="color:#f59e0b;"></i></div>
         <div class="sa-stat-info">
-          <div class="sa-stat-number" id="systemHealth" style="font-size:16px;color:#10b981;">Healthy</div>
-          <div class="sa-stat-label">System Health</div>
+          <div class="sa-stat-number" id="pendingPickup" style="color:#f59e0b;">0</div>
+          <div class="sa-stat-label">Pending Pickup</div>
         </div>
       </div>
     </div>
@@ -83,10 +73,11 @@
     </div>
 
     <div class="section-card mt-3">
-      <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success" style="color:#4ba14e;"></i>Recent System Activity</h5>
+      <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success" style="font-color:#4ba14e;"></i>Recent System Activity</h5>
       <ul class="activity-list list-unstyled mb-0" id="activityList">
         <li class="activity-item"><div class="activity-content notif-loading">Loading activities...</div></li>
       </ul>
     </div>
   `
 }) %>
+

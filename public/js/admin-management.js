@@ -14,9 +14,13 @@ class AdminManagement {
   }
 
   init() {
+    const body = document.body;
+    const datasetRole = body ? body.getAttribute('data-admin-role') : null;
+    const datasetId = body ? body.getAttribute('data-admin-id') : null;
+
     // Store current admin context
-    this.currentAdminRole = window.currentAdminRole || sessionStorage.getItem('adminRole');
-    this.currentAdminId = window.currentAdminId || sessionStorage.getItem('adminId');
+    this.currentAdminRole = window.currentAdminRole || sessionStorage.getItem('adminRole') || datasetRole;
+    this.currentAdminId = window.currentAdminId || sessionStorage.getItem('adminId') || datasetId;
     
     console.log('[AdminManagement] Initialized', {
       role: this.currentAdminRole,
@@ -34,6 +38,11 @@ class AdminManagement {
     
     // Setup modal event listeners
     this.setupModalListeners();
+
+    // Always load admins from API so the table does not remain in loading state.
+    this.loadAdmins().catch((error) => {
+      console.error('[AdminManagement] Initial load failed:', error);
+    });
   }
 
   /**

@@ -20,6 +20,10 @@ safe initialization of dashboard module
     if (w.SuperAdmin && w.SuperAdmin.Dashboard && typeof w.SuperAdmin.Dashboard.init === 'function') {
       return w.SuperAdmin.Dashboard.init();
     }
+
+      if (w.SystemAdmin && w.SystemAdmin.Dashboard && typeof w.SystemAdmin.Dashboard.init === 'function') {
+        return w.SystemAdmin.Dashboard.init();
+      }
   }
 
   w.App.Admin.DashboardPage = { init: init };

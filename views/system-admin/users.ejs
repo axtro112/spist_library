@@ -1,7 +1,7 @@
-<%
-  var extraHead = '<link rel="stylesheet" href="/css/super-admin/admins-modal.css"><script src="/js/admin/users.js" defer><\/script><script src="/js/notification-user-modal.js" defer><\/script><script src="/js/user-violations-modal.js" defer><\/script><script src="/js/super-admin/users.js" defer><\/script><script src="/js/admin.js" defer><\/script><script src="/js/user.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script>';
+﻿<%
+  var extraHead = '<link rel="stylesheet" href="/css/super-admin/admins-modal.css"><script src="/js/system-admin/users-utils-adapter.js" defer><\/script><script src="/js/super-admin/users.js" defer><\/script><script src="/js/admin/users.js" defer><\/script><script src="/js/notification-user-modal.js" defer><\/script><script src="/js/user-violations-modal.js" defer><\/script><script src="/js/admin.js" defer><\/script><script src="/js/user.js" defer><\/script>';
 %>
-<%- include('../partials/super-admin-layout', {
+<%- include('../partials/system-admin-layout', {
   title: 'User Management - SPIST Library',
   adminEmail: adminEmail,
   adminId: adminId,
@@ -106,7 +106,7 @@
           <div class="sa-form-group sa-col-full">
             <label for="bulkUserDept">Course / Department</label>
             <select id="bulkUserDept" name="department">
-              <option value="">— Keep unchanged —</option>
+              <option value="">-- Keep unchanged --</option>
               <option value="BS Computer Engineering">BS Computer Engineering</option>
               <option value="BS Computer Science">BS Computer Science</option>
               <option value="BS Information Technology">BS Information Technology</option>
@@ -126,7 +126,7 @@
           <div class="sa-form-group">
             <label for="bulkUserYear">Year Level</label>
             <select id="bulkUserYear" name="year_level">
-              <option value="">— Keep unchanged —</option>
+              <option value="">-- Keep unchanged --</option>
               <option value="1">1st Year</option>
               <option value="2">2nd Year</option>
               <option value="3">3rd Year</option>
@@ -137,7 +137,7 @@
           <div class="sa-form-group">
             <label for="bulkUserStatus">Status</label>
             <select id="bulkUserStatus" name="status">
-              <option value="">— Keep unchanged —</option>
+              <option value="">-- Keep unchanged --</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>

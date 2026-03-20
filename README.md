@@ -966,13 +966,7 @@ spist-library-management-system/
 │   │   ├── books.css                 # Book display styles
 │   │   └── ...                       # Other page-specific styles
 │   │
-│   ├──  dashboard/                 # Dashboard pages
-│   │   ├──  admin/                 # Admin dashboard pages
-│   │   │   ├── admin-dashboard.html  # Admin main dashboard
-│   │   │   ├── admin-books.html      # Book management (add/edit/delete)
-│   │   │   ├── admin-users.html      # Student management
-│   │   │   └── admin-admins.html     # Admin management
-│   │   │
+│   ├──  dashboard/                 # Legacy static dashboard pages (student)
 │   │   └──  student/               # Student dashboard pages
 │   │       ├── student-dashboard.html # Student main dashboard
 │   │       ├── student-books.html     # Browse & search books
@@ -2881,8 +2875,8 @@ router.post("/", async (req, res) => {
 - `src/routes/admin.js` - Added role authorization to POST/PUT/DELETE endpoints
 
 **Frontend:**
-- `public/dashboard/admin/admin-admins.html` - Added UI controls and role checks
-- `public/dashboard/super-admin/super-admin-admins.html` - Added authorization data
+- `views/system-admin/admins.ejs` - Added UI controls and role checks
+- `views/super-admin/admins.ejs` - Added authorization data
 
 #### Testing RBAC
 

@@ -296,38 +296,57 @@ app.get('/', (req, res) => {
   res.render('landing', { pageContent: null });
 });
 
-const authPages = {
-  "/login": "login.html",
-  "/signup": "signup.html",
-  "/login-verification": "login-verification.html",
-  "/reset-password": "reset-password.html",
+const authEjsPages = {
+  "/login": "auth/login",
+  "/signup": "auth/signup",
+  "/login-verification": "auth/login-verification",
+  "/reset-password": "auth/reset-password",
 };
 
-Object.entries(authPages).forEach(([route, page]) => {
+Object.entries(authEjsPages).forEach(([route, view]) => {
+  app.get(route, (req, res) => {
+    res.render(view);
+  });
+});
+
+const authHtmlPages = {};
+
+Object.entries(authHtmlPages).forEach(([route, page]) => {
   app.get(route, (req, res) => {
     res.sendFile(path.join(__dirname, "src/pages", page));
   });
 });
 
-const adminPages = [
-  "admin",
-  "admin-dashboard",
-  "admin-books",
-  "admin-borrowed-books",
-  "admin-books-trash",
-  "admin-users",
-  "admin-admins",
-  "admin-trash-bin",
-];
+const systemAdminPageRoutes = {
+  "admin": "system-admin/dashboard",
+  "admin-dashboard": "system-admin/dashboard",
+  "admin-books": "system-admin/books",
+  "admin-borrowed-books": "system-admin/borrowed-books",
+  "admin-users": "system-admin/users",
+  "admin-admins": "system-admin/admins",
+  "admin-trash-bin": "system-admin/trash-bin",
+};
 
-adminPages.forEach((page) => {
-  app.get(`/${page}`, (req, res) => {
-    const destination = page === "admin"
-      ? "admin-dashboard"
-      : page === "admin-dashboard"
-        ? "admin-books"
-        : page;
-    res.redirect(`/dashboard/admin/${destination}.html`);
+app.get('/admin-books-trash', (req, res) => {
+  const user = req.session && req.session.user;
+  if (!user || user.userRole !== 'admin') {
+    return res.redirect('/login');
+  }
+  return res.redirect('/admin-books');
+});
+
+Object.entries(systemAdminPageRoutes).forEach(([route, view]) => {
+  app.get(`/${route}`, (req, res) => {
+    const user = req.session && req.session.user;
+    if (!user || user.userRole !== 'admin') {
+      return res.redirect('/login');
+    }
+
+    return res.render(view, {
+      adminId: user.id || '',
+      adminEmail: user.email || '',
+      adminRole: user.role || ''
+    });
   });
 });
 

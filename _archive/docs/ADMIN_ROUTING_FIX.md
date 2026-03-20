@@ -2,32 +2,32 @@
 
 ## What Was Fixed
 
-### 1. Missing Route Guards
-**Problem**: System Admin pages were missing the `system-admin-guard.js` script, causing:
-- Wrong role being displayed in headers
-- Potential access control issues
-- Session validation not working correctly
+### 1. Migrated Admin Pages to EJS Views
+**Problem**: System Admin pages previously relied on static files under `public/dashboard/admin`, which drifted from Super Admin updates.
 
-**Fixed Files**:
-- ✅ `public/dashboard/admin/admin-admins.html` - Added `system-admin-guard.js`
-- ✅ `public/dashboard/admin/admin-books.html` - Added `system-admin-guard.js`  
-- ✅ `public/dashboard/admin/admin-users.html` - Added `system-admin-guard.js`
-- ✅ `public/dashboard/admin/admin-dashboard.html` - Already had it
+**Current Setup**:
+- ✅ System Admin pages are rendered from `views/system-admin/*.ejs`
+- ✅ Super Admin pages are rendered from `views/super-admin/*.ejs`
+- ✅ Both use server-rendered routes with session checks in `server.js`
+- ✅ System Admin layout is centralized in `views/partials/system-admin-layout.ejs`
 
 ### 2. Route Structure Verification
 **Confirmed Correct Setup**:
 ```
 System Admin Routes:
-/admin-dashboard → /dashboard/admin/admin-dashboard.html
-/admin-books → /dashboard/admin/admin-books.html
-/admin-users → /dashboard/admin/admin-users.html
-/admin-admins → /dashboard/admin/admin-admins.html
+/admin-dashboard → views/system-admin/dashboard.ejs
+/admin-books → views/system-admin/books.ejs
+/admin-books-trash → views/system-admin/books-trash.ejs
+/admin-users → views/system-admin/users.ejs
+/admin-borrowed-books → views/system-admin/borrowed-books.ejs
+/admin-admins → views/system-admin/admins.ejs
+/admin-trash-bin → views/system-admin/trash-bin.ejs
 
 Super Admin Routes:
-/super-admin-dashboard → /dashboard/super-admin/super-admin-dashboard.html
-/super-admin-books → /dashboard/super-admin/super-admin-books.html
-/super-admin-users → /dashboard/super-admin/super-admin-users.html
-/super-admin-admins → /dashboard/super-admin/super-admin-admins.html
+/super-admin-dashboard → views/super-admin/dashboard.ejs
+/super-admin-books → views/super-admin/books.ejs
+/super-admin-users → views/super-admin/users.ejs
+/super-admin-admins → views/super-admin/admins.ejs
 ```
 
 ### 3. API Endpoints Verification
@@ -50,7 +50,7 @@ Super Admin Routes:
    
 **Expected Output**:
 ```
-Current Path: /dashboard/admin/admin-admins.html
+Current Path: /admin-admins
 Guard Loaded: true
 ```
 
@@ -65,7 +65,7 @@ Guard Loaded: true
 
 | Request | Status | Notes |
 |---------|--------|-------|
-| `admin-admins.html` | 200 | HTML loaded correctly |
+| `GET /admin-admins` | 200 | EJS route rendered correctly |
 | `system-admin-guard.js` | 200 | Guard script loaded |
 | `GET /api/admin` | 200 | Admins list fetched |
 
@@ -177,17 +177,20 @@ console.log('Current role:', window.currentAdminRole);
 
 ## Files Modified
 
-1. `public/dashboard/admin/admin-admins.html`
-   - Added `<script src="/js/system-admin-guard.js" defer></script>`
+1. `views/system-admin/admins.ejs`
+   - Rendered via `/admin-admins` and aligned with role-aware admin management UI
 
-2. `public/dashboard/admin/admin-books.html`
-   - Added `<script src="/js/system-admin-guard.js" defer></script>`
+2. `views/system-admin/books.ejs`
+   - Rendered via `/admin-books` and aligned with shared books/accession UI
 
-3. `public/dashboard/admin/admin-users.html`
-   - Added `<script src="/js/system-admin-guard.js" defer></script>`
+3. `views/system-admin/users.ejs`
+   - Rendered via `/admin-users` and aligned with shared users management UI
 
-4. `src/routes/admin.js`
-   - Added `const logger = require("../utils/logger");` (fixed earlier)
+4. `views/partials/system-admin-layout.ejs`
+   - Centralized System Admin layout, navigation, and shared guard hooks
+
+5. `server.js`
+   - Added/confirmed System Admin EJS route map under `systemAdminPageRoutes`
 
 ## Next Steps
 

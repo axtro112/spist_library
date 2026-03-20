@@ -23,6 +23,10 @@
     await SA.utils.loadAdminHeader(session.adminId);
 
     if (window.adminManager) {
+      window.adminManager.currentAdminRole = session.adminRole;
+      window.adminManager.currentAdminId = session.adminId;
+      var addBtn = document.getElementById('addAdminBtn');
+      if (addBtn && session.adminRole === 'super_admin') addBtn.style.display = 'flex';
       await window.adminManager.loadAdmins();
     }
   }

@@ -1,0 +1,78 @@
+﻿<%
+  var extraHead = [
+     '<link rel="stylesheet" href="/css/admin/trash.css">',
+    '<script src="/js/admin/trash-bootstrap.js" defer><\/script>',
+    '<script src="/js/shared/utils/safeFetch.js" defer><\/script>',
+    '<script src="/js/admin/trash/services.js" defer><\/script>',
+    '<script src="/js/admin/trash/table.js" defer><\/script>',
+    '<script src="/js/admin/trash/actions.js" defer><\/script>',
+    '<script src="/js/admin/trash/filters.js" defer><\/script>',
+    '<script src="/js/admin/trash/index.js" defer><\/script>',
+  ].join('');
+%>
+<%- include('../partials/system-admin-layout', {
+  title: 'Trash Manager - SPIST Library',
+  adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
+  activePage: 'trash-bin',
+  extraHead: extraHead,
+  body: `
+    <div class="section-header">
+      <h2><i class="bi bi-trash2 me-2"></i>Trash Bin</h2>
+    </div>
+
+    <div class="section-card">
+      <!-- -- Filter Bar -- -->
+      <div class="sa-filter-bar">
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <input type="checkbox" id="trashMasterCb" title="Select all on this page">
+        </div>
+
+        <div class="sa-search-wrap">
+          <i class="bi bi-search"></i>
+          <input type="text" id="trashSearch" placeholder="Search...">
+        </div>
+
+        <select id="trashTabFilter" class="sa-filter-select" style="min-width:150px;"></select>
+
+        <button id="trashBulkRestoreBtn" class="sa-btn sa-btn-success" disabled>
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+        </button>
+        <button id="trashBulkDeleteBtn" class="sa-btn sa-btn-danger" disabled>
+          <i class="bi bi-trash3-fill me-1"></i>Delete
+        </button>
+        <button id="trashClearBtn" class="sa-clear-btn">
+          <i class="bi bi-x-circle me-1"></i>Clear
+        </button>
+      </div>
+
+      <!-- -- Tabs -- -->
+      <div class="trash-tabs">
+        <button class="trash-tab active" data-entity="books">
+          <i class="bi bi-book"></i>Books
+        </button>
+        <button class="trash-tab" data-entity="users">
+          <i class="bi bi-people"></i>Users
+        </button>
+        <button class="trash-tab" data-entity="admins">
+          <i class="bi bi-person-badge"></i>Admins
+        </button>
+      </div>
+
+      <!-- -- Table -- -->
+      <div class="sa-table-wrapper" id="trashTableWrap">
+        <table class="user-table">
+          <tbody>
+            <tr>
+              <td colspan="10" style="text-align:center;padding:40px;color:#6b7280;">
+                <div class="trash-spinner"></div>Loading...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+}) %>
+

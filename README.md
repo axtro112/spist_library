@@ -61,7 +61,7 @@ Step-by-step instructions to run this system on any device.
 ## Step 1 — Install Node.js
 
 1. Go to https://nodejs.org
-/check if  the nnnode is already install  in  the devices  types thids inn  the terminal  nnode --version 
+   (Check if Node.js is already installed by typing `node --version` in your terminal first.)
 2. Download the **LTS** version (v18 or higher)
 3. Run the installer — keep all default settings
 4. Verify installation:
@@ -92,8 +92,8 @@ Step-by-step instructions to run this system on any device.
 
 **Option A — Clone from Git (recommended):**
 ```bash
-git clone <your-repository-url>
-cd spist-library-management-system
+git clone https://github.com/axtro112/spist_library.git
+cd spist_library
 ```
 
 **Option B — Copy the folder manually:**
@@ -148,8 +148,8 @@ ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 # 4. Set Authorized JavaScript origins: http://localhost:3000
 # 5. Set Authorized redirect URIs: http://localhost:3000/auth/google/callback
 
-GOOGLE_CLIENT_ID=906990089534-6bavd9e9e6emt0hdh8m2aal44dv2niju.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=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
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 
 # Security Secrets (CRITICAL - Keep these secret!)
@@ -158,14 +158,18 @@ GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 #  Change these values before deploying to production with your own domain
 
 # Session Secret - Used for encrypting session data (64 characters)
-SESSION_SECRET=b1ef6050406d886b712a551329e3e897c1ecbbb043bab803e12dcf81551bd3e5
+# Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+SESSION_SECRET=your_random_64_char_session_secret_here
 
 # JWT Secret - Used for JSON Web Token signing (64 characters)
-JWT_SECRET=c537995538c61d983efae48d7e62a7b9ecd397e0fa4299b6ecb6bdf7897dd4ba
+# Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+JWT_SECRET=your_random_64_char_jwt_secret_here
 
 # Email Configuration (for password reset & borrowing notifications)
-EMAIL_USER=hahacctmo145@gmail.com
-EMAIL_PASS=bzhsyapgsajdoiyb
+# EMAIL_PASS must be a Gmail App Password, NOT your regular account password.
+# Generate one at: https://myaccount.google.com/apppasswords
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_gmail_app_password
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_SECURE=false
@@ -178,7 +182,7 @@ RATE_LIMIT_MAX=100
 # Session Configuration
 SESSION_MAX_AGE=1800000
 SESSION_SECURE_COOKIE=false
-
+```
 
 > ✅ The only field you **must** change is `DB_PASSWORD` — set it to your MySQL root password.
 > 

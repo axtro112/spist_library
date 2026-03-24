@@ -3,6 +3,14 @@
  * Handles real-time notifications via SSE with grouped display and tabs
  */
 
+const ADMIN_NOTIF_DEBUG = false;
+const notifLog = (...args) => {
+  if (ADMIN_NOTIF_DEBUG) console.log(...args);
+};
+const notifWarn = (...args) => {
+  if (ADMIN_NOTIF_DEBUG) console.warn(...args);
+};
+
 class NotificationManager {
   constructor() {
     this.eventSource = null;
@@ -17,14 +25,14 @@ class NotificationManager {
   }
 
   async init() {
-    console.log('[Admin Notif] Initializing NotificationManager...');
+    notifLog('[Notifications] Initializing NotificationManager...');
     
     // Detect if notification bell already exists (student page style)
     const existingBell = document.getElementById('studentNotificationContainer') || 
                         document.getElementById('adminNotificationContainer') ||
                         document.getElementById('superAdminNotificationContainer');
     
-    console.log('[Admin Notif] Existing bell found:', !!existingBell);
+    notifLog('[Notifications] Existing bell found:', !!existingBell);
     
     if (existingBell) {
       // Page has pre-rendered notification bell
@@ -35,13 +43,13 @@ class NotificationManager {
       this.attachEventListeners();
     }
     
-    console.log('[Admin Notif] About to load unread count...');
+    notifLog('[Notifications] About to load unread count...');
     await this.loadUnreadCount();
-    console.log('[Admin Notif] About to load notifications...');
+    notifLog('[Notifications] About to load notifications...');
     await this.loadNotifications();
-    console.log('[Admin Notif] About to connect SSE...');
+    notifLog('[Notifications] About to connect SSE...');
     this.connectSSE();
-    console.log('[Admin Notif] Init complete');
+    notifLog('[Notifications] Init complete');
   }
 
   // Detect page type based on elements or sessionStorage
@@ -80,7 +88,7 @@ class NotificationManager {
     if (panel && !panel.dataset.portaled) {
       document.body.appendChild(panel);
       panel.dataset.portaled = 'true';
-      console.log('✓ Notification dropdown moved to body (portal fix)');
+      notifLog('✓ Notification dropdown moved to body (portal fix)');
     }
 
     if (bellBtn) {
@@ -199,7 +207,7 @@ class NotificationManager {
                     document.getElementById('superAdminNotifBell');
                     
     if (!panel || !bellBtn) {
-      console.warn('[Admin Notif] Panel or bell button not found');
+      notifWarn('[Notifications] Panel or bell button not found');
       return;
     }
 
@@ -209,7 +217,7 @@ class NotificationManager {
     bellBtn.setAttribute('aria-expanded', this.isOpen);
 
     if (this.isOpen) {
-      console.log('[Admin Notif] ▼ Dropdown opened');
+      notifLog('[Notifications] ▼ Dropdown opened');
       this.positionDropdown();
       
       // CRITICAL: Attach click handlers immediately when opening
@@ -298,7 +306,7 @@ class NotificationManager {
     if (panel) panel.style.display = 'none';
     if (bellBtn) bellBtn.setAttribute('aria-expanded', 'false');
     this.isOpen = false;
-    console.log('[Admin Notif] Dropdown closed');
+    notifLog('[Notifications] Dropdown closed');
   }
 
   createNotificationUI() {
@@ -312,7 +320,7 @@ class NotificationManager {
                           document.querySelector('header');
     
     if (!profileSection) {
-      console.warn('No suitable location found to add notification bell');
+      notifWarn('No suitable location found to add notification bell');
       return;
     }
 
@@ -387,29 +395,29 @@ class NotificationManager {
 
   async loadUnreadCount() {
     try {
-      console.log('[Admin Notif] Loading unread count...');
+      notifLog('[Notifications] Loading unread count...');
       const response = await fetchWithCsrf('/api/notifications/unread-count');
-      console.log('[Admin Notif] Unread count response status:', response.status);
+      notifLog('[Notifications] Unread count response status:', response.status);
       
       const data = await response.json();
-      console.log('[Admin Notif] Unread count data:', data);
+      notifLog('[Notifications] Unread count data:', data);
       
       if (data.success) {
         const count = data.data?.count ?? data.count ?? 0;
-        console.log('[Admin Notif] Setting badge to:', count);
+        notifLog('[Notifications] Setting badge to:', count);
         this.updateUnreadBadge(count);
       } else {
-        console.error('[Admin Notif] Unread count API returned success: false');
+        console.error('Unread count API returned success: false');
       }
     } catch (error) {
-      console.error('[Admin Notif] Error loading unread count:', error);
+      console.error('Error loading unread count:', error);
     }
   }
 
   async loadNotifications(limit = 20) {
     // Prevent multiple simultaneous loads
     if (this.isLoadingNotifications) {
-      console.log('⏳ Already loading notifications, skipping...');
+      notifLog('⏳ Already loading notifications, skipping...');
       return;
     }
     
@@ -421,10 +429,10 @@ class NotificationManager {
     }
     
     try {
-      console.log('[Admin Notif] Loading notifications, limit:', limit);
+      notifLog('[Notifications] Loading notifications, limit:', limit);
       const response = await fetchWithCsrf(`/api/notifications?limit=${limit}`);
       
-      console.log('[Admin Notif] Response status:', response.status, response.statusText);
+      notifLog('[Notifications] Response status:', response.status, response.statusText);
       
       // Handle HTTP errors with specific messages
       if (!response.ok) {
@@ -445,12 +453,12 @@ class NotificationManager {
       try {
         data = await response.json();
       } catch (parseError) {
-        console.error('[Admin Notif] Failed to parse JSON response:', parseError);
+        console.error('Failed to parse JSON response:', parseError);
         throw { message: 'Invalid response from server.' };
       }
       
-      console.log('[Admin Notif] Response data:', data);
-      console.log('[Admin Notif] Data structure:', {
+      notifLog('[Notifications] Response data:', data);
+      notifLog('[Notifications] Data structure:', {
         success: data.success,
         hasNotifications: !!data.notifications,
         hasData: !!data.data,
@@ -464,12 +472,12 @@ class NotificationManager {
         const rawData = data.notifications || data.data || [];
         this.notifications = Array.isArray(rawData) ? rawData : [];
         
-        console.log('[Admin Notif] ✓ Loaded:', this.notifications.length, 'notifications');
+        notifLog('[Notifications] ✓ Loaded:', this.notifications.length, 'notifications');
         
         // Debug: Log first notification structure
         if (this.notifications.length > 0) {
           const sample = this.notifications[0];
-          console.log('[Admin Notif] 📋 Sample notification fields:', {
+          notifLog('[Notifications] 📋 Sample notification fields:', {
             id: sample.id,
             type: sample.type,
             target_type: sample.target_type,
@@ -482,14 +490,14 @@ class NotificationManager {
         
         // Update unread count if provided
         if (typeof data.unreadCount === 'number') {
-          console.log('[Admin Notif] ✓ Updating badge from API:', data.unreadCount);
+          notifLog('[Notifications] ✓ Updating badge from API:', data.unreadCount);
           this.updateUnreadBadge(data.unreadCount);
         }
         
         // ALWAYS render after loading (dropdown may be open OR may open later)
         this.renderNotifications();
       } else {
-        console.error('[Admin Notif] ✗ API returned success: false, message:', data.message);
+        console.error('[Notifications] ✗ API returned success: false, message:', data.message);
         this.notifications = [];
         
         // Show error only if dropdown is currently open
@@ -498,7 +506,7 @@ class NotificationManager {
         }
       }
     } catch (error) {
-      console.error('[Admin Notif] ✗ Load error:', error);
+      console.error('[Notifications] ✗ Load error:', error);
       this.notifications = [];
       
       // Show error only if dropdown is currently open
@@ -509,7 +517,7 @@ class NotificationManager {
     } finally {
       // ALWAYS clear loading flag to prevent stuck state
       this.isLoadingNotifications = false;
-      console.log('[Admin Notif] ✓ Loading complete, flag cleared');
+      notifLog('[Notifications] ✓ Loading complete, flag cleared');
     }
   }
 
@@ -578,18 +586,18 @@ class NotificationManager {
   }
 
   renderNotifications() {
-    console.log('[Admin Notif] 🎨 renderNotifications() called');
-    console.log('[Admin Notif]   - notifications count:', this.notifications.length);
-    console.log('[Admin Notif]   - activeTab:', this.activeTab);
-    console.log('[Admin Notif]   - isOpen:', this.isOpen);
+    notifLog('[Notifications] 🎨 renderNotifications() called');
+    notifLog('[Notifications]   - notifications count:', this.notifications.length);
+    notifLog('[Notifications]   - activeTab:', this.activeTab);
+    notifLog('[Notifications]   - isOpen:', this.isOpen);
     
     // Try both container IDs (student pages use notifListContainer, admin pages use notifList)
     const container = document.getElementById('notifListContainer') || document.getElementById('notifList');
     if (!container) {
-      console.warn('[Admin Notif] ⚠ Notification list container not found (page may not have notification UI)');
+      notifWarn('[Notifications] ⚠ Notification list container not found (page may not have notification UI)');
       return;
     }
-    console.log('[Admin Notif] ✓ Container found:', container.id);
+    notifLog('[Notifications] ✓ Container found:', container.id);
 
     // Ensure notifications is an array
     if (!Array.isArray(this.notifications)) {
@@ -647,7 +655,7 @@ class NotificationManager {
       // Attach modal click handlers (no page navigation)
       this.attachModalHandlers();
     } catch (error) {
-      console.error('[Admin Notif] ✗ Render error:', error);
+      console.error('[Notifications] ✗ Render error:', error);
       this.showError('Error displaying notifications');
     }
   }
@@ -670,7 +678,7 @@ class NotificationManager {
         return;
       }
     } catch (err) {
-      console.error('[Admin Notif] ✗ Failed to initialize notification modal module:', err);
+      console.error('[Notifications] ✗ Failed to initialize notification modal module:', err);
     }
 
     // Fallback: basic click to mark as read
@@ -766,7 +774,7 @@ class NotificationManager {
     const date = new Date(isoDateString);
     
     if (isNaN(date.getTime())) {
-      console.warn('Invalid date:', dateString);
+      notifWarn('Invalid date:', dateString);
       return '—';
     }
     
@@ -810,7 +818,7 @@ class NotificationManager {
     
     // Check if date is valid
     if (isNaN(date.getTime())) {
-      console.warn('Invalid date:', dateString);
+      notifWarn('Invalid date:', dateString);
       return '—';
     }
     
@@ -831,7 +839,7 @@ class NotificationManager {
   }
 
   updateUnreadBadge(count) {
-    console.log('[Admin Notif] updateUnreadBadge called with count:', count);
+    notifLog('[Notifications] updateUnreadBadge called with count:', count);
     this.unreadCount = count;
     
     // Support all notification badge IDs across all roles
@@ -840,20 +848,20 @@ class NotificationManager {
                   document.getElementById('superAdminNotifBadge') ||
                   document.getElementById('notification-badge');
     
-    console.log('[Admin Notif] Badge element found:', !!badge, badge?.id);
+    notifLog('[Notifications] Badge element found:', !!badge, badge?.id);
     
     if (!badge) {
-      console.warn('[Admin Notif] No badge element found!');
+      notifWarn('[Notifications] No badge element found!');
       return;
     }
 
     if (count > 0) {
       badge.textContent = count > 99 ? '99+' : count;
       badge.style.display = 'block';
-      console.log('[Admin Notif] Badge updated to show:', badge.textContent);
+      notifLog('[Notifications] Badge updated to show:', badge.textContent);
     } else {
       badge.style.display = 'none';
-      console.log('[Admin Notif] Badge hidden (count is 0)');
+      notifLog('[Notifications] Badge hidden (count is 0)');
     }
   }
 
@@ -914,7 +922,7 @@ class NotificationManager {
       this.eventSource.onmessage = (event) => {
         try {
           const notification = JSON.parse(event.data);
-          console.log('SSE notification received:', notification);
+          notifLog('SSE notification received:', notification);
           
           // Handle keepalive and connection messages (don't update badge)
           if (notification.type === 'keepalive' || notification.type === 'connected') {
@@ -923,7 +931,7 @@ class NotificationManager {
 
           // Only process actual notification objects with required fields
           if (!notification.id || !notification.title) {
-            console.warn('[Admin Notif] SSE message missing required fields, ignoring');
+            notifWarn('[Notifications] SSE message missing required fields, ignoring');
             return;
           }
 
@@ -954,18 +962,18 @@ class NotificationManager {
       };
 
       this.eventSource.onerror = (error) => {
-        console.log('[Notifications] Connection lost, will reconnect in 5 seconds...');
+        notifLog('[Notifications] Connection lost, will reconnect in 5 seconds...');
         this.eventSource.close();
         
         // Reconnect after 5 seconds
         setTimeout(() => {
-          console.log('[Notifications] Reconnecting to notification stream...');
+          notifLog('[Notifications] Reconnecting to notification stream...');
           this.connectSSE();
         }, 5000);
       };
 
       this.eventSource.onopen = () => {
-        console.log('Connected to notification stream');
+        notifLog('Connected to notification stream');
       };
     } catch (error) {
       console.error('Error connecting to SSE:', error);
@@ -994,7 +1002,7 @@ class NotificationManager {
   playNotificationSound() {
     // Optional: Add notification sound
     // const audio = new Audio('/sounds/notification.mp3');
-    // audio.play().catch(e => console.log('Could not play sound'));
+    // audio.play().catch(e => notifLog('Could not play sound'));
   }
 
   openPreferences() {
@@ -1179,7 +1187,7 @@ class NotificationManager {
 
   showSuccess(message) {
     // You can implement a toast notification here
-    console.log(message);
+    notifLog(message);
   }
 
   destroy() {
@@ -1209,3 +1217,5 @@ window.addEventListener('beforeunload', () => {
     notificationManager.destroy();
   }
 });
+
+

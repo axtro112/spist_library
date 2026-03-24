@@ -13,6 +13,18 @@ class BookCopyManager {
     this.modal = null;
     this.currentBookId = null;
     this.currentCopies = [];
+    this.qrModal = null;
+    this.qrModalImage = null;
+    this.qrModalHint = null;
+    this.qrModalTitle = null;
+    this.qrModalSubtitle = null;
+    this.qrModalError = null;
+    this.qrPrintBtn = null;
+    this.qrDownloadBtn = null;
+    this._qrCleanup = null;
+    this._qrActiveSource = '';
+    this._qrEndpointPath = '';
+    this._qrCurrentBookTitle = '';
     this.init();
   }
 
@@ -80,6 +92,9 @@ class BookCopyManager {
                 <table class="user-table">
                   <thead>
                     <tr>
+                      <th style="width:36px;text-align:center;">
+                        <input type="checkbox" id="selectAllCopies" title="Select all" style="cursor:pointer;" />
+                      </th>
                       <th>Accession #</th>
                       <th>Copy #</th>
                       <th>Condition</th>
@@ -91,11 +106,19 @@ class BookCopyManager {
                     </tr>
                   </thead>
                   <tbody id="copiesTableBody">
-                    <tr><td colspan="8" class="text-center">Loading copies&#8230;</td></tr>
+                    <tr><td colspan="9" class="text-center">Loading copies&#8230;</td></tr>
                   </tbody>
                 </table>
               </div>
               <div class="sa-modal-footer" style="margin-top:4px;">
+                <button class="sa-btn sa-btn-success" type="button" onclick="bookCopyManager.bulkPrintQrLabels(false)">
+                  <span class="material-symbols-outlined" style="font-size:16px;">print</span>
+                  Print All QR
+                </button>
+                <button class="sa-btn sa-btn-outline" type="button" id="printSelectedQrBtn" onclick="bookCopyManager.bulkPrintQrLabels(true)" disabled>
+                  <span class="material-symbols-outlined" style="font-size:16px;">checklist</span>
+                  Print Selected
+                </button>
                 <button class="sa-btn sa-btn-outline" type="button" onclick="bookCopyManager.exportCopies()">
                   <span class="material-symbols-outlined" style="font-size:16px;">download</span>
                   Export List
@@ -194,16 +217,61 @@ class BookCopyManager {
           </div>
         </div>
       </div><!-- /#addCopyModal -->
+
+      <!-- ═══════════════ QR Preview Modal ═══════════════ -->
+      <div id="qrCodeModal" class="modal sa-modal">
+        <div class="sa-modal-content qr-modal-content">
+          <div class="sa-modal-header">
+            <h2 id="qrModalTitle">QR Code</h2>
+            <button class="sa-modal-close-btn" id="qrModalCloseIconBtn" type="button">&#x2715;</button>
+          </div>
+          <div class="sa-modal-body qr-modal-body">
+            <p id="qrModalSubtitle" class="qr-modal-subtitle">Accession Number</p>
+            <div class="qr-modal-image-wrap">
+              <img id="qrModalImage" alt="QR Code" />
+            </div>
+            <div id="qrModalHint" class="qr-modal-hint">Preparing QR image...</div>
+            <div id="qrModalError" class="qr-modal-error"></div>
+            <div class="qr-modal-actions">
+              <button type="button" id="qrPrintBtn" class="sa-btn sa-btn-outline" disabled>Print QR</button>
+              <button type="button" id="qrDownloadBtn" class="sa-btn sa-btn-success" disabled>Download</button>
+              <button type="button" id="qrCloseBtn" class="sa-btn sa-btn-outline">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     this.modal = document.getElementById('copiesModal');
+    this.qrModal = document.getElementById('qrCodeModal');
+    this.qrModalImage = document.getElementById('qrModalImage');
+    this.qrModalHint = document.getElementById('qrModalHint');
+    this.qrModalTitle = document.getElementById('qrModalTitle');
+    this.qrModalSubtitle = document.getElementById('qrModalSubtitle');
+    this.qrModalError = document.getElementById('qrModalError');
+    this.qrPrintBtn = document.getElementById('qrPrintBtn');
+    this.qrDownloadBtn = document.getElementById('qrDownloadBtn');
   }
 
   bindEvents() {
     window.addEventListener('click', (e) => {
       if (e.target === this.modal) this.closeModal();
+      if (e.target === this.qrModal) this.closeQrModal();
     });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const closed = this._handleEscapeClose();
+      if (closed) e.preventDefault();
+    });
+
+    const qrCloseBtn = document.getElementById('qrCloseBtn');
+    const qrCloseIconBtn = document.getElementById('qrModalCloseIconBtn');
+    if (qrCloseBtn) qrCloseBtn.addEventListener('click', () => this.closeQrModal());
+    if (qrCloseIconBtn) qrCloseIconBtn.addEventListener('click', () => this.closeQrModal());
+    if (this.qrPrintBtn) this.qrPrintBtn.addEventListener('click', () => this.printQrModal());
+    if (this.qrDownloadBtn) this.qrDownloadBtn.addEventListener('click', () => this.downloadQrModal());
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────
@@ -274,8 +342,21 @@ class BookCopyManager {
       '#copiesModal .sa-btn-success:hover,#addCopyModal .sa-btn-success:hover{background:#1b5e20;border-color:#1b5e20;}',
       '#copiesModal .sa-btn-outline,#addCopyModal .sa-btn-outline{background:#fff;color:#374151;border-color:#d1d5db;}',
       '#copiesModal .sa-btn-outline:hover,#addCopyModal .sa-btn-outline:hover{background:#f9fafb;border-color:#9ca3af;}',
+      /* QR modal */
+      '#qrCodeModal .qr-modal-content{max-width:430px;width:92%;}',
+      '#qrCodeModal .qr-modal-body{text-align:center;}',
+      '#qrCodeModal .qr-modal-subtitle{margin:2px 0 12px;font-size:13px;color:#4b5563;}',
+      '#qrCodeModal .qr-modal-image-wrap{width:300px;height:300px;margin:0 auto;border:1px solid #d1d5db;',
+      'border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}',
+      '#qrCodeModal #qrModalImage{width:300px;height:300px;display:block;object-fit:contain;}',
+      '#qrCodeModal .qr-modal-hint{margin-top:10px;min-height:18px;font-size:12px;color:#6b7280;}',
+      '#qrCodeModal .qr-modal-error{display:none;margin-top:8px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;',
+      'color:#991b1b;border-radius:8px;font-size:12px;}',
+      '#qrCodeModal .qr-modal-actions{display:flex;gap:8px;justify-content:center;margin-top:12px;}',
+      '#qrCodeModal .qr-modal-actions .sa-btn[disabled]{opacity:.65;cursor:not-allowed;}',
       '@media(max-width:900px){#copiesModal .bcm-meta-grid{grid-template-columns:repeat(2,1fr);}}',
-      '@media(max-width:520px){#copiesModal .bcm-meta-grid{grid-template-columns:1fr;}}',
+      '@media(max-width:520px){#copiesModal .bcm-meta-grid{grid-template-columns:1fr;}',
+      '#qrCodeModal .qr-modal-image-wrap{width:260px;height:260px;}#qrCodeModal #qrModalImage{width:260px;height:260px;}}',
     ].join('');
     document.head.appendChild(style);
   }
@@ -284,6 +365,15 @@ class BookCopyManager {
   _setText(id, value, fallback = '\u2014') {
     const el = document.getElementById(id);
     if (el) el.textContent = (value !== undefined && value !== null && String(value).trim() !== '') ? value : fallback;
+  }
+
+  _escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /** Return display label + modifier class for a book status string. */
@@ -295,6 +385,40 @@ class BookCopyManager {
     return { label: status || '\u2014', cls: '' };
   }
 
+  _isModalVisible(el) {
+    return !!el && el.classList.contains('show') && el.style.display !== 'none';
+  }
+
+  _syncBodyModalOpenState() {
+    const addCopyModal = document.getElementById('addCopyModal');
+    const hasOpenModal = this._isModalVisible(this.modal)
+      || this._isModalVisible(addCopyModal)
+      || this._isModalVisible(this.qrModal);
+    document.body.classList.toggle('modal-open', hasOpenModal);
+  }
+
+  _handleEscapeClose() {
+    const addCopyModal = document.getElementById('addCopyModal');
+
+    // Close top-most modal first.
+    if (this._isModalVisible(this.qrModal)) {
+      this.closeQrModal();
+      return true;
+    }
+
+    if (this._isModalVisible(addCopyModal)) {
+      this.closeAddCopyModal();
+      return true;
+    }
+
+    if (this._isModalVisible(this.modal)) {
+      this.closeModal();
+      return true;
+    }
+
+    return false;
+  }
+
   /**
    * Fetch enriched book metadata.
    * Uses loadBookForEdit() from books.js when available (returns category,
@@ -304,7 +428,10 @@ class BookCopyManager {
   async _fetchBookMeta(bookId) {
     if (typeof loadBookForEdit === 'function') {
       try {
-        const meta = await loadBookForEdit(bookId);
+        const meta = await Promise.race([
+          loadBookForEdit(bookId),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3500))
+        ]);
         if (meta) return meta;
       } catch (_) { /* fall through */ }
     }
@@ -380,7 +507,7 @@ class BookCopyManager {
     this.switchTab('edit');
     this.modal.classList.add('show');
     this.modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
+    this._syncBodyModalOpenState();
   }
 
   async showCopies(bookId) {
@@ -388,7 +515,7 @@ class BookCopyManager {
     this.switchTab('copies');
     this.modal.classList.add('show');
     this.modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
+    this._syncBodyModalOpenState();
 
     // Reset to loading placeholders
     this._setText('copyBookTitle', 'Loading…', 'Loading…');
@@ -403,6 +530,10 @@ class BookCopyManager {
 
       const result = await response.json();
       this.currentCopies = result.data || [];
+
+      // Render copies first so the table never gets stuck in a loading state
+      // if metadata fetching is slow or unavailable.
+      this.renderCopiesTable();
 
       // Fetch enriched metadata (category / quantity / available_quantity / status)
       const meta = await this._fetchBookMeta(bookId);
@@ -427,8 +558,6 @@ class BookCopyManager {
       const { label, cls } = this._statusInfo(rawStatus);
       if (statusEl) { statusEl.textContent = label; statusEl.className = `bcm-status-pill ${cls}`.trim(); }
 
-      this.renderCopiesTable();
-
     } catch (error) {
       console.error('Error loading copies:', error);
       alert('Failed to load book copies. Please try again.');
@@ -438,9 +567,15 @@ class BookCopyManager {
 
   renderCopiesTable() {
     const tbody = document.getElementById('copiesTableBody');
+
+    // Reset select-all checkbox and Print Selected button state
+    const selectAll = document.getElementById('selectAllCopies');
+    if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+    const printSelBtn = document.getElementById('printSelectedQrBtn');
+    if (printSelBtn) printSelBtn.disabled = true;
     
     if (this.currentCopies.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No copies found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center">No copies found</td></tr>';
       return;
     }
     
@@ -465,6 +600,9 @@ class BookCopyManager {
       
       return `
         <tr data-accession="${copy.accession_number}">
+          <td style="text-align:center;">
+            <input type="checkbox" class="copy-row-check" data-accession="${copy.accession_number}" style="cursor:pointer;" />
+          </td>
           <td><strong>${copy.accession_number}</strong></td>
           <td>#${copy.copy_number}</td>
           <td><span class="status-badge ${conditionClass}">${copy.condition_status}</span></td>
@@ -486,13 +624,53 @@ class BookCopyManager {
         </tr>
       `;
     }).join('');
+
+    // Bind checkbox listeners after rows are injected
+    this._bindCopyCheckboxes();
+  }
+
+  _bindCopyCheckboxes() {
+    const selectAll = document.getElementById('selectAllCopies');
+    const printSelBtn = document.getElementById('printSelectedQrBtn');
+
+    const syncState = () => {
+      const all = document.querySelectorAll('.copy-row-check');
+      const checked = document.querySelectorAll('.copy-row-check:checked');
+      if (selectAll) {
+        selectAll.checked = checked.length === all.length && all.length > 0;
+        selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+      }
+      if (printSelBtn) printSelBtn.disabled = checked.length === 0;
+    };
+
+    document.querySelectorAll('.copy-row-check').forEach(cb => {
+      cb.addEventListener('change', syncState);
+    });
+
+    if (selectAll) {
+      // Replace old listener by cloning the node
+      const fresh = selectAll.cloneNode(true);
+      selectAll.parentNode.replaceChild(fresh, selectAll);
+      fresh.addEventListener('change', () => {
+        document.querySelectorAll('.copy-row-check').forEach(cb => {
+          cb.checked = fresh.checked;
+        });
+        if (printSelBtn) printSelBtn.disabled = !fresh.checked;
+      });
+    }
+  }
+
+  _getSelectedCopies() {
+    const checked = document.querySelectorAll('.copy-row-check:checked');
+    const accessions = Array.from(checked).map(cb => cb.dataset.accession);
+    return this.currentCopies.filter(c => accessions.includes(c.accession_number));
   }
 
   showAddCopyForm() {
     const m = document.getElementById('addCopyModal');
     m.classList.add('show');
     m.style.display = 'flex';
-    document.body.classList.add('modal-open');
+    this._syncBodyModalOpenState();
   }
 
   closeAddCopyModal() {
@@ -500,6 +678,7 @@ class BookCopyManager {
     m.classList.remove('show');
     m.style.display = 'none';
     document.getElementById('addCopyForm').reset();
+    this._syncBodyModalOpenState();
   }
 
   async submitAddCopy(event) {
@@ -547,90 +726,325 @@ class BookCopyManager {
     }
   }
 
-  async openCopyQr(accessionNumber) {
-    const imagePath = `/api/book-copies/qr/${encodeURIComponent(accessionNumber)}`;
-    const imageUrl = new URL(imagePath, window.location.origin).toString();
-    const popup = window.open('', '_blank', 'width=420,height=520');
-    if (!popup) {
-      window.open(imageUrl, '_blank');
-      return;
+  _getQrEndpoint(accessionNumber) {
+    return `/api/book-copies/qr/${encodeURIComponent(accessionNumber)}`;
+  }
+
+  async _resolveQrSource(accessionNumber, qrDataUrl, qrImageUrl) {
+    const endpointPath = this._getQrEndpoint(accessionNumber);
+    const endpointAbsolute = new URL(endpointPath, window.location.origin).toString();
+
+    // Prefer already-generated data URL from create-copy response.
+    if (qrDataUrl && typeof qrDataUrl === 'string' && qrDataUrl.startsWith('data:image/')) {
+      return {
+        src: qrDataUrl,
+        sourceType: 'data-url',
+        endpointPath,
+        endpointAbsolute,
+        revoke: null
+      };
     }
 
-    popup.document.write(`
-      <html>
-        <head>
-          <title>QR - ${accessionNumber}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 16px; text-align: center; }
-            h2 { margin: 0 0 8px; color: #14532d; font-size: 18px; }
-            p { margin: 0 0 12px; color: #4b5563; }
-            img { width: 300px; height: 300px; border: 1px solid #e5e7eb; border-radius: 8px; }
-            .hint { margin-top: 12px; font-size: 12px; color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <h2>${accessionNumber}</h2>
-          <p>Generated QR code for this copy</p>
-          <img id="copyQrImage" alt="QR code for ${accessionNumber}" />
-          <div id="copyQrHint" class="hint">Loading QR image...</div>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-
+    // Then prefer authenticated blob fetch for stable rendering in about:blank popups.
     try {
       const doFetch = (typeof fetchWithCsrf === 'function') ? fetchWithCsrf : fetch;
-      const qrResponse = await doFetch(imagePath, { method: 'GET' });
-      if (!qrResponse.ok) throw new Error(`QR request failed (${qrResponse.status})`);
+      const qrResponse = await doFetch(endpointPath, {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store'
+      });
 
-      const qrBlob = await qrResponse.blob();
-      const blobUrl = URL.createObjectURL(qrBlob);
-
-      const qrImgEl = popup.document.getElementById('copyQrImage');
-      const hintEl = popup.document.getElementById('copyQrHint');
-      if (qrImgEl) qrImgEl.src = blobUrl;
-      if (hintEl) hintEl.textContent = 'QR ready';
+      if (qrResponse.ok) {
+        const qrBlob = await qrResponse.blob();
+        const blobUrl = URL.createObjectURL(qrBlob);
+        return {
+          src: blobUrl,
+          sourceType: 'blob-url',
+          endpointPath,
+          endpointAbsolute,
+          revoke: () => URL.revokeObjectURL(blobUrl)
+        };
+      }
     } catch (error) {
-      const qrImgEl = popup.document.getElementById('copyQrImage');
-      const hintEl = popup.document.getElementById('copyQrHint');
-      if (qrImgEl) qrImgEl.src = imageUrl;
-      if (hintEl) hintEl.textContent = 'Loaded with fallback path';
-      console.warn('QR fetch fallback used:', error.message);
+      console.warn('QR blob fetch failed, trying URL fallback:', error.message);
+    }
+
+    // Last fallback to URL from API response if available.
+    if (qrImageUrl) {
+      return {
+        src: new URL(qrImageUrl, window.location.origin).toString(),
+        sourceType: 'response-url',
+        endpointPath,
+        endpointAbsolute,
+        revoke: null
+      };
+    }
+
+    // Final fallback to absolute endpoint URL.
+    return {
+      src: endpointAbsolute,
+      sourceType: 'absolute-endpoint',
+      endpointPath,
+      endpointAbsolute,
+      revoke: null
+    };
+  }
+
+  _resetQrModalState(accessionNumber) {
+    if (this.qrModalTitle) this.qrModalTitle.textContent = 'QR Code';
+    if (this.qrModalSubtitle) this.qrModalSubtitle.textContent = accessionNumber || 'Accession Number';
+    if (this.qrModalHint) this.qrModalHint.textContent = 'Preparing QR image...';
+    if (this.qrModalError) {
+      this.qrModalError.textContent = '';
+      this.qrModalError.style.display = 'none';
+    }
+    if (this.qrPrintBtn) this.qrPrintBtn.disabled = true;
+    if (this.qrDownloadBtn) this.qrDownloadBtn.disabled = true;
+    if (this.qrModalImage) {
+      this.qrModalImage.removeAttribute('src');
+      this.qrModalImage.onload = null;
+      this.qrModalImage.onerror = null;
     }
   }
 
-  showQrPreview(accessionNumber, qrDataUrl, qrImageUrl) {
-    const popup = window.open('', '_blank', 'width=420,height=520');
-    if (!popup) {
-      if (qrImageUrl) {
-        window.open(new URL(qrImageUrl, window.location.origin).toString(), '_blank');
-      }
+  _setQrError(message) {
+    if (this.qrModalHint) this.qrModalHint.textContent = 'Unable to load QR image';
+    if (this.qrModalError) {
+      this.qrModalError.textContent = message || 'QR image failed to load.';
+      this.qrModalError.style.display = 'block';
+    }
+    if (this.qrPrintBtn) this.qrPrintBtn.disabled = true;
+    if (this.qrDownloadBtn) this.qrDownloadBtn.disabled = true;
+  }
+
+  async _downloadQrFromSource(accessionNumber, activeSource, endpointPath) {
+    const fileName = `${accessionNumber}-qr.png`;
+
+    const triggerDownload = (href) => {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+
+    if (activeSource && activeSource.startsWith('data:image/')) {
+      triggerDownload(activeSource);
       return;
     }
 
-    const fallbackPath = `/api/book-copies/qr/${encodeURIComponent(accessionNumber)}`;
-    const src = qrDataUrl
-      || (qrImageUrl ? new URL(qrImageUrl, window.location.origin).toString() : '')
-      || new URL(fallbackPath, window.location.origin).toString();
-    popup.document.write(`
-      <html>
-        <head>
-          <title>New Copy QR - ${accessionNumber}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 16px; text-align: center; }
-            h2 { margin: 0 0 8px; color: #14532d; font-size: 18px; }
-            p { margin: 0 0 16px; color: #4b5563; }
-            img { width: 300px; height: 300px; border: 1px solid #e5e7eb; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <h2>${accessionNumber}</h2>
-          <p>QR code generated successfully</p>
-          <img src="${src}" alt="QR code for ${accessionNumber}" />
-        </body>
-      </html>
-    `);
-    popup.document.close();
+    try {
+      const doFetch = (typeof fetchWithCsrf === 'function') ? fetchWithCsrf : fetch;
+      const resp = await doFetch(endpointPath, {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store'
+      });
+      if (!resp.ok) throw new Error(`Download failed (${resp.status})`);
+
+      const pngBlob = await resp.blob();
+      const blobUrl = URL.createObjectURL(pngBlob);
+      triggerDownload(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      throw new Error(`Unable to download QR image: ${error.message}`);
+    }
+  }
+
+  async _openQrModal(accessionNumber, qrDataUrl, qrImageUrl) {
+    if (!this.qrModal || !this.qrModalImage) return false;
+
+    this.closeQrModal(true);
+    this._resetQrModalState(accessionNumber);
+
+    this._qrEndpointPath = this._getQrEndpoint(accessionNumber);
+    this._qrActiveSource = '';
+    this.qrModal.classList.add('show');
+    this.qrModal.style.display = 'flex';
+    this._syncBodyModalOpenState();
+
+    let retriedWithAbsoluteUrl = false;
+
+    try {
+      const resolved = await this._resolveQrSource(accessionNumber, qrDataUrl, qrImageUrl);
+      this._qrActiveSource = resolved.src;
+      this._qrEndpointPath = resolved.endpointPath;
+      this._qrCleanup = resolved.revoke;
+
+      this.qrModalImage.onload = () => {
+        if (this.qrModalHint) this.qrModalHint.textContent = 'QR ready';
+        if (this.qrPrintBtn) this.qrPrintBtn.disabled = false;
+        if (this.qrDownloadBtn) this.qrDownloadBtn.disabled = false;
+      };
+
+      this.qrModalImage.onerror = () => {
+        if (!retriedWithAbsoluteUrl) {
+          retriedWithAbsoluteUrl = true;
+          this.qrModalImage.src = `${resolved.endpointAbsolute}?_=${Date.now()}`;
+          if (this.qrModalHint) this.qrModalHint.textContent = 'Retrying image load...';
+          return;
+        }
+
+        this._setQrError('QR image failed to load. Please try again.');
+      };
+
+      this.qrModalImage.src = this._qrActiveSource;
+      return true;
+    } catch (error) {
+      this._setQrError(`Failed to load QR image: ${error.message}`);
+      return false;
+    }
+  }
+
+  async openCopyQr(accessionNumber) {
+    const copy = this.currentCopies.find(c => c.accession_number === accessionNumber);
+    this._qrCurrentBookTitle = (copy && copy.title) || '';
+    const opened = await this._openQrModal(accessionNumber);
+    if (!opened) {
+      alert('Unable to open QR preview right now. Please try again.');
+    }
+  }
+
+  async showQrPreview(accessionNumber, qrDataUrl, qrImageUrl) {
+    const titleEl = document.getElementById('copyBookTitle');
+    this._qrCurrentBookTitle = (titleEl && titleEl.textContent.trim() !== 'Loading…') ? titleEl.textContent.trim() : '';
+    const opened = await this._openQrModal(accessionNumber, qrDataUrl, qrImageUrl);
+    if (!opened) {
+      alert('Unable to show QR preview right now. Please try again.');
+    }
+  }
+
+  closeQrModal(skipReset = false) {
+    if (!this.qrModal) return;
+
+    if (typeof this._qrCleanup === 'function') {
+      this._qrCleanup();
+    }
+
+    this._qrCleanup = null;
+    this._qrActiveSource = '';
+    this._qrEndpointPath = '';
+
+    this.qrModal.classList.remove('show');
+    this.qrModal.style.display = 'none';
+    this._syncBodyModalOpenState();
+
+    if (!skipReset) {
+      this._resetQrModalState('Accession Number');
+    }
+  }
+
+  async downloadQrModal() {
+    const accessionNumber = this.qrModalSubtitle ? this.qrModalSubtitle.textContent : '';
+    if (!accessionNumber) return;
+
+    if (this.qrDownloadBtn) {
+      this.qrDownloadBtn.disabled = true;
+    }
+
+    try {
+      await this._downloadQrFromSource(accessionNumber, this._qrActiveSource, this._qrEndpointPath || this._getQrEndpoint(accessionNumber));
+      if (this.qrModalHint) this.qrModalHint.textContent = `Downloaded ${accessionNumber}-qr.png`;
+    } catch (error) {
+      this._setQrError(error.message);
+    } finally {
+      if (this.qrDownloadBtn) this.qrDownloadBtn.disabled = false;
+    }
+  }
+
+  printQrModal() {
+    const accessionNumber = this.qrModalSubtitle ? this.qrModalSubtitle.textContent : '';
+    const src = this.qrModalImage ? this.qrModalImage.src : '';
+    if (!accessionNumber || !src) return;
+
+    const printWindow = window.open('', '_blank', 'width=380,height=560');
+    if (!printWindow) {
+      this._setQrError('Unable to open print window. Please allow popups for printing.');
+      return;
+    }
+
+    const bookTitle = this._qrCurrentBookTitle || '';
+    const titleRow = bookTitle
+      ? `<p class="label-title">${bookTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`
+      : '';
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>QR Label - ${accessionNumber}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: Arial, sans-serif;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .label {
+        border: 1.5px solid #374151;
+        border-radius: 6px;
+        padding: 20px 24px;
+        text-align: center;
+        width: 280px;
+        display: inline-block;
+      }
+      .label-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 12px;
+        word-break: break-word;
+        line-height: 1.4;
+      }
+      .label-qr img {
+        width: 220px;
+        height: 220px;
+        display: block;
+        margin: 0 auto;
+      }
+      .label-accession {
+        font-size: 14px;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        color: #111827;
+        margin-top: 12px;
+        letter-spacing: 0.5px;
+      }
+      @media print {
+        body {
+          display: block;
+          padding: 0;
+          margin: 0;
+        }
+        .label {
+          border: 1.5px solid #374151;
+          margin: 16px auto;
+          page-break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="label">
+      ${titleRow}
+      <div class="label-qr">
+        <img src="${src}" alt="QR Code" />
+      </div>
+      <div class="label-accession">${accessionNumber}</div>
+    </div>
+  </body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 400);
   }
 
   async editCopy(accessionNumber) {
@@ -705,10 +1119,119 @@ class BookCopyManager {
     a.click();
   }
 
+  bulkPrintQrLabels(selectedOnly = false) {
+    const copies = selectedOnly ? this._getSelectedCopies() : (this.currentCopies || []);
+    if (!Array.isArray(copies) || copies.length === 0) {
+      alert(selectedOnly ? 'No copies selected. Use the checkboxes to select copies first.' : 'No copies available to print.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=980,height=760');
+    if (!printWindow) {
+      alert('Unable to open print window. Please allow popups for printing.');
+      return;
+    }
+
+    const fallbackTitleEl = document.getElementById('copyBookTitle');
+    const fallbackTitle = fallbackTitleEl ? fallbackTitleEl.textContent.trim() : '';
+
+    const labelsHtml = copies.map((copy) => {
+      const accession = this._escapeHtml(copy.accession_number || 'N/A');
+      const rawTitle = copy.title || fallbackTitle;
+      const title = rawTitle ? this._escapeHtml(rawTitle) : '';
+      const titleRow = title ? `<p class="qr-label-title">${title}</p>` : '';
+      const qrSrc = `${window.location.origin}${this._getQrEndpoint(copy.accession_number)}`;
+      const safeQrSrc = this._escapeHtml(qrSrc);
+
+      return `
+        <article class="qr-label">
+          ${titleRow}
+          <img src="${safeQrSrc}" alt="QR code for ${accession}" class="qr-label-image" />
+          <p class="qr-label-accession">${accession}</p>
+        </article>
+      `;
+    }).join('');
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bulk QR Labels</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #ffffff;
+        color: #111827;
+        font-family: Arial, sans-serif;
+      }
+      .qr-label-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 14px;
+        justify-items: center;
+      }
+      .qr-label {
+        width: 250px;
+        min-height: 320px;
+        border: 1.5px solid #374151;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .qr-label-title {
+        margin: 0 0 10px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.35;
+        width: 100%;
+        word-break: break-word;
+      }
+      .qr-label-image {
+        width: 190px;
+        height: 190px;
+        object-fit: contain;
+        display: block;
+      }
+      .qr-label-accession {
+        margin: 10px 0 0;
+        font-family: "Courier New", monospace;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+      }
+      @media print {
+        body { padding: 10mm; }
+        .qr-label-grid { gap: 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="qr-label-grid">
+      ${labelsHtml}
+    </section>
+  </body>
+</html>`);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  }
+
   closeModal() {
     this.modal.classList.remove('show');
     this.modal.style.display = 'none';
-    document.body.classList.remove('modal-open');
+    this._syncBodyModalOpenState();
     this.currentBookId = null;
     this.currentCopies = [];
   }

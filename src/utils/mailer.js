@@ -265,6 +265,165 @@ function escapeHtml(text) {
 }
 
 /**
+ * Send book return confirmation email to a student.
+ * Notifies student that their book return has been processed.
+ * 
+ * @param {string} studentEmail - Student email address
+ * @param {string} studentName - Student full name
+ * @param {string} bookTitle - Title of returned book
+ * @param {string} author - Author of returned book
+ * @param {string} condition - Condition of book at return (excellent/good/fair/poor/damaged)
+ * @param {string} notes - Optional notes about the return
+ * @returns {Promise<Object>} { success, messageId, error }
+ */
+async function sendReturnConfirmationEmail(studentEmail, studentName, bookTitle, author, condition = 'good', notes = '') {
+  try {
+    if (!studentEmail || !studentName || !bookTitle) {
+      throw new Error('Missing required parameters for return confirmation email');
+    }
+
+    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+      logger.warn('Email not configured. Skipping return confirmation email.', {
+        studentEmail,
+        bookTitle
+      });
+      return { success: false, error: 'Email not configured' };
+    }
+
+    // Format condition display
+    const conditionDisplay = {
+      excellent: '✨ Excellent',
+      good: '✅ Good',
+      fair: '⚠️ Fair',
+      poor: '⚠️ Poor',
+      damaged: '❌ Damaged'
+    }[condition] || condition;
+
+    // Build HTML email
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #4caf50; color: white; padding: 20px; border-radius: 5px; text-align: center; }
+            .content { padding: 20px; background-color: #f9f9f9; border-radius: 5px; }
+            .info-box { background-color: #e8f5e9; padding: 15px; border-left: 4px solid #4caf50; margin: 15px 0; border-radius: 3px; }
+            .footer { text-align: center; color: #666; font-size: 12px; padding: 20px; border-top: 1px solid #ddd; }
+            .detail-row { margin: 10px 0; padding: 10px; background-color: white; border-radius: 3px; }
+            .detail-label { font-weight: bold; color: #4caf50; }
+            strong { color: #4caf50; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>📚 SPIST LIBRARY - BOOK RETURN CONFIRMATION</h2>
+            </div>
+
+            <div class="content">
+              <p>Good day, <strong>${escapeHtml(studentName)}!</strong></p>
+
+              <p>We are writing to confirm that your book return has been successfully processed.</p>
+
+              <div class="info-box">
+                <h3 style="margin-top: 0; color: #4caf50;">Return Details</h3>
+                <div class="detail-row">
+                  <div><span class="detail-label">Book Title:</span> ${escapeHtml(bookTitle)}</div>
+                </div>
+                <div class="detail-row">
+                  <div><span class="detail-label">Author:</span> ${escapeHtml(author || 'N/A')}</div>
+                </div>
+                <div class="detail-row">
+                  <div><span class="detail-label">Condition at Return:</span> ${escapeHtml(conditionDisplay)}</div>
+                </div>
+                ${notes ? `<div class="detail-row">
+                  <div><span class="detail-label">Notes:</span> ${escapeHtml(notes)}</div>
+                </div>` : ''}
+                <div class="detail-row">
+                  <div><span class="detail-label">Return Date:</span> ${new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}</div>
+                </div>
+              </div>
+
+              <p>The book has been inspected and recorded in our system. If you have any questions regarding this return or the condition assessment, please contact the library staff.</p>
+
+              <p style="margin-top: 30px; color: #666;">
+                Thank you for using SPIST Library Management System!
+              </p>
+            </div>
+
+            <div class="footer">
+              <p>This is an automated email. Please do not reply to this message.</p>
+              <p>&copy; 2026 Southern Philippines Institute of Science &amp; Technology Library</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Plain text fallback
+    const textContent = `
+SPIST LIBRARY - BOOK RETURN CONFIRMATION
+
+Good day, ${studentName}!
+
+We are writing to confirm that your book return has been successfully processed.
+
+RETURN DETAILS:
+- Book Title: ${bookTitle}
+- Author: ${author || 'N/A'}
+- Condition at Return: ${conditionDisplay}
+- Return Date: ${new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
+${notes ? `- Notes: ${notes}` : ''}
+
+The book has been inspected and recorded in our system. If you have any questions regarding this return or the condition assessment, please contact the library staff.
+
+Thank you for using SPIST Library Management System!
+
+---
+This is an automated email. Please do not reply to this message.
+© 2026 Southern Philippines Institute of Science & Technology Library
+    `;
+
+    // Send email
+    const mailOptions = {
+      from: `"SPIST Library" <${fromEmail}>`,
+      to: studentEmail,
+      subject: `SPIST Library - Book Return Confirmed: ${bookTitle}`,
+      text: textContent,
+      html: htmlContent,
+      replyTo: 'library-support@spist.edu.ph'
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    logger.info('Return confirmation email sent', {
+      studentEmail,
+      bookTitle,
+      author,
+      condition,
+      messageId: info.messageId
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    logger.error('Failed to send return confirmation email', {
+      error: error.message,
+      studentEmail,
+      bookTitle
+    });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Send an overdue book reminder email to a student.
  *
  * @param {string} studentEmail
@@ -333,6 +492,7 @@ async function sendOverdueReminderEmail(studentEmail, studentName, studentId, bo
 
 module.exports = {
   sendBorrowingClaimEmail,
+  sendReturnConfirmationEmail,
   sendOverdueReminderEmail,
   transporter
 };

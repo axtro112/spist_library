@@ -95,4 +95,13 @@
   };
 
   SA.utils = SA.utils || utils;
+
+  // Patch: Add overview attributes to user rows for System Admin
+  // This assumes a function like updateTable or similar is used to render rows
+  // If not, this can be adapted to your actual row rendering logic
+  SA.addOverviewAttributesToUserRow = function(row, admin) {
+    if (!row || !admin) return;
+    row.setAttribute('data-overview-type', 'admin');
+    row.setAttribute('data-overview-id', admin.id || admin.admin_id || admin._id || '');
+  };
 }(window.SuperAdmin = window.SuperAdmin || {}));

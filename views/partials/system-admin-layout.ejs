@@ -21,7 +21,7 @@
   <script src="/js/core/modal.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/ui.js"></script>
-  <script src="/js/notifications.js"></script>
+  <script src="/js/notifications.js?v=20260322"></script>
   <script src="/js/admin/layout.js" defer></script>
   <script src="/js/system-admin-guard.js" defer></script>
 </head>
@@ -46,14 +46,14 @@
       <a href="/admin-books" class="<%= activePage === 'books' ? 'active' : '' %>">
         <i class="bi bi-book"></i><span class="nav-label">Books</span>
       </a>
-      <a href="/admin-books-trash" class="<%= activePage === 'books-trash' ? 'active' : '' %>">
-        <i class="bi bi-trash"></i><span class="nav-label">Books Trash</span>
-      </a>
       <a href="/admin-users" class="<%= activePage === 'users' ? 'active' : '' %>">
         <i class="bi bi-people"></i><span class="nav-label">Users</span>
       </a>
       <a href="/admin-borrowed-books" class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
         <i class="bi bi-journal-bookmark"></i><span class="nav-label">Borrowed Books</span>
+      </a>
+      <a href="/admin-qr-scanner" class="<%= activePage === 'qr-scanner' ? 'active' : '' %>">
+        <i class="bi bi-qr-code-scan"></i><span class="nav-label">QR Scanner</span>
       </a>
       <div class="sa-nav-divider"></div>
       <a href="/admin-trash-bin" class="<%= activePage === 'trash-bin' ? 'active' : '' %>">

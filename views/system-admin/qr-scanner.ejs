@@ -30,7 +30,7 @@
     '<script src="/js/super-admin/qr-scanner.js?v=20260322" defer><\/script>'
   ].join('');
 %>
-<%- include('../partials/super-admin-layout', {
+<%- include('../partials/system-admin-layout', {
   title: 'QR Code Scanner - SPIST Library',
   adminEmail: adminEmail,
   adminId: adminId,
@@ -41,6 +41,7 @@
     <div class="section-header">
       <div>
         <h1>QR Code Scanner</h1>
+        <p style="color:var(--text-muted,#6b7280);margin:4px 0 0;">Scan a book copy QR code to look up details and manage borrow operations.</p>
       </div>
     </div>
 
@@ -59,13 +60,11 @@
       </div>
     </div>
 
-    <!-- Recent Scans Panel -->
     <div class="section-card" id="recentScansPanel" style="margin-top:16px;display:none;">
       <h3 style="font-size:15px;margin:0 0 12px;font-weight:600;">Recent Scans</h3>
       <div id="recentScansList"></div>
     </div>
 
-    <!-- QR Result Modal -->
     <div id="qrResultModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
       <div class="modal-content" style="max-width:520px;width:100%;">
         <div class="modal-header">

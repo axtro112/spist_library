@@ -1488,6 +1488,66 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
 });
 
 /**
+ * POST /api/admin/borrowings/:id/approve
+ * Approve a pending borrow request (change status from 'pending' to 'borrowed')
+ * Only available if REQUIRE_BORROW_APPROVAL environment variable is set
+ * Access: Super Admin + System Admin
+ */
+router.post("/borrowings/:id/approve", requireAdmin, async (req, res) => {
+  const borrowingId = req.params.id;
+  const adminId = req.session.user?.id || req.session.adminId;
+  
+  // Check if approval is required
+  const requireAdminApproval = process.env.REQUIRE_BORROW_APPROVAL === 'true';
+  if (!requireAdminApproval) {
+    return response.validationError(res, 'Admin approval is not required in current configuration');
+  }
+  
+  try {
+    // Get borrowing details
+    const [borrowing] = await db.query(
+      "SELECT id, status, student_id, book_id FROM book_borrowings WHERE id = ?",
+      [borrowingId]
+    );
+    
+    if (!borrowing) {
+      return response.notFound(res, 'Borrowing record not found');
+    }
+    
+    // Validate status
+    if (borrowing.status !== 'pending') {
+      return response.validationError(res, `Cannot approve borrowing with status '${borrowing.status}'. Only 'pending' borrows can be approved.`);
+    }
+    
+    // Update status to 'borrowed' and record approving admin
+    await db.query(
+      `UPDATE book_borrowings 
+       SET status = 'borrowed', 
+           approved_by = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [adminId, borrowingId]
+    );
+    
+    logger.info('Borrow request approved', {
+      borrowingId,
+      adminId,
+      studentId: borrowing.student_id,
+      bookId: borrowing.book_id
+    });
+    
+    return response.success(res, { borrowingId, status: 'borrowed' }, 'Borrow request approved successfully');
+    
+  } catch (error) {
+    logger.error('Error approving borrow request', {
+      error: error.message,
+      borrowingId
+    });
+    return response.error(res, 'Error approving borrow request', error);
+  }
+});
+
+/**
  * POST /api/admin/borrowings/:id/confirm-pickup
  * Confirm that book was physically handed to student
  * Access: Super Admin + System Admin

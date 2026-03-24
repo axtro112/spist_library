@@ -11,6 +11,7 @@ const db = require('../utils/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const response = require('../utils/response');
 const logger = require('../utils/logger');
+const { sendReturnConfirmationEmail } = require('../utils/mailer');
 
 /**
  * POST /api/book-borrowings/return/:borrowingId
@@ -30,11 +31,21 @@ router.post('/return/:borrowingId', requireAdmin, async (req, res) => {
     await db.beginTransaction();
     
     try {
-      // Get borrowing details
+      // Get borrowing details with student and book info
       const [borrowing] = await db.query(`
-        SELECT bb.*, bc.accession_number, bc.condition_status as original_condition
+        SELECT 
+          bb.*,
+          bc.accession_number,
+          bc.condition_status as original_condition,
+          s.email as student_email,
+          s.first_name,
+          s.last_name,
+          b.title as book_title,
+          b.author
         FROM book_borrowings bb
         LEFT JOIN book_copies bc ON bb.accession_number = bc.accession_number
+        LEFT JOIN students s ON bb.student_id = s.student_id
+        LEFT JOIN books b ON bb.book_id = b.id
         WHERE bb.id = ?
       `, [borrowingId]);
       
@@ -57,9 +68,10 @@ router.post('/return/:borrowingId', requireAdmin, async (req, res) => {
           status = 'returned',
           return_date = CURRENT_TIMESTAMP,
           copy_condition_at_return = ?,
+          returned_by_admin_id = ?,
           notes = CONCAT(COALESCE(notes, ''), '\\nReturn: ', ?)
         WHERE id = ?
-      `, [returnCondition, notes || 'Returned in good condition', borrowingId]);
+      `, [returnCondition, req.session?.user?.id || null, notes || 'Returned in good condition', borrowingId]);
       
       // Update copy status and condition
       if (borrowing.accession_number) {
@@ -99,6 +111,25 @@ router.post('/return/:borrowingId', requireAdmin, async (req, res) => {
         accessionNumber: borrowing.accession_number,
         condition: returnCondition 
       });
+      
+      // Send return confirmation email asynchronously (don't wait for it)
+      if (borrowing.student_email) {
+        const studentName = `${borrowing.first_name || ''} ${borrowing.last_name || ''}`.trim() || 'Student';
+        sendReturnConfirmationEmail(
+          borrowing.student_email,
+          studentName,
+          borrowing.book_title || 'Unknown Book',
+          borrowing.author || '',
+          returnCondition,
+          notes
+        ).catch(err => {
+          logger.warn('Failed to send return confirmation email', {
+            error: err.message,
+            borrowingId,
+            studentEmail: borrowing.student_email
+          });
+        });
+      }
       
       response.success(res, {
         accession_number: borrowing.accession_number,

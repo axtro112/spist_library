@@ -25,6 +25,12 @@ const KANBAN_COUNT_IDS = {
   returned: 'count-returned-kanban',
   history: 'count-history'
 };
+let borrowScanner = null;
+let borrowScannerMode = null;
+let scannerInProgress = false;
+let scannerCurrentBorrowingId = null;
+let scannerLastCode = '';
+let scannerTransitionActive = false;
 
 // ===========================
 // INITIALIZATION
@@ -52,6 +58,9 @@ document.addEventListener("DOMContentLoaded", async function () {
   
   // Initialize lifecycle panel
   initBorrowLifecycle();
+
+  // Initialize scanner-based confirmation modal
+  initBorrowScannerModal();
   
   // Auto-refresh borrowed books every 20 seconds
   setInterval(async () => {
@@ -790,7 +799,7 @@ function getActionButtons(record, bookMissing = false) {
     }
 
     // Mark Returned button
-    if (['picked_up', 'overdue'].includes(record.display_status)) {
+    if (['picked_up', 'overdue', 'pending_return'].includes(record.display_status)) {
       buttons.push(`
         <button 
           class="btn btn-sm btn-primary" 
@@ -822,129 +831,379 @@ function getActionButtons(record, bookMissing = false) {
 // MODALS
 // ===========================
 
-function showPickupModal(borrowingId) {
-  const record = allBorrowings.find(b => b.id === borrowingId);
-  
-  if (!record) {
-    showToast('Borrowing record not found', 'error');
+function scannerEl(id) {
+  return document.getElementById(id);
+}
+
+function initBorrowScannerModal() {
+  const modal = scannerEl('borrowScannerModal');
+  const startBtn = scannerEl('borrowScanStartBtn');
+  const stopBtn = scannerEl('borrowScanStopBtn');
+  const resetBtn = scannerEl('borrowScanResetBtn');
+
+  if (!modal || !startBtn || !stopBtn || !resetBtn) return;
+
+  startBtn.addEventListener('click', () => startBorrowScannerCamera());
+  stopBtn.addEventListener('click', () => stopBorrowScannerCamera());
+  resetBtn.addEventListener('click', () => resetBorrowScannerState(true));
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeAllModals();
+    }
+  });
+
+  const qrHost = scannerEl('borrowQrReader');
+  if (qrHost && typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(() => updateBorrowScannerPlaceholder());
+    observer.observe(qrHost, { childList: true, subtree: true });
+  }
+
+  resetBorrowScannerState(false);
+}
+
+function setBorrowScannerStatus(message, type) {
+  const status = scannerEl('borrowScannerStatusText');
+  if (!status) return;
+  status.textContent = message;
+  status.className = 'scanner-status-text' + (type ? ` status-${type}` : '');
+}
+
+function setBorrowScannerMessage(message, type) {
+  const msg = scannerEl('borrowScanMessage');
+  if (!msg) return;
+  if (!message) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.className = 'scanner-message';
     return;
   }
-  
-  const modal = document.getElementById('pickupModal');
-  const modalBody = modal.querySelector('.modal-body');
-  
-  modalBody.innerHTML = `
-    <div class="modal-detail-grid">
-      <div class="detail-row">
-        <span class="detail-label">Student:</span>
-        <span class="detail-value">${escapeHtml(record.student_name)} (${escapeHtml(record.student_id)})</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Book:</span>
-        <span class="detail-value">${escapeHtml(record.book_title)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Author:</span>
-        <span class="detail-value">${escapeHtml(record.book_author)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Accession No:</span>
-        <span class="detail-value"><code>${escapeHtml(record.accession_number || 'N/A')}</code></span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Borrow Date:</span>
-        <span class="detail-value">${formatDate(record.borrow_date)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Due Date:</span>
-        <span class="detail-value">${formatDate(record.due_date)}</span>
-      </div>
-      ${record.claim_expires_at ? `
-      <div class="detail-row">
-        <span class="detail-label">Claim Deadline:</span>
-        <span class="detail-value">${formatDate(record.claim_expires_at)}</span>
-      </div>
-      ` : ''}
-    </div>
-    <div class="alert alert-info mt-3">
-      <span class="material-symbols-outlined">info</span>
-      Please verify the student's ID and the book's accession number before confirming pickup.
-    </div>
-  `;
-  
-  // Set up confirm button
-  const confirmBtn = modal.querySelector('.btn-confirm-pickup');
-  confirmBtn.onclick = () => confirmPickup(borrowingId);
-  
-  // Show modal
+  msg.textContent = message;
+  msg.style.display = 'block';
+  msg.className = `scanner-message ${type || 'info'}`;
+}
+
+function updateBorrowScannerPlaceholder() {
+  const host = scannerEl('borrowQrReader');
+  const placeholder = scannerEl('borrowScanPlaceholder');
+  if (!host || !placeholder) return;
+  const hasPreview = !!host.querySelector('video, canvas');
+  placeholder.classList.toggle('is-hidden', hasPreview);
+}
+
+function getDueStateText(dueDate, displayStatus) {
+  if (normalizeBorrowStatus(displayStatus) === 'overdue') return 'Overdue';
+  if (!dueDate) return 'N/A';
+  const due = new Date(dueDate).getTime();
+  if (Number.isNaN(due)) return 'N/A';
+  return Date.now() > due ? 'Overdue' : 'Due';
+}
+
+function setBorrowScannerResult(data) {
+  const grid = scannerEl('borrowScanResultGrid');
+  const empty = scannerEl('borrowScanEmpty');
+  if (grid) grid.style.display = 'flex';
+  if (empty) empty.style.display = 'none';
+
+  scannerEl('borrowScanAccession').textContent = data.accession || '—';
+  scannerEl('borrowScanBookTitle').textContent = data.bookTitle || '—';
+  scannerEl('borrowScanBookAuthor').textContent = data.author || '—';
+  scannerEl('borrowScanStudentName').textContent = data.studentName || '—';
+  scannerEl('borrowScanBorrowStatus').textContent = data.statusLabel || '—';
+  scannerEl('borrowScanPickupDate').textContent = data.pickupDate || '—';
+  scannerEl('borrowScanDueDate').textContent = data.dueDate || '—';
+  scannerEl('borrowScanDueState').textContent = data.dueState || '—';
+}
+
+function resetBorrowScannerState(clearResultOnly) {
+  scannerLastCode = '';
+  scannerCurrentBorrowingId = null;
+
+  const grid = scannerEl('borrowScanResultGrid');
+  const empty = scannerEl('borrowScanEmpty');
+  const actionBtn = scannerEl('borrowScanActionBtn');
+
+  if (grid) grid.style.display = 'none';
+  if (empty) empty.style.display = 'block';
+  setBorrowScannerMessage('', 'info');
+  setBorrowScannerResult({});
+
+  if (actionBtn) {
+    actionBtn.disabled = true;
+    actionBtn.textContent = 'No Action';
+    actionBtn.classList.remove('sa-btn-primary', 'sa-btn-success');
+    actionBtn.classList.add('sa-btn-success');
+    actionBtn.onclick = null;
+  }
+
+  if (!clearResultOnly) {
+    setBorrowScannerStatus('Ready to scan. Click Start Camera to begin.', '');
+  }
+
+  updateBorrowScannerPlaceholder();
+}
+
+function scannerDelay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function cleanupBorrowScannerInstance() {
+  if (!borrowScanner) return;
+
+  try {
+    if (borrowScanner.isScanning) {
+      await borrowScanner.stop();
+    }
+  } catch (_) {
+    // Ignore transition/stop errors during recovery.
+  }
+
+  try {
+    borrowScanner.clear();
+  } catch (_) {
+    // Ignore clear errors during recovery.
+  }
+
+  borrowScanner = null;
+}
+
+async function stopBorrowScannerCamera() {
+  if (scannerTransitionActive) return;
+  scannerTransitionActive = true;
+
+  const startBtn = scannerEl('borrowScanStartBtn');
+  const stopBtn = scannerEl('borrowScanStopBtn');
+
+  try {
+    await cleanupBorrowScannerInstance();
+    if (startBtn) startBtn.style.display = 'inline-flex';
+    if (stopBtn) stopBtn.style.display = 'none';
+    updateBorrowScannerPlaceholder();
+  } finally {
+    await scannerDelay(120);
+    scannerTransitionActive = false;
+  }
+}
+
+async function startBorrowScannerCamera() {
+  if (scannerInProgress || scannerTransitionActive) return;
+  scannerInProgress = true;
+  scannerTransitionActive = true;
+
+  const startBtn = scannerEl('borrowScanStartBtn');
+  const stopBtn = scannerEl('borrowScanStopBtn');
+
+  try {
+    await cleanupBorrowScannerInstance();
+    await scannerDelay(140);
+
+    if (!window.Html5Qrcode) {
+      throw new Error('QR scanner library is not available.');
+    }
+
+    const attempts = [
+      { facingMode: { ideal: 'environment' } },
+      { facingMode: 'environment' },
+      { facingMode: 'user' }
+    ];
+
+    let started = false;
+    let lastErr = null;
+
+    for (const cam of attempts) {
+      await cleanupBorrowScannerInstance();
+      borrowScanner = new Html5Qrcode('borrowQrReader');
+
+      try {
+        await borrowScanner.start(
+          cam,
+          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+          onBorrowScannerScan,
+          () => {}
+        );
+        started = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+        await cleanupBorrowScannerInstance();
+        await scannerDelay(160);
+      }
+    }
+
+    if (!started) {
+      throw lastErr || new Error('Unable to start camera source.');
+    }
+
+    if (startBtn) startBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
+    setBorrowScannerStatus('Scanner active. Point camera at QR code.', 'info');
+    updateBorrowScannerPlaceholder();
+  } catch (err) {
+    setBorrowScannerStatus(`Camera error: ${err.message || err}`, 'error');
+    await cleanupBorrowScannerInstance();
+    if (startBtn) startBtn.style.display = 'inline-flex';
+    if (stopBtn) stopBtn.style.display = 'none';
+    updateBorrowScannerPlaceholder();
+  } finally {
+    await scannerDelay(120);
+    scannerTransitionActive = false;
+    scannerInProgress = false;
+  }
+}
+
+async function lookupBorrowingByAccession(accessionNumber) {
+  const copyRes = await fetchWithCsrf(`/api/book-copies/accession/${encodeURIComponent(accessionNumber)}`);
+  const copyPayload = await copyRes.json().catch(() => ({}));
+  if (!copyRes.ok || !copyPayload.success || !copyPayload.data) {
+    throw new Error(copyPayload.message || 'Copy not found');
+  }
+
+  const borrowingRes = await fetchWithCsrf(`/api/admin/borrowings?search=${encodeURIComponent(accessionNumber)}`);
+  const borrowingPayload = await borrowingRes.json().catch(() => ({}));
+  const borrowingList = Array.isArray(borrowingPayload.data) ? borrowingPayload.data : [];
+
+  const borrowing = borrowingList.find((row) =>
+    row.accession_number === accessionNumber &&
+    row.status !== 'returned' &&
+    row.status !== 'cancelled'
+  ) || borrowingList[0] || null;
+
+  return { copy: copyPayload.data, borrowing };
+}
+
+function setScannerActionButton(label, styleClass, onClickHandler) {
+  const actionBtn = scannerEl('borrowScanActionBtn');
+  if (!actionBtn) return;
+  actionBtn.disabled = false;
+  actionBtn.textContent = label;
+  actionBtn.classList.remove('sa-btn-primary', 'sa-btn-success');
+  actionBtn.classList.add(styleClass);
+  actionBtn.onclick = onClickHandler;
+}
+
+async function handleBorrowScannerLookup(accessionNumber) {
+  const normalized = String(accessionNumber || '').trim();
+  if (!normalized) return;
+  if (normalized === scannerLastCode) return;
+  scannerLastCode = normalized;
+
+  setBorrowScannerStatus(`Looking up ${normalized}...`, 'info');
+
+  try {
+    const { copy, borrowing } = await lookupBorrowingByAccession(normalized);
+    const mode = borrowScannerMode;
+    const displayStatus = normalizeBorrowStatus((borrowing && borrowing.display_status) || (copy && copy.status));
+    const dueState = getDueStateText((borrowing && borrowing.due_date) || (copy && copy.due_date), displayStatus);
+    const rowTitle = (borrowing && borrowing.book_title) || copy.title || 'N/A';
+    const rowAuthor = (borrowing && borrowing.book_author) || copy.author || 'N/A';
+    const rowStudent = (borrowing && borrowing.student_name) || copy.borrowed_by || 'N/A';
+
+    setBorrowScannerResult({
+      accession: normalized,
+      bookTitle: rowTitle,
+      author: rowAuthor,
+      studentName: rowStudent,
+      statusLabel: displayStatus || 'available',
+      pickupDate: borrowing && borrowing.picked_up_at ? formatDate(borrowing.picked_up_at) : 'Pending',
+      dueDate: (borrowing && borrowing.due_date) ? formatDate(borrowing.due_date) : 'N/A',
+      dueState
+    });
+
+    if (!borrowing) {
+      setBorrowScannerMessage('No active borrowing record found.', 'warning');
+      setBorrowScannerStatus('No active borrowing.', 'error');
+      return;
+    }
+
+    if (mode === 'pickup') {
+      if (displayStatus !== 'pending_pickup') {
+        setBorrowScannerMessage('Scanned record is not in pending pickup status.', 'warning');
+        setBorrowScannerStatus(`Status is ${displayStatus || 'unknown'}; cannot confirm pickup.`, 'error');
+        return;
+      }
+
+      if (scannerCurrentBorrowingId && Number(borrowing.id) !== Number(scannerCurrentBorrowingId)) {
+        setBorrowScannerMessage('Scanned QR does not match the selected pickup record.', 'warning');
+        setBorrowScannerStatus('Scan the matching pickup QR for this request.', 'error');
+        return;
+      }
+
+      setBorrowScannerMessage('Pickup record verified. You can confirm pickup.', 'success');
+      setBorrowScannerStatus('Ready to confirm pickup.', 'success');
+      setScannerActionButton('Confirm Pickup', 'sa-btn-success', async () => {
+        await confirmPickup(Number(borrowing.id));
+        resetBorrowScannerState(false);
+      });
+      return;
+    }
+
+    if (['borrowed', 'overdue', 'pending_return', 'picked_up'].includes(displayStatus)) {
+      if (scannerCurrentBorrowingId && Number(borrowing.id) !== Number(scannerCurrentBorrowingId)) {
+        setBorrowScannerMessage('Scanned QR does not match the selected return record.', 'warning');
+        setBorrowScannerStatus('Scan the matching book copy QR for this return.', 'error');
+        return;
+      }
+
+      setBorrowScannerMessage(
+        dueState === 'Overdue'
+          ? 'Book is overdue. Confirm return and process penalties if needed.'
+          : 'Return record verified. You can confirm return.',
+        dueState === 'Overdue' ? 'warning' : 'success'
+      );
+      setBorrowScannerStatus('Ready to confirm return.', 'success');
+      setScannerActionButton('Confirm Return', 'sa-btn-primary', async () => {
+        await confirmReturn(Number(borrowing.id));
+        resetBorrowScannerState(false);
+      });
+      return;
+    }
+
+    setBorrowScannerMessage(`Status ${displayStatus || 'unknown'} is not valid for return confirmation.`, 'warning');
+    setBorrowScannerStatus('No return action available for this status.', 'error');
+  } catch (error) {
+    setBorrowScannerStatus('Lookup failed. Please scan a valid QR label.', 'error');
+    setBorrowScannerMessage(error.message || 'Unable to lookup scanned QR code.', 'error');
+  }
+}
+
+function onBorrowScannerScan(decodedText) {
+  handleBorrowScannerLookup(decodedText);
+}
+
+function openBorrowScannerModal(mode, borrowingId) {
+  const modal = scannerEl('borrowScannerModal');
+  const title = scannerEl('borrowScannerTitle');
+  if (!modal) return;
+
+  borrowScannerMode = mode;
+  scannerCurrentBorrowingId = borrowingId || null;
+  scannerLastCode = '';
+
+  resetBorrowScannerState(false);
+  if (title) {
+    title.textContent = mode === 'pickup' ? 'Scan to Confirm Pickup' : 'Scan to Confirm Return';
+  }
+
   modal.style.display = 'flex';
   document.body.classList.add('modal-open');
 }
 
-function showReturnModal(borrowingId) {
+function showPickupModal(borrowingId) {
   const record = allBorrowings.find(b => b.id === borrowingId);
-  
   if (!record) {
     showToast('Borrowing record not found', 'error');
     return;
   }
-  
-  const modal = document.getElementById('returnModal');
-  const modalBody = modal.querySelector('.modal-body');
-  
-  modalBody.innerHTML = `
-    <div class="modal-detail-grid">
-      <div class="detail-row">
-        <span class="detail-label">Student:</span>
-        <span class="detail-value">${escapeHtml(record.student_name)} (${escapeHtml(record.student_id)})</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Book:</span>
-        <span class="detail-value">${escapeHtml(record.book_title)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Accession No:</span>
-        <span class="detail-value"><code>${escapeHtml(record.accession_number || 'N/A')}</code></span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Picked Up:</span>
-        <span class="detail-value">${formatDate(record.picked_up_at)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Due Date:</span>
-        <span class="detail-value">${formatDate(record.due_date)}</span>
-      </div>
-      ${record.display_status === 'overdue' ? `
-      <div class="alert alert-warning mt-2">
-        <span class="material-symbols-outlined">warning</span>
-        This book is <strong>OVERDUE</strong>. Please check the book condition and apply any necessary penalties.
-      </div>
-      ` : ''}
-    </div>
-    <div class="form-group mt-3">
-      <label for="returnCondition">Book Condition (Optional):</label>
-      <select id="returnCondition" class="form-control">
-        <option value="">-- Select condition --</option>
-        <option value="excellent">Excellent</option>
-        <option value="good">Good</option>
-        <option value="fair">Fair</option>
-        <option value="poor">Poor</option>
-        <option value="damaged">Damaged</option>
-      </select>
-    </div>
-    <div class="alert alert-info mt-3">
-      <span class="material-symbols-outlined">info</span>
-      Please inspect the book before confirming return. Check for damages, missing pages, or markings.
-    </div>
-  `;
-  
-  // Set up confirm button
-  const confirmBtn = modal.querySelector('.btn-confirm-return');
-  confirmBtn.onclick = () => confirmReturn(borrowingId);
-  
-  // Show modal
-  modal.style.display = 'flex';
-  document.body.classList.add('modal-open');
+  openBorrowScannerModal('pickup', borrowingId);
+}
+
+function showReturnModal(borrowingId) {
+  const record = allBorrowings.find(b => b.id === borrowingId);
+  if (!record) {
+    showToast('Borrowing record not found', 'error');
+    return;
+  }
+  openBorrowScannerModal('return', borrowingId);
 }
 
 function showDetailsModal(borrowingId) {
@@ -1172,6 +1431,10 @@ function closeAllModals() {
   document.querySelectorAll('.modal').forEach(modal => {
     modal.style.display = 'none';
   });
+  stopBorrowScannerCamera();
+  resetBorrowScannerState(false);
+  borrowScannerMode = null;
+  scannerCurrentBorrowingId = null;
   document.body.classList.remove('modal-open');
 }
 

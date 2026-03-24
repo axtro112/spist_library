@@ -296,12 +296,16 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
 
     const dueDate = returnDate ? new Date(returnDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const dueDateSql = dueDate.toISOString().slice(0, 19).replace("T", " ");
+    
+    // Check if admin approval is required (controlled via environment variable)
+    const requireAdminApproval = process.env.REQUIRE_BORROW_APPROVAL === 'true';
+    const borrowStatus = requireAdminApproval ? 'pending' : 'borrowed';
 
     await db.withTransaction(async (conn) => {
       await conn.queryAsync(
         `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status)
-         VALUES (?, ?, NOW(), ?, 'borrowed')`,
-        [book.id, student.student_id, dueDateSql]
+         VALUES (?, ?, NOW(), ?, ?)`,
+        [book.id, student.student_id, dueDateSql, borrowStatus]
       );
 
       await conn.queryAsync(
@@ -314,7 +318,7 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
       );
     });
 
-    return response.success(res, { bookId: book.id, studentId: student.student_id }, "Book borrowed successfully", 201);
+    return response.success(res, { bookId: book.id, studentId: student.student_id, status: borrowStatus }, "Book borrowed successfully" + (borrowStatus === 'pending' ? " - Awaiting admin approval" : ""), 201);
   } catch (err) {
     logger.error("Borrow book failed", { error: err.message });
     return response.error(res, "Borrow book failed", err);

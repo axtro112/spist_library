@@ -17,6 +17,7 @@ const booksRoutes = require("./src/routes/books");
 const bookCopiesRoutes = require("./src/routes/book-copies");
 const notificationRoutes = require("./src/routes/notifications");
 const { startNotificationScheduler } = require("./src/utils/notificationScheduler");
+const { auditLogMiddleware } = require("./src/middleware/audit");
 require("dotenv").config();
 
 const studentsRoutePath = path.join(__dirname, "src/routes/students.js");
@@ -213,6 +214,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Audit Logging Middleware - logs all CRUD operations
+app.use(auditLogMiddleware());
+
 // Debug endpoint to check session
 app.get("/api/debug/session", (req, res) => {
   res.json({
@@ -322,6 +326,7 @@ const systemAdminPageRoutes = {
   "admin-dashboard": "system-admin/dashboard",
   "admin-books": "system-admin/books",
   "admin-borrowed-books": "system-admin/borrowed-books",
+  "admin-qr-scanner": "system-admin/qr-scanner",
   "admin-users": "system-admin/users",
   "admin-admins": "system-admin/admins",
   "admin-trash-bin": "system-admin/trash-bin",

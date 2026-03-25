@@ -291,7 +291,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       try {
-        const response = await fetch("/auth/forgot-password", {
+        const doFetch = typeof fetchWithCsrf === "function" ? fetchWithCsrf : fetch;
+        const response = await doFetch("/auth/forgot-password", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

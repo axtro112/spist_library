@@ -324,13 +324,13 @@ async function handleImportSubmit(e) {
   const fileInput = document.getElementById("csvFile");
   const file = fileInput.files[0];
 
-  // Validate file type: CSV or Excel
+  // Validate file type: CSV or XLSX
   const fileName = file ? file.name.toLowerCase() : '';
-  const validExtensions = ['.csv', '.xlsx', '.xls'];
+  const validExtensions = ['.csv', '.xlsx'];
   const isValidFile = validExtensions.some(ext => fileName.endsWith(ext));
 
   if (!file || !isValidFile) {
-    alert("Please select a valid CSV or Excel file (.csv, .xlsx, .xls)");
+    alert("Please select a valid CSV or Excel file (.csv, .xlsx)");
     return;
   }
 

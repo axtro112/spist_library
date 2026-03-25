@@ -1,4 +1,4 @@
-<%
+﻿<%
   var extraHead = [
     '<style>',
     '.qr-scanner-container{max-width:500px;margin:0 auto;text-align:center;}',
@@ -31,7 +31,7 @@
   ].join('');
 %>
 <%- include('../partials/system-admin-layout', {
-  title: 'QR Code Scanner - SPIST Library',
+  title: 'QR Code Scanner - Southern Philippines Institute of Science & Technology',
   adminEmail: adminEmail,
   adminId: adminId,
   adminRole: adminRole,
@@ -80,35 +80,35 @@
           <div class="qr-info-grid">
             <div class="qr-info-item" style="grid-column:1/-1;">
               <span class="qr-info-label">Title</span>
-              <span class="qr-info-value" id="qrmTitle" style="font-weight:600;font-size:15px;">—</span>
+              <span class="qr-info-value" id="qrmTitle" style="font-weight:600;font-size:15px;">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Author</span>
-              <span class="qr-info-value" id="qrmAuthor">—</span>
+              <span class="qr-info-value" id="qrmAuthor">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Category</span>
-              <span class="qr-info-value" id="qrmCategory">—</span>
+              <span class="qr-info-value" id="qrmCategory">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Accession No.</span>
-              <span class="qr-info-value" id="qrmAccession" style="font-family:monospace;font-weight:600;">—</span>
+              <span class="qr-info-value" id="qrmAccession" style="font-family:monospace;font-weight:600;">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Copy Condition</span>
-              <span class="qr-info-value" id="qrmCondition">—</span>
+              <span class="qr-info-value" id="qrmCondition">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Borrow Status</span>
-              <span class="qr-info-value" id="qrmCopyStatus">—</span>
+              <span class="qr-info-value" id="qrmCopyStatus">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Current Borrower</span>
-              <span class="qr-info-value" id="qrmBorrower">—</span>
+              <span class="qr-info-value" id="qrmBorrower">â€”</span>
             </div>
             <div class="qr-info-item">
               <span class="qr-info-label">Due Date</span>
-              <span class="qr-info-value" id="qrmDueDate">—</span>
+              <span class="qr-info-value" id="qrmDueDate">â€”</span>
             </div>
           </div>
 
@@ -146,3 +146,4 @@
     </div>
   `
 }) %>
+

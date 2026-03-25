@@ -3,10 +3,12 @@ const router = express.Router();
 const db = require("../utils/db");
 const response = require("../utils/response");
 const logger = require("../utils/logger");
+const { sendBorrowingClaimEmailForBorrowings } = require("../services/borrowService");
 const bcrypt = require("bcrypt");
 const upload = require("../middleware/upload");
 const { requireAdmin, requireSuperAdmin } = require("../middleware/auth");
 const {
+  ensureBookCopyCoverage,
   getNextAccessionNumber,
   getQrCodeImagePath,
 } = require('../utils/accession');
@@ -310,6 +312,9 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
         [bookId]
       );
       const activeBorrowings = borrowingCount.count || 0;
+      if (bookQuantity < activeBorrowings) {
+        throw new Error(`VALIDATION:Quantity cannot be lower than the ${activeBorrowings} active borrowing(s) for this book.`);
+      }
 
       // Only explicit return-confirm routes may mark borrowings as returned.
       if (status === "available" && activeBorrowings > 0) {
@@ -333,6 +338,14 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
         `UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ?, available_quantity = ?, updated_at = NOW() WHERE id = ?`,
         [title, author, category, isbn, dbStatus, bookQuantity, newAvailableQty, bookId]
       );
+
+      await ensureBookCopyCoverage(conn, {
+        bookId,
+        quantity: bookQuantity,
+        bookStatus: dbStatus,
+        performedBy: adminId,
+        source: 'admin_update_book',
+      });
 
       logger.info('Book updated', { bookId, dbStatus, bookQuantity, newAvailableQty });
 
@@ -1106,14 +1119,14 @@ router.post("/books/import", requireAdmin, upload.single("file"), async (req, re
     if (fileExtension === 'csv') {
       logger.debug('Parsing as CSV');
       books = await parseCSV(filePath);
-    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+    } else if (fileExtension === 'xlsx') {
       logger.debug('Parsing as Excel');
       books = await parseExcel(filePath);
     } else {
       cleanupFile(filePath);
       return res.status(400).json({
         success: false,
-        message: "Unsupported file type. Please upload a CSV (.csv) or Excel (.xlsx, .xls) file.",
+        message: "Unsupported file type. Please upload a CSV (.csv) or Excel (.xlsx) file.",
       });
     }
 
@@ -1319,22 +1332,57 @@ router.patch("/books/bulk-update", requireAdmin, async (req, res) => {
     // Update each book
     for (const bookId of ids) {
       try {
-        // Check if book exists
-        const book = await db.query("SELECT id, title FROM books WHERE id = ?", [bookId]);
-        if (book.length === 0) {
-          errors.push(`Book ID ${bookId} not found`);
-          logger.warn('Book not found in bulk update', { bookId });
-          continue;
-        }
-        
-        // Build and execute UPDATE query
-        const query = `UPDATE books SET ${updates.join(", ")} WHERE id = ?`;
-        const queryParams = [...params, bookId];
-        
-        await db.query(query, queryParams);
+        await db.withTransaction(async (conn) => {
+          const book = await conn.queryAsync(
+            "SELECT id, title, quantity, status FROM books WHERE id = ? FOR UPDATE",
+            [bookId]
+          );
+
+          if (book.length === 0) {
+            errors.push(`Book ID ${bookId} not found`);
+            logger.warn('Book not found in bulk update', { bookId });
+            return;
+          }
+
+          if (update.quantity !== undefined) {
+            const [borrowingCount] = await conn.queryAsync(
+              `SELECT COUNT(*) AS count
+                 FROM book_borrowings
+                WHERE book_id = ?
+                  AND return_date IS NULL
+                  AND status IN ('borrowed', 'overdue')`,
+              [bookId]
+            );
+            const activeBorrowings = Number(borrowingCount.count || 0);
+            const requestedQuantity = Number.parseInt(update.quantity, 10) || 0;
+
+            if (requestedQuantity < activeBorrowings) {
+              throw new Error(`VALIDATION:Quantity cannot be lower than the ${activeBorrowings} active borrowing(s) for this book.`);
+            }
+          }
+
+          const query = `UPDATE books SET ${updates.join(", ")} WHERE id = ?`;
+          const queryParams = [...params, bookId];
+          await conn.queryAsync(query, queryParams);
+
+          const updatedBookRows = await conn.queryAsync(
+            "SELECT quantity, status FROM books WHERE id = ?",
+            [bookId]
+          );
+          const updatedBook = updatedBookRows[0];
+
+          await ensureBookCopyCoverage(conn, {
+            bookId,
+            quantity: updatedBook.quantity,
+            bookStatus: updatedBook.status,
+            performedBy: req.session?.user?.id || req.session?.adminId || null,
+            source: 'admin_bulk_update_books',
+          });
+        });
+
         updatedCount++;
         
-        logger.info('Book updated in bulk operation', { bookId, title: book[0].title });
+        logger.info('Book updated in bulk operation', { bookId });
         
       } catch (err) {
         logger.error('Error updating book in bulk operation', { bookId, error: err.message });
@@ -1487,6 +1535,71 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
   }
 });
 
+router.get("/borrowings/:id", requireAdmin, async (req, res) => {
+  const borrowingId = req.params.id;
+
+  try {
+    const rows = await db.query(
+      `SELECT 
+        bb.id,
+        bb.book_id,
+        bb.accession_number,
+        bb.student_id,
+        bb.borrow_date,
+        bb.due_date,
+        bb.claim_expires_at,
+        bb.picked_up_at,
+        bb.return_date,
+        bb.status,
+        CASE
+          WHEN bb.return_date IS NULL AND bb.status <> 'returned' THEN 1
+          ELSE 0
+        END AS is_active,
+        bb.copy_condition_at_borrow,
+        bb.copy_condition_at_return,
+        bb.notes,
+        s.fullname AS student_name,
+        s.email AS student_email,
+        s.department AS student_department,
+        s.year_level AS student_year_level,
+        COALESCE(b.title, '(Removed from system)') AS book_title,
+        COALESCE(b.author, '') AS book_author,
+        COALESCE(b.isbn, '') AS book_isbn,
+        COALESCE(b.category, '') AS book_category,
+        IF(b.id IS NULL OR b.deleted_at IS NOT NULL, 1, 0) AS book_missing,
+        a_approved.fullname AS approved_by_name,
+        a_picked.fullname AS picked_up_by_name,
+        a_returned.fullname AS returned_by_name,
+        CASE 
+          WHEN bb.status = 'returned' THEN 'returned'
+          WHEN bb.return_date IS NULL AND (bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.due_date < NOW())) THEN 'overdue'
+          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
+          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
+          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
+          ELSE bb.status
+        END AS display_status
+      FROM book_borrowings bb
+      INNER JOIN students s ON bb.student_id = s.student_id
+      LEFT JOIN books b ON bb.book_id = b.id
+      LEFT JOIN admins a_approved ON bb.approved_by = a_approved.id
+      LEFT JOIN admins a_picked ON bb.picked_up_by_admin_id = a_picked.id
+      LEFT JOIN admins a_returned ON bb.returned_by_admin_id = a_returned.id
+      WHERE bb.id = ?
+      LIMIT 1`,
+      [borrowingId]
+    );
+
+    if (!rows || rows.length === 0) {
+      return response.notFound(res, 'Borrowing record not found');
+    }
+
+    return response.success(res, rows[0]);
+  } catch (error) {
+    logger.error('Error fetching borrowing detail', { borrowingId, error: error.message });
+    return response.error(res, 'Error fetching borrowing detail', error);
+  }
+});
+
 /**
  * POST /api/admin/borrowings/:id/approve
  * Approve a pending borrow request (change status from 'pending' to 'borrowed')
@@ -1504,7 +1617,9 @@ router.post("/borrowings/:id/approve", requireAdmin, async (req, res) => {
   }
   
   try {
-    // Get borrowing details
+    const claimExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    let assignedAccessionNumber = null;
+
     const [borrowing] = await db.query(
       "SELECT id, status, student_id, book_id FROM book_borrowings WHERE id = ?",
       [borrowingId]
@@ -1518,27 +1633,78 @@ router.post("/borrowings/:id/approve", requireAdmin, async (req, res) => {
     if (borrowing.status !== 'pending') {
       return response.validationError(res, `Cannot approve borrowing with status '${borrowing.status}'. Only 'pending' borrows can be approved.`);
     }
-    
-    // Update status to 'borrowed' and record approving admin
-    await db.query(
-      `UPDATE book_borrowings 
-       SET status = 'borrowed', 
-           approved_by = ?,
-           updated_at = NOW()
-       WHERE id = ?`,
-      [adminId, borrowingId]
+
+    await db.withTransaction(async (conn) => {
+      const copyRows = await conn.queryAsync(
+        `SELECT accession_number, condition_status
+         FROM book_copies
+         WHERE book_id = ? AND status = 'available'
+         ORDER BY copy_number ASC
+         LIMIT 1
+         FOR UPDATE`,
+        [borrowing.book_id]
+      );
+
+      if (!copyRows || copyRows.length === 0) {
+        throw new Error('VALIDATION:No available copy is left to assign for this approval.');
+      }
+
+      const copy = copyRows[0];
+      assignedAccessionNumber = copy.accession_number;
+
+      await conn.queryAsync(
+        `UPDATE book_borrowings 
+         SET status = 'borrowed',
+             approved_by = ?,
+             accession_number = ?,
+             copy_condition_at_borrow = ?,
+             borrow_date = NOW(),
+             claim_expires_at = ?,
+             email_sent_at = NULL,
+             updated_at = NOW()
+         WHERE id = ?`,
+        [adminId, copy.accession_number, copy.condition_status || null, claimExpiresAt, borrowingId]
+      );
+
+      await conn.queryAsync(
+        `UPDATE book_copies
+         SET status = 'borrowed'
+         WHERE accession_number = ?`,
+        [copy.accession_number]
+      );
+    });
+
+    const emailStatus = await sendBorrowingClaimEmailForBorrowings(
+      borrowing.student_id,
+      [Number(borrowingId)],
+      claimExpiresAt
     );
     
     logger.info('Borrow request approved', {
       borrowingId,
       adminId,
       studentId: borrowing.student_id,
-      bookId: borrowing.book_id
+      bookId: borrowing.book_id,
+      accessionNumber: assignedAccessionNumber,
+      emailSent: emailStatus.success === true,
     });
     
-    return response.success(res, { borrowingId, status: 'borrowed' }, 'Borrow request approved successfully');
+    return response.success(
+      res,
+      {
+        borrowingId,
+        status: 'borrowed',
+        accessionNumber: assignedAccessionNumber,
+        claimExpiresAt,
+        emailStatus,
+      },
+      'Borrow request approved successfully'
+    );
     
   } catch (error) {
+    if (error.message && error.message.startsWith('VALIDATION:')) {
+      return response.validationError(res, error.message.replace('VALIDATION:', ''));
+    }
     logger.error('Error approving borrow request', {
       error: error.message,
       borrowingId
@@ -2250,9 +2416,12 @@ router.delete('/books/:id/permanent-delete', requireSuperAdmin, async (req, res)
 // Create new student/user
 router.post('/users', requireSuperAdmin, async (req, res) => {
   try {
-    const { student_id, fullname, email, password, department, year_level, student_type, contact_number, status } = req.body;
-    if (!student_id || !fullname || !email || !password) {
-      return response.validationError(res, 'Student ID, Full Name, Email and Password are required');
+    const { student_id, fullname, email, password, department, education_stage, year_level, student_type, contact_number, status } = req.body;
+    if (!student_id || !fullname || !email || !password || !education_stage || !year_level) {
+      return response.validationError(res, 'Student ID, Full Name, Email, Password, Education Stage, and Year Level are required');
+    }
+    if (education_stage === 'College' && !String(department || '').trim()) {
+      return response.validationError(res, 'Program / course is required for college students');
     }
     const existing = await db.query('SELECT id FROM students WHERE student_id = ? OR email = ?', [student_id, email]);
     if (existing.length > 0) {
@@ -2260,8 +2429,8 @@ router.post('/users', requireSuperAdmin, async (req, res) => {
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
-      'INSERT INTO students (student_id, fullname, email, password, department, year_level, student_type, contact_number, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [student_id, fullname, email, hashedPassword, department || '', year_level || 1, student_type || 'regular', contact_number || '', status || 'active']
+      'INSERT INTO students (student_id, fullname, email, password, department, education_stage, year_level, student_type, contact_number, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [student_id, fullname, email, hashedPassword, department || '', education_stage, year_level, student_type || 'undergraduate', contact_number || '', status || 'active']
     );
     logger.info('Student created', { id: result.insertId, student_id });
     response.success(res, { id: result.insertId }, 'Student created successfully', 201);
@@ -2275,17 +2444,24 @@ router.post('/users', requireSuperAdmin, async (req, res) => {
 router.put('/users/:id', requireSuperAdmin, async (req, res) => {
   try {
     const userId = req.params.id;
-    const { fullname, email, department, year_level, student_type, contact_number, status } = req.body;
-    const existing = await db.query('SELECT id FROM students WHERE id = ? AND deleted_at IS NULL', [userId]);
+    const { fullname, email, department, education_stage, year_level, student_type, contact_number, status } = req.body;
+    const existing = await db.query('SELECT id, department, education_stage FROM students WHERE id = ? AND deleted_at IS NULL', [userId]);
     if (existing.length === 0) return response.notFound(res, 'Student not found');
+    const currentStudent = existing[0];
     if (email) {
       const dup = await db.query('SELECT id FROM students WHERE email = ? AND id != ?', [email, userId]);
       if (dup.length > 0) return response.validationError(res, 'Email already in use');
+    }
+    const nextEducationStage = education_stage !== undefined ? education_stage : (currentStudent.education_stage || 'College');
+    const nextDepartment = department !== undefined ? department : (currentStudent.department || '');
+    if (nextEducationStage === 'College' && !String(nextDepartment || '').trim()) {
+      return response.validationError(res, 'Program / course is required for college students');
     }
     const updates = [], params = [];
     if (fullname)                    { updates.push('fullname = ?');        params.push(fullname); }
     if (email)                       { updates.push('email = ?');           params.push(email); }
     if (department !== undefined)    { updates.push('department = ?');      params.push(department); }
+    if (education_stage !== undefined){ updates.push('education_stage = ?'); params.push(education_stage); }
     if (year_level !== undefined)    { updates.push('year_level = ?');      params.push(year_level); }
     if (student_type !== undefined)  { updates.push('student_type = ?');    params.push(student_type); }
     if (contact_number !== undefined){ updates.push('contact_number = ?');  params.push(contact_number); }
@@ -2306,7 +2482,7 @@ router.put('/users/:id', requireSuperAdmin, async (req, res) => {
 // Get all trashed users/students
 router.get('/users/trash', requireSuperAdmin, async (req, res) => {
   try {
-    const { search, department, year_level, status } = req.query;
+    const { search, department, education_stage, year_level, status } = req.query;
     
     let query = `
       SELECT 
@@ -2315,6 +2491,7 @@ router.get('/users/trash', requireSuperAdmin, async (req, res) => {
         fullname,
         email,
         department,
+        education_stage,
         year_level,
         student_type,
         contact_number,
@@ -2336,6 +2513,11 @@ router.get('/users/trash', requireSuperAdmin, async (req, res) => {
     if (department) {
       query += ` AND department = ?`;
       queryParams.push(department);
+    }
+
+    if (education_stage) {
+      query += ` AND education_stage = ?`;
+      queryParams.push(education_stage);
     }
     
     if (year_level) {

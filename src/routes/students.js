@@ -4,6 +4,7 @@ const db = require("../utils/db");
 const response = require("../utils/response");
 const logger = require("../utils/logger");
 const { requireAuth, requireAdmin, requireSuperAdmin } = require("../middleware/auth");
+const { createBorrowTransactionAndEmail } = require("../services/borrowService");
 
 function isAdminSession(req) {
   return req.session && req.session.user && req.session.user.userRole === "admin";
@@ -18,7 +19,7 @@ function canAccessStudent(req, targetId) {
 
 async function getStudentByIdOrStudentId(idOrStudentId) {
   const rows = await db.query(
-    `SELECT id, student_id, fullname, email, department, year_level, student_type, contact_number, status
+    `SELECT id, student_id, fullname, email, department, education_stage, year_level, student_type, contact_number, status
      FROM students
      WHERE deleted_at IS NULL
        AND (id = ? OR student_id = ?)
@@ -30,10 +31,10 @@ async function getStudentByIdOrStudentId(idOrStudentId) {
 
 router.get("/", requireAdmin, async (req, res) => {
   try {
-    const { search, department, year_level, status } = req.query;
+    const { search, department, education_stage, year_level, status } = req.query;
 
     let query = `
-      SELECT id, student_id, fullname, email, department, year_level, student_type, contact_number, status
+      SELECT id, student_id, fullname, email, department, education_stage, year_level, student_type, contact_number, status
       FROM students
       WHERE deleted_at IS NULL
     `;
@@ -41,12 +42,16 @@ router.get("/", requireAdmin, async (req, res) => {
 
     if (search && String(search).trim()) {
       const s = `%${String(search).trim()}%`;
-      query += ` AND (fullname LIKE ? OR student_id LIKE ? OR email LIKE ?)`;
-      params.push(s, s, s);
+      query += ` AND (fullname LIKE ? OR student_id LIKE ? OR email LIKE ? OR department LIKE ? OR education_stage LIKE ? OR year_level LIKE ?)`;
+      params.push(s, s, s, s, s, s);
     }
     if (department && String(department).trim()) {
       query += ` AND department = ?`;
       params.push(String(department).trim());
+    }
+    if (education_stage && String(education_stage).trim()) {
+      query += ` AND education_stage = ?`;
+      params.push(String(education_stage).trim());
     }
     if (year_level && String(year_level).trim()) {
       query += ` AND year_level = ?`;
@@ -186,6 +191,10 @@ router.patch("/bulk-update", requireSuperAdmin, async (req, res) => {
       updates.push("department = ?");
       params.push(update.department);
     }
+    if (update && Object.prototype.hasOwnProperty.call(update, "education_stage")) {
+      updates.push("education_stage = ?");
+      params.push(update.education_stage);
+    }
     if (update && Object.prototype.hasOwnProperty.call(update, "year_level")) {
       updates.push("year_level = ?");
       params.push(update.year_level);
@@ -294,12 +303,34 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
       return response.validationError(res, "Book is not currently available");
     }
 
-    const dueDate = returnDate ? new Date(returnDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const dueDateSql = dueDate.toISOString().slice(0, 19).replace("T", " ");
-    
     // Check if admin approval is required (controlled via environment variable)
     const requireAdminApproval = process.env.REQUIRE_BORROW_APPROVAL === 'true';
+    const dueDate = returnDate ? new Date(returnDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const dueDateSql = dueDate.toISOString().slice(0, 19).replace("T", " ");
     const borrowStatus = requireAdminApproval ? 'pending' : 'borrowed';
+
+    if (!requireAdminApproval) {
+      const result = await createBorrowTransactionAndEmail(
+        student.student_id,
+        [{ bookId: book.id, quantity: 1 }],
+        dueDateSql,
+        { sendEmail: true }
+      );
+
+      return response.success(
+        res,
+        {
+          bookId: book.id,
+          studentId: student.student_id,
+          status: 'borrowed',
+          borrowingId: result.borrowings[0]?.borrowingId || null,
+          claimExpiresAt: result.claimExpiresAt,
+          emailStatus: result.emailStatus,
+        },
+        'Book borrowed successfully',
+        201
+      );
+    }
 
     await db.withTransaction(async (conn) => {
       await conn.queryAsync(
@@ -327,10 +358,19 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
 
 router.post("/borrow-multiple", requireAuth, async (req, res) => {
   try {
-    const { bookIds, studentId } = req.body || {};
+    const { bookIds, borrowItems, studentId, returnDate } = req.body || {};
     const ids = Array.isArray(bookIds) ? bookIds.filter(Boolean) : [];
-    if (!ids.length || !studentId) {
-      return response.validationError(res, "bookIds and studentId are required");
+    const normalizedItems = Array.isArray(borrowItems)
+      ? borrowItems
+          .map((item) => ({
+            bookId: item?.bookId,
+            quantity: Math.max(1, parseInt(item?.quantity || item?.qty || 1, 10) || 1),
+          }))
+          .filter((item) => item.bookId)
+      : ids.map((bookId) => ({ bookId, quantity: 1 }));
+
+    if (!normalizedItems.length || !studentId) {
+      return response.validationError(res, "borrow items and studentId are required");
     }
     if (!canAccessStudent(req, studentId) && !isAdminSession(req)) {
       return response.forbidden(res, "Access denied");
@@ -339,39 +379,61 @@ router.post("/borrow-multiple", requireAuth, async (req, res) => {
     const student = await getStudentByIdOrStudentId(studentId);
     if (!student) return response.notFound(res, "Student not found");
 
-    let successCount = 0;
     const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const dueDateSql = dueDate.toISOString().slice(0, 19).replace("T", " ");
+    const effectiveReturnDate = returnDate || dueDate.toISOString().slice(0, 19).replace("T", " ");
 
-    for (const bookId of ids) {
-      const books = await db.query(
-        `SELECT id, available_quantity
-         FROM books
-         WHERE id = ? AND deleted_at IS NULL
-         LIMIT 1`,
-        [bookId]
+    const requireAdminApproval = process.env.REQUIRE_BORROW_APPROVAL === 'true';
+
+    if (!requireAdminApproval) {
+      const result = await createBorrowTransactionAndEmail(
+        student.student_id,
+        normalizedItems,
+        effectiveReturnDate,
+        { sendEmail: true }
       );
-      const book = books[0];
-      if (!book || (book.available_quantity || 0) <= 0) continue;
 
-      await db.withTransaction(async (conn) => {
-        await conn.queryAsync(
-          `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status)
-           VALUES (?, ?, NOW(), ?, 'borrowed')`,
-          [book.id, student.student_id, dueDateSql]
-        );
-
-        await conn.queryAsync(
-          `UPDATE books
-           SET available_quantity = CASE WHEN available_quantity > 0 THEN available_quantity - 1 ELSE 0 END,
-               status = CASE WHEN available_quantity - 1 <= 0 THEN 'borrowed' ELSE status END,
-               updated_at = NOW()
-           WHERE id = ?`,
-          [book.id]
-        );
+      return response.success(res, {
+        successCount: result.borrowings.length,
+        dueDate: new Date(effectiveReturnDate).toLocaleDateString(),
+        claimExpiresAt: result.claimExpiresAt,
+        emailStatus: result.emailStatus,
       });
+    }
 
-      successCount += 1;
+    let successCount = 0;
+    const dueDateSql = effectiveReturnDate;
+
+    for (const item of normalizedItems) {
+      for (let i = 0; i < item.quantity; i += 1) {
+        const books = await db.query(
+          `SELECT id, available_quantity
+           FROM books
+           WHERE id = ? AND deleted_at IS NULL
+           LIMIT 1`,
+          [item.bookId]
+        );
+        const book = books[0];
+        if (!book || (book.available_quantity || 0) <= 0) continue;
+
+        await db.withTransaction(async (conn) => {
+          await conn.queryAsync(
+            `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status)
+             VALUES (?, ?, NOW(), ?, 'pending')`,
+            [book.id, student.student_id, dueDateSql]
+          );
+
+          await conn.queryAsync(
+            `UPDATE books
+             SET available_quantity = CASE WHEN available_quantity > 0 THEN available_quantity - 1 ELSE 0 END,
+                 status = CASE WHEN available_quantity - 1 <= 0 THEN 'borrowed' ELSE status END,
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [book.id]
+          );
+        });
+
+        successCount += 1;
+      }
     }
 
     return response.success(res, {

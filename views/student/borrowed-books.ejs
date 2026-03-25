@@ -1,5 +1,5 @@
-<%- include('../partials/user-sidebar-top', {
-  pageTitle: 'Borrowed Books - SPIST Library',
+﻿<%- include('../partials/user-sidebar-top', {
+  pageTitle: 'Borrowed Books - Southern Philippines Institute of Science & Technology',
   studentId: studentId,
   userRole: userRole,
   activePage: 'borrowed-books',
@@ -8,15 +8,15 @@
 
 <%- include('../partials/student-overview-cards') %>
 
-<!-- ═══ Section Header ═══ -->
+<!-- â•â•â• Section Header â•â•â• -->
 <div class="u-section-header">
   <h2>Borrowed Books</h2>
 </div>
 
-<!-- ═══ Main Card ═══ -->
+<!-- â•â•â• Main Card â•â•â• -->
 <div class="u-section-card">
 
-<!-- ═══ Filter Bar (Active Borrowed + History) ═══ -->
+<!-- â•â•â• Filter Bar (Active Borrowed + History) â•â•â• -->
 <div id="borrowFilterBar" class="sa-filter-bar">
   <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
     <input type="checkbox" id="selectAllBooks" class="form-check-input" title="Select all books">
@@ -60,7 +60,7 @@
   </div>
 </div>
 
-<!-- ═══ Pending Pickup Section ═══ -->
+<!-- â•â•â• Pending Pickup Section â•â•â• -->
 <div id="pendingSection" style="display:none;">
   <div class="u-table-wrapper" id="pendingBorrowedWrapper" style="margin-bottom: 22px;">
     <table class="user-table">
@@ -84,7 +84,7 @@
 </div>
 
 <div id="activeSection">
-<!-- ═══ Active Borrowed Books Card ═══ -->
+<!-- â•â•â• Active Borrowed Books Card â•â•â• -->
   <div class="u-table-wrapper" id="activeBorrowedWrapper" style="margin-bottom: 22px;">
     <table class="user-table">
       <thead>
@@ -108,7 +108,7 @@
   </div>
 </div>
 
-<!-- ═══ Borrowing History Card ═══ -->
+<!-- â•â•â• Borrowing History Card â•â•â• -->
 <div id="historySection" style="display:none;">
   <div class="u-table-wrapper" id="borrowHistoryWrapper">
     <table class="user-table">
@@ -135,7 +135,7 @@
 </div>
 </div>
 
-<!-- ═══ Return Book Modal ═══ -->
+<!-- â•â•â• Return Book Modal â•â•â• -->
 <div id="modal-user" class="modal" style="display: none;">
   <div class="modal-content">
     <h2>Return Book</h2>
@@ -178,3 +178,4 @@
 </div>
 
 <%- include('../partials/user-sidebar-bottom') %>
+

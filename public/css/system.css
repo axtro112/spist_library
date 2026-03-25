@@ -27,6 +27,7 @@ dashboard shell
 @import url('/css/student/user-layout.css');
 @import url('/css/student/user-books.css');
 @import url('/css/super-admin/layout.css');
+@import url('/css/super-admin/admins-modal.css');
 @import url('/css/super-admin/components/overview.css');
 
 /* Shared full-height app shell for admin pages */

@@ -1,8 +1,8 @@
 ﻿<%
-  var extraHead = '<link rel="stylesheet" href="/css/super-admin/borrowed.css"><script src="/js/vendor/html5-qrcode.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"><\/script><script src="/js/admin/borrowed.js" defer><\/script><script src="/js/borrowed-books.js" defer><\/script>';
+  var extraHead = '<link rel="stylesheet" href="/css/super-admin/borrowed.css?v=20260325a"><script src="/js/vendor/html5-qrcode.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"><\/script><script src="/js/admin/borrowed.js" defer><\/script><script src="/js/borrowed-books.js?v=20260325b" defer><\/script>';
 %>
 <%- include('../partials/system-admin-layout', {
-  title: 'Borrowed Books Management - SPIST Library',
+  title: 'Borrowed Books Management - Southern Philippines Institute of Science & Technology',
   adminEmail: adminEmail,
   adminId: adminId,
   adminRole: adminRole,
@@ -108,25 +108,29 @@
     </div>
 
     <!-- Scanner Confirmation Modal (shared pickup/return flow) -->
-    <div id="borrowScannerModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="borrowScannerTitle">
-      <div class="modal-content scanner-modal-content">
-        <div class="modal-header scanner-modal-header">
+    <div id="borrowScannerModal" class="modal sa-modal" role="dialog" aria-modal="true" aria-labelledby="borrowScannerTitle">
+      <div class="sa-modal-dialog sa-modal-xl scanner-modal-dialog">
+      <div class="sa-modal-content scanner-modal-content">
+        <div class="sa-modal-header scanner-modal-header">
           <h2 id="borrowScannerTitle">Scan to Confirm</h2>
-          <button type="button" id="borrowScannerCloseBtn" onclick="closeModal()" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
+          <button type="button" id="borrowScannerCloseBtn" class="sa-modal-close scanner-close-btn" onclick="closeModal()" aria-label="Close scanner modal">&times;</button>
         </div>
-        <div class="modal-body scanner-modal-body">
+        <div class="sa-modal-body scanner-modal-body scanner-modal-body-collapsed" id="borrowScannerBody">
           <div class="scanner-camera-panel">
-            <div id="borrowQrReader"></div>
-            <div id="borrowScanPlaceholder" class="scanner-placeholder">Camera preview will appear here</div>
+            <div class="scanner-reader-shell">
+              <div id="borrowQrReader"></div>
+              <div class="scanner-scan-frame" aria-hidden="true"></div>
+              <div id="borrowScanPlaceholder" class="scanner-placeholder">Camera preview will appear here</div>
+            </div>
             <p id="borrowScannerStatusText" class="scanner-status-text">Ready to scan. Click Start Camera to begin.</p>
             <div class="scanner-controls">
               <button id="borrowScanStartBtn" type="button" class="sa-btn sa-btn-primary">Start Camera</button>
-              <button id="borrowScanStopBtn" type="button" class="sa-btn" style="display:none;">Stop Camera</button>
+              <button id="borrowScanStopBtn" type="button" class="sa-btn sa-hidden">Stop Camera</button>
             </div>
           </div>
-          <div class="scanner-result-panel" id="borrowScanResultPanel">
+          <div class="scanner-result-panel scanner-result-panel-collapsed" id="borrowScanResultPanel">
             <div class="scanner-result-empty" id="borrowScanEmpty">No scanned result yet</div>
-            <div class="scanner-result-grid" id="borrowScanResultGrid" style="display:none;">
+            <div class="scanner-result-grid sa-hidden" id="borrowScanResultGrid">
               <div><span class="scanner-label">Accession Number:</span> <span id="borrowScanAccession">—</span></div>
               <div><span class="scanner-label">Book Title:</span> <span id="borrowScanBookTitle">—</span></div>
               <div><span class="scanner-label">Author:</span> <span id="borrowScanBookAuthor">—</span></div>
@@ -136,59 +140,67 @@
               <div><span class="scanner-label">Due Date:</span> <span id="borrowScanDueDate">—</span></div>
               <div><span class="scanner-label">Due State:</span> <span id="borrowScanDueState">—</span></div>
             </div>
-            <div id="borrowScanMessage" class="scanner-message" style="display:none;"></div>
+            <div id="borrowScanMessage" class="scanner-message sa-hidden"></div>
           </div>
         </div>
-        <div class="modal-footer scanner-modal-footer">
+        <div class="sa-modal-footer scanner-modal-footer scanner-modal-footer-collapsed" id="borrowScannerFooter">
           <button type="button" id="borrowScanActionBtn" class="sa-btn sa-btn-success" disabled>No Action</button>
           <button type="button" id="borrowScanResetBtn" class="sa-btn sa-btn-outline">Reset</button>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- Pickup Confirmation Modal -->
-    <div id="pickupModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
+    <div id="pickupModal" class="modal sa-modal">
+      <div class="sa-modal-dialog sa-modal-lg">
+      <div class="sa-modal-content">
+        <div class="sa-modal-header">
           <h2>Confirm Book Pickup</h2>
-          <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+          <button type="button" class="sa-modal-close sa-modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
-        <div class="modal-body"><!-- Content will be dynamically inserted --></div>
-        <div class="modal-footer">
+        <div class="sa-modal-body"><!-- Content will be dynamically inserted --></div>
+        <div class="sa-modal-footer sa-modal-actions-stack">
           <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
           <button class="btn btn-success btn-confirm-pickup">Confirm Pickup</button>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- Return Confirmation Modal -->
-    <div id="returnModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
+    <div id="returnModal" class="modal sa-modal">
+      <div class="sa-modal-dialog sa-modal-lg">
+      <div class="sa-modal-content">
+        <div class="sa-modal-header">
           <h2>Confirm Book Return</h2>
-          <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+          <button type="button" class="sa-modal-close sa-modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
-        <div class="modal-body"><!-- Content will be dynamically inserted --></div>
-        <div class="modal-footer">
+        <div class="sa-modal-body"><!-- Content will be dynamically inserted --></div>
+        <div class="sa-modal-footer sa-modal-actions-stack">
           <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
           <button class="btn btn-primary btn-confirm-return">Confirm Return</button>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- Details Modal -->
-    <div id="detailsModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
+    <div id="detailsModal" class="modal sa-modal">
+      <div class="sa-modal-dialog sa-modal-lg sa-detail-modal">
+      <div class="sa-modal-content">
+        <div class="sa-modal-header">
           <h2>Borrowing Details</h2>
-          <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+          <button type="button" class="sa-modal-close sa-modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
-        <div class="modal-body"><!-- Content will be dynamically inserted --></div>
-        <div class="modal-footer">
+        <div class="sa-modal-body borrow-details-body"><!-- Content will be dynamically inserted --></div>
+        <div class="sa-modal-footer sa-modal-actions-stack">
           <button class="btn btn-secondary" onclick="closeModal()">Close</button>
         </div>
+      </div>
       </div>
     </div>
   `
 }) %>
+
 

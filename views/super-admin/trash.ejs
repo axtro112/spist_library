@@ -1,4 +1,4 @@
-<%
+﻿<%
   var extraHead = [
      '<link rel="stylesheet" href="/css/admin/trash.css">',
     '<script src="/js/admin/trash-bootstrap.js" defer><\/script>',
@@ -11,7 +11,7 @@
   ].join('');
 %>
 <%- include('../partials/super-admin-layout', {
-  title: 'Trash Manager - SPIST Library',
+  title: 'Trash Manager - Southern Philippines Institute of Science & Technology',
   adminEmail: adminEmail,
   adminId: adminId,
   adminRole: adminRole,
@@ -23,7 +23,7 @@
     </div>
 
     <div class="section-card">
-      <!-- ── Filter Bar ── -->
+      <!-- â”€â”€ Filter Bar â”€â”€ -->
       <div class="sa-filter-bar">
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
           <input type="checkbox" id="trashMasterCb" title="Select all on this page">
@@ -31,7 +31,7 @@
 
         <div class="sa-search-wrap">
           <i class="bi bi-search"></i>
-          <input type="text" id="trashSearch" placeholder="Search…">
+          <input type="text" id="trashSearch" placeholder="Searchâ€¦">
         </div>
 
         <select id="trashTabFilter" class="sa-filter-select" style="min-width:150px;"></select>
@@ -47,7 +47,7 @@
         </button>
       </div>
 
-      <!-- ── Tabs ── -->
+      <!-- â”€â”€ Tabs â”€â”€ -->
       <div class="trash-tabs">
         <button class="trash-tab active" data-entity="books">
           <i class="bi bi-book"></i>Books
@@ -60,13 +60,13 @@
         </button>
       </div>
 
-      <!-- ── Table ── -->
+      <!-- â”€â”€ Table â”€â”€ -->
       <div class="sa-table-wrapper" id="trashTableWrap">
         <table class="user-table">
           <tbody>
             <tr>
               <td colspan="10" style="text-align:center;padding:40px;color:#6b7280;">
-                <div class="trash-spinner"></div>Loading…
+                <div class="trash-spinner"></div>Loadingâ€¦
               </td>
             </tr>
           </tbody>
@@ -75,3 +75,4 @@
     </div>
   `
 }) %>
+

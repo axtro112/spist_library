@@ -1,7 +1,9 @@
 const fs = require("fs");
 const csv = require("csv-parser");
-const xlsx = require("xlsx");
+const ExcelJS = require("exceljs");
 const db = require("../config/database");
+const dbUtils = require("./db");
+const { ensureBookCopyCoverage } = require("./accession");
 
 /**
  * Parse CSV file and return array of book objects
@@ -55,16 +57,16 @@ const parseCSV = (filePath) => {
 };
 
 /**
- * Parse Excel file (.xlsx or .xls) and return array of book objects
+ * Parse Excel file (.xlsx) and return array of book objects
  * 
  * IMPORT BOOKS (EXCEL) - PARSING PHASE
  * This function reads and parses an uploaded Excel file containing book data.
- * It uses the xlsx library to convert Excel rows into JavaScript objects.
+ * It uses exceljs to convert Excel rows into JavaScript objects.
  * 
  * Expected Excel Structure:
  * - First row: Headers (title, author, isbn, category, quantity)
  * - Subsequent rows: Book data
- * - Supported formats: .xlsx (Excel 2007+), .xls (Excel 97-2003)
+ * - Supported format: .xlsx (Excel 2007+)
  * 
  * Processing Notes:
  * - Reads the first worksheet only
@@ -80,57 +82,74 @@ const parseCSV = (filePath) => {
 const parseExcel = (filePath) => {
   return new Promise((resolve, reject) => {
     try {
-      // Read the Excel file
-      const workbook = xlsx.readFile(filePath);
-      
-      // Get the first worksheet
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      
-      // Convert worksheet to JSON array of objects
-      // header: 1 means first row contains headers
-      const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
-      
-      // Normalize column headers to lowercase and map common variations
-      const results = jsonData
-        .filter(row => {
-          return Object.values(row).some(val => val !== "" && val !== null && val !== undefined);
-        })
-        .map(row => {
+      (async () => {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(filePath);
+
+        const worksheet = workbook.worksheets[0];
+        if (!worksheet) {
+          resolve([]);
+          return;
+        }
+
+        const getCellValue = (cell) => {
+          const raw = cell ? cell.value : "";
+          if (raw === null || raw === undefined) return "";
+          if (raw instanceof Date) return raw.toISOString().split("T")[0];
+          if (typeof raw === "object") {
+            if (Object.prototype.hasOwnProperty.call(raw, "text")) return raw.text || "";
+            if (Object.prototype.hasOwnProperty.call(raw, "result")) return raw.result || "";
+            if (Array.isArray(raw.richText)) return raw.richText.map((r) => r.text || "").join("");
+            if (Object.prototype.hasOwnProperty.call(raw, "hyperlink")) return raw.text || raw.hyperlink || "";
+          }
+          return raw;
+        };
+
+        const headerRow = worksheet.getRow(1);
+        const headers = [];
+        headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          headers[colNumber] = String(getCellValue(cell) || "").toLowerCase().trim();
+        });
+
+        const results = [];
+        worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+          if (rowNumber === 1) return;
+
           const normalized = {};
-          
-          // Map columns (case-insensitive)
-          for (const [key, value] of Object.entries(row)) {
-            const lowerKey = key.toLowerCase().trim();
-            
-            // Map common header variations to expected names
-            if (lowerKey === 'id') {
-              // Skip ID column for imports
-              continue;
-            } else if (lowerKey === 'title') {
+          let hasData = false;
+
+          headers.forEach((header, colNumber) => {
+            if (!header) return;
+            const value = getCellValue(row.getCell(colNumber));
+            if (String(value).trim() !== "") hasData = true;
+
+            if (header === "id") {
+              return;
+            }
+            if (header === "title") {
               normalized.title = value;
-            } else if (lowerKey === 'author') {
+            } else if (header === "author") {
               normalized.author = value;
-            } else if (lowerKey === 'isbn') {
+            } else if (header === "isbn") {
               normalized.isbn = value;
-            } else if (lowerKey === 'category') {
+            } else if (header === "category") {
               normalized.category = value;
-            } else if (lowerKey === 'quantity') {
+            } else if (header === "quantity") {
               normalized.quantity = value;
-            } else if (lowerKey === 'status') {
+            } else if (header === "status") {
               normalized.status = value;
-            } else if (lowerKey === 'added date' || lowerKey === 'added_date' || lowerKey === 'date added') {
+            } else if (header === "added date" || header === "added_date" || header === "date added") {
               normalized.added_date = value;
             } else {
-              // Keep other columns as-is with lowercase key
-              normalized[lowerKey] = value;
+              normalized[header] = value;
             }
-          }
-          
-          return normalized;
+          });
+
+          if (hasData) results.push(normalized);
         });
-      
-      resolve(results);
+
+        resolve(results);
+      })().catch(reject);
     } catch (err) {
       reject(err);
     }
@@ -277,36 +296,54 @@ const importBooks = async (books) => {
       }
 
       // Check whether this ISBN already exists
-      const existingBook = await queryDB(
-        "SELECT id FROM books WHERE isbn = ?",
-        [book.isbn.trim()]
-      );
-
-      if (existingBook.length > 0) {
-        // ISBN exists → UPDATE the book (upsert)
-        // Cap available_quantity so it never exceeds the new quantity (respects chk_available_quantity constraint)
-        const status = await determineBookStatus(quantity, existingBook[0].id);
-        await queryDB(
-          `UPDATE books
-             SET title = ?, author = ?, category = ?, quantity = ?,
-                 available_quantity = LEAST(available_quantity, ?),
-                 status = ?, deleted_at = NULL
-           WHERE isbn = ?`,
-          [
-            book.title.trim(),
-            book.author.trim(),
-            book.category.trim(),
-            quantity,
-            quantity,
-            status,
-            book.isbn.trim(),
-          ]
+      await dbUtils.withTransaction(async (conn) => {
+        const existingBook = await conn.queryAsync(
+          "SELECT id FROM books WHERE isbn = ? FOR UPDATE",
+          [book.isbn.trim()]
         );
-        summary.updated_existing++;
-      } else {
-        // ISBN does not exist → INSERT new book
+
+        if (existingBook.length > 0) {
+          // Fetch current quantities so we can add to them
+          const currentRows = await conn.queryAsync(
+            "SELECT quantity, available_quantity FROM books WHERE id = ?",
+            [existingBook[0].id]
+          );
+          const currentQty = Number(currentRows[0]?.quantity || 0);
+          const currentAvail = Number(currentRows[0]?.available_quantity || 0);
+          const newTotalQty = currentQty + quantity;
+          const newAvailQty = currentAvail + quantity;
+
+          const status = await determineBookStatus(newTotalQty, existingBook[0].id);
+          await conn.queryAsync(
+            `UPDATE books
+               SET title = ?, author = ?, category = ?, quantity = ?,
+                   available_quantity = ?,
+                   status = ?, deleted_at = NULL
+             WHERE isbn = ?`,
+            [
+              book.title.trim(),
+              book.author.trim(),
+              book.category.trim(),
+              newTotalQty,
+              newAvailQty,
+              status,
+              book.isbn.trim(),
+            ]
+          );
+
+          await ensureBookCopyCoverage(conn, {
+            bookId: existingBook[0].id,
+            quantity: newTotalQty,
+            bookStatus: status,
+            source: 'csv_import_update',
+          });
+
+          summary.updated_existing++;
+          return;
+        }
+
         const status = await determineBookStatus(quantity, null);
-        await queryDB(
+        const insertResult = await conn.queryAsync(
           `INSERT INTO books (title, author, isbn, category, quantity, status, added_date)
            VALUES (?, ?, ?, ?, ?, ?, NOW())`,
           [
@@ -318,8 +355,16 @@ const importBooks = async (books) => {
             status,
           ]
         );
+
+        await ensureBookCopyCoverage(conn, {
+          bookId: insertResult.insertId,
+          quantity,
+          bookStatus: status,
+          source: 'csv_import_insert',
+        });
+
         summary.successfully_imported++;
-      }
+      });
     } catch (error) {
       console.error(`Error importing row ${rowNum}:`, error);
       summary.skipped_missing_fields.push({
@@ -461,7 +506,7 @@ const exportBooksToCSV = async () => {
  * FILE GENERATION PROCESS:
  * 1. Query all books from database
  * 2. Transform to array of objects with capitalized headers
- * 3. Create new workbook using xlsx library
+ * 3. Create new workbook using exceljs
  * 4. Convert JSON array to worksheet
  * 5. Apply column width settings
  * 6. Append worksheet to workbook
@@ -481,15 +526,15 @@ const exportBooksToCSV = async () => {
  * 
  * PERFORMANCE:
  * - Fetches all books in single query
- * - xlsx library handles large datasets efficiently
+ * - exceljs handles large datasets efficiently
  * - Returns buffer (not file) for memory efficiency
  * 
  * TECHNICAL DEPENDENCIES:
- * - xlsx library (npm package)
+ * - exceljs library (npm package)
  * - Requires all column headers to match expected format
  * 
  * @returns {Promise<Buffer>} Binary buffer containing complete .xlsx file ready for download
- * @throws {Error} Database query errors or xlsx generation failures
+ * @throws {Error} Database query errors or excel generation failures
  */
 const exportBooksToExcel = async () => {
   const query = `
@@ -512,27 +557,24 @@ const exportBooksToExcel = async () => {
     "Added Date": new Date(book.added_date).toISOString().split("T")[0],
   }));
 
-  // Create workbook and worksheet
-  const workbook = xlsx.utils.book_new();
-  const worksheet = xlsx.utils.json_to_sheet(excelData);
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Books");
 
-  // Set column widths for better readability
-  worksheet['!cols'] = [
-    { wch: 8 },  // ID
-    { wch: 40 }, // Title
-    { wch: 30 }, // Author
-    { wch: 15 }, // ISBN
-    { wch: 20 }, // Category
-    { wch: 10 }, // Quantity
-    { wch: 12 }, // Status
-    { wch: 15 }, // Added Date
+  worksheet.columns = [
+    { header: "ID", key: "ID", width: 8 },
+    { header: "Title", key: "Title", width: 40 },
+    { header: "Author", key: "Author", width: 30 },
+    { header: "ISBN", key: "ISBN", width: 15 },
+    { header: "Category", key: "Category", width: 20 },
+    { header: "Quantity", key: "Quantity", width: 10 },
+    { header: "Status", key: "Status", width: 12 },
+    { header: "Added Date", key: "Added Date", width: 15 },
   ];
 
-  xlsx.utils.book_append_sheet(workbook, worksheet, "Books");
+  excelData.forEach((row) => worksheet.addRow(row));
 
-  // Generate buffer
-  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
-  return buffer;
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
 };
 
 /**

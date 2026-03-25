@@ -48,6 +48,28 @@ window.qrScanner = (() => {
       .replace(/"/g, '&quot;');
   }
 
+  function parsePickupBorrowingId(rawValue) {
+    const normalized = String(rawValue || '').trim();
+    const prefixMatch = normalized.match(/^SPIST-BORROW:(\d+)$/i);
+    if (prefixMatch) {
+      return Number(prefixMatch[1]);
+    }
+
+    if (normalized.startsWith('{') && normalized.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(normalized);
+        const borrowingId = Number(parsed?.borrowingId || parsed?.borrowId || parsed?.id);
+        if (!Number.isNaN(borrowingId) && borrowingId > 0) {
+          return borrowingId;
+        }
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
   function badgeForStatus(status) {
     const map = {
       available:      { label: 'Available',     cls: 'badge-success' },
@@ -398,7 +420,7 @@ window.qrScanner = (() => {
     // After 4 s allow re-scanning the same code (useful if action was dismissed)
     setTimeout(() => { cooldownActive = false; }, 4000);
 
-    lookupAccession(code);
+    lookupScannedCode(code);
   }
 
   // ── Borrowing lifecycle helpers ────────────────────────────────────────────
@@ -438,6 +460,20 @@ window.qrScanner = (() => {
     } catch (_) {
       return null;
     }
+  }
+
+  async function lookupBorrowingById(borrowingId) {
+    const res = await fetch(
+      '/api/admin/borrowings/' + encodeURIComponent(borrowingId),
+      { credentials: 'same-origin', headers: { 'Accept': 'application/json' } }
+    );
+    const payload = await res.json().catch(() => ({}));
+
+    if (!res.ok || !payload.success || !payload.data) {
+      throw new Error((payload && payload.message) ? payload.message : 'Borrowing record not found.');
+    }
+
+    return payload.data;
   }
 
   /** Lazily inject a styled info-message element above the blocked-warning div. */
@@ -522,6 +558,45 @@ window.qrScanner = (() => {
       setStatus('Network error — please check your connection.', 'error');
       console.error('QR lookup error:', err);
     }
+  }
+
+  async function lookupBorrowingPickup(borrowingId) {
+    setStatus('Looking up borrowing #' + borrowingId + ' ...', 'info');
+
+    try {
+      const borrowing = await lookupBorrowingById(borrowingId);
+      setStatus('Found pickup request for ' + (borrowing.book_title || 'borrowing #' + borrowingId), 'success');
+      addRecentScan(
+        borrowing.accession_number || ('BORROW-' + borrowing.id),
+        borrowing.book_title || 'Borrowing #' + borrowing.id,
+        borrowing.display_status || borrowing.status
+      );
+      showResultModal({
+        accession_number: borrowing.accession_number,
+        title: borrowing.book_title,
+        author: borrowing.book_author,
+        category: borrowing.book_category,
+        condition_status: borrowing.copy_condition_at_borrow,
+        status: borrowing.status,
+        displayStatus: borrowing.display_status,
+        borrowed_by: borrowing.student_name,
+        due_date: borrowing.due_date,
+        borrowing_id: borrowing.id,
+      });
+    } catch (err) {
+      setStatus((err && err.message) ? err.message : 'Borrowing record not found.', 'error');
+      console.error('Pickup QR lookup error:', err);
+    }
+  }
+
+  async function lookupScannedCode(scannedValue) {
+    const pickupBorrowingId = parsePickupBorrowingId(scannedValue);
+    if (pickupBorrowingId) {
+      await lookupBorrowingPickup(pickupBorrowingId);
+      return;
+    }
+
+    await lookupAccession(scannedValue);
   }
 
   // ── Recent scans log ────────────────────────────────────────────────────────
@@ -712,12 +787,12 @@ window.qrScanner = (() => {
 
     try {
       const res  = await fetchWithCsrf(
-        '/api/book-borrowings/return/' + encodeURIComponent(borrowingId),
+        '/api/admin/borrowings/' + encodeURIComponent(borrowingId) + '/confirm-return',
         {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ condition_at_return: condition }),
+          body: JSON.stringify({ condition }),
         }
       );
       const data = await res.json();

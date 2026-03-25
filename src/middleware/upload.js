@@ -20,20 +20,20 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter - CSV and Excel files
+// File filter - CSV and XLSX files
 const fileFilter = (req, file, cb) => {
   const allowedMimes = [
     "text/csv",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   ];
-  const allowedExtensions = [".csv", ".xlsx", ".xls"];
+  const allowedExtensions = [".csv", ".xlsx"];
   const fileExt = path.extname(file.originalname).toLowerCase();
 
   if (allowedMimes.includes(file.mimetype) || allowedExtensions.includes(fileExt)) {
     cb(null, true);
   } else {
-    cb(new Error("Only CSV and Excel files (.csv, .xlsx, .xls) are allowed"), false);
+    cb(new Error("Only CSV and Excel files (.csv, .xlsx) are allowed"), false);
   }
 };
 

@@ -157,7 +157,8 @@ document.getElementById("resetForm").addEventListener("submit", async (e) => {
   setLoading(true);
 
   try {
-    const response = await fetch("/auth/reset-password", {
+    const doFetch = typeof fetchWithCsrf === "function" ? fetchWithCsrf : fetch;
+    const response = await doFetch("/auth/reset-password", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

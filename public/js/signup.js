@@ -1,6 +1,52 @@
 ﻿﻿// ================================================================
 // INITIALIZATION - Add Event Listeners when DOM is ready
 // ================================================================
+const YEAR_LEVEL_OPTIONS = {
+  'Pre-School': ['Pre-School'],
+  Prep: ['Prep'],
+  Kinder: ['Kinder'],
+  Elementary: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'],
+  'Junior High': ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
+  'Senior High': ['Grade 11', 'Grade 12'],
+  College: ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
+};
+
+function getYearOptionsForStage(stage) {
+  return YEAR_LEVEL_OPTIONS[stage] || [];
+}
+
+function populateSignupYearLevels(stage, selectedValue) {
+  const yearLevelSelect = document.getElementById('year_level');
+  if (!yearLevelSelect) return;
+
+  const currentValue = selectedValue !== undefined ? selectedValue : yearLevelSelect.value;
+  yearLevelSelect.innerHTML = '<option value="">-- Select year level --</option>';
+
+  getYearOptionsForStage(stage).forEach((value) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    yearLevelSelect.appendChild(option);
+  });
+
+  if (currentValue && getYearOptionsForStage(stage).includes(currentValue)) {
+    yearLevelSelect.value = currentValue;
+  }
+}
+
+function syncSignupProgramField() {
+  const stageSelect = document.getElementById('education_stage');
+  const departmentSelect = document.getElementById('department');
+  if (!stageSelect || !departmentSelect) return;
+
+  const stage = stageSelect.value;
+  const needsProgram = stage === 'College';
+  departmentSelect.disabled = !needsProgram;
+  if (!needsProgram) {
+    departmentSelect.value = '';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Bind step navigation buttons
   const goToStep2Btn = document.getElementById('goToStep2Btn');
@@ -26,6 +72,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // Bind Google sign up button
   const googleSignUpBtn = document.getElementById('googleSignUpBtn');
   if (googleSignUpBtn) googleSignUpBtn.addEventListener('click', signUpWithGoogle);
+
+  const educationStageSelect = document.getElementById('education_stage');
+  if (educationStageSelect) {
+    educationStageSelect.addEventListener('change', function() {
+      populateSignupYearLevels(this.value);
+      syncSignupProgramField();
+    });
+    populateSignupYearLevels(educationStageSelect.value);
+    syncSignupProgramField();
+  }
 });
 
 // ================================================================
@@ -106,13 +162,18 @@ function goToStep2() {
  */
 function goToStep3() {
   // Get Step 2 field values
+  const educationStage = document.getElementById("education_stage").value;
   const department = document.getElementById("department").value;
   const yearLevel = document.getElementById("year_level").value;
-  const studentType = document.getElementById("student_type").value;
 
   // Validate Step 2 fields are not empty
-  if (!department || !yearLevel || !studentType) {
-    alert("Please fill in all academic information before proceeding.");
+  if (!educationStage || !yearLevel) {
+    alert("Please fill in your education stage and year level before proceeding.");
+    return;
+  }
+
+  if (educationStage === 'College' && !department) {
+    alert("Please select your program or course for college students.");
     return;
   }
 
@@ -193,9 +254,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const password = passwordInput.value;
     const confirmPassword = confirmPasswordInput.value;
     const studentId = document.getElementById("student_id").value;
+    const educationStage = document.getElementById("education_stage").value;
     const department = document.getElementById("department").value;
     const yearLevel = document.getElementById("year_level").value;
-    const studentType = document.getElementById("student_type").value;
     const contactNumber = document.getElementById("contact_number").value;
 
     // Validate all required fields
@@ -204,12 +265,16 @@ document.addEventListener("DOMContentLoaded", () => {
       !email ||
       !password ||
       !studentId ||
-      !department ||
+      !educationStage ||
       !yearLevel ||
-      !studentType ||
       !contactNumber
     ) {
       alert("Please fill in all required fields");
+      return;
+    }
+
+    if (educationStage === 'College' && !department) {
+      alert('Program / course is required for college students');
       return;
     }
 
@@ -219,9 +284,10 @@ document.addEventListener("DOMContentLoaded", () => {
       email,
       password,
       student_id: studentId,
+      education_stage: educationStage,
       department,
       year_level: yearLevel,
-      student_type: studentType,
+      student_type: 'undergraduate',
       contact_number: contactNumber,
     });
 
@@ -243,9 +309,10 @@ document.addEventListener("DOMContentLoaded", () => {
         fullname: fullname.trim(),
         email: email.trim(),
         password: password,
+        education_stage: educationStage.trim(),
         department: department.trim(),
         year_level: yearLevel.trim(),
-        student_type: studentType.trim(),
+        student_type: 'undergraduate',
         contact_number: contactNumber.trim(),
         status: "active", // Setting a default status for new accounts
       };

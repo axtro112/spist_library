@@ -1,5 +1,7 @@
 # Student Books Search & Filter Implementation
 
+> ⚠️ Historical archive note (March 2026): This document refers to the legacy static student books page flow. The active implementation now runs on EJS student routes/views, primarily /student-available.
+
 ## ✅ Implemented Features
 
 ### 1. **Comprehensive Search**

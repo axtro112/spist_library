@@ -11,9 +11,10 @@
 
   // ── Private state ───────────────────────────────────────────────────────
   var allStudentsData      = [];
-  var currentFilters       = { search: '', course: 'All', year: 'All', status: 'All' };
+  var currentFilters       = { search: '', stage: 'All', course: 'All', year: 'All', status: 'All' };
   var filterDebounceTimer  = null;
   var selectedStudentIds   = new Set();
+  var EDUCATION_STAGE_OPTIONS = ['Pre-School', 'Prep', 'Kinder', 'Elementary', 'Junior High', 'Senior High', 'College'];
   var PROGRAM_FILTER_OPTIONS = [
     'BS Computer Engineering',
     'BS Computer Science',
@@ -30,6 +31,15 @@
     'Bachelor in Secondary Education - Major in Social Studies',
     'Bachelor in Secondary Education - Major in Science'
   ];
+  var YEAR_LEVEL_OPTIONS = {
+    'Pre-School': ['Pre-School'],
+    'Prep': ['Prep'],
+    'Kinder': ['Kinder'],
+    'Elementary': ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'],
+    'Junior High': ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
+    'Senior High': ['Grade 11', 'Grade 12'],
+    'College': ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year']
+  };
 
   // Borrow state
   var currentBorrowStudent  = { id: '', name: '' };
@@ -91,12 +101,96 @@
     document.head.appendChild(s);
   }
 
+  function _getAllYearLevels() {
+    return Object.keys(YEAR_LEVEL_OPTIONS).reduce(function (acc, stage) {
+      YEAR_LEVEL_OPTIONS[stage].forEach(function (value) {
+        if (acc.indexOf(value) === -1) acc.push(value);
+      });
+      return acc;
+    }, []);
+  }
+
+  function _getYearLevelsForStage(stage, mode) {
+    if (mode === 'filter' && (!stage || stage === 'All')) return _getAllYearLevels();
+    if (mode === 'bulk' && !stage) return _getAllYearLevels();
+    return YEAR_LEVEL_OPTIONS[stage] || [];
+  }
+
+  function _populateYearSelect(selectId, stage, mode, selectedValue) {
+    var select = document.getElementById(selectId);
+    if (!select) return;
+
+    var options = _getYearLevelsForStage(stage, mode);
+    var placeholderValue = mode === 'filter' ? 'All' : '';
+    var placeholderLabel = mode === 'filter' ? 'All Year Levels' : mode === 'bulk' ? '-- Keep unchanged --' : '-- Select year level --';
+
+    select.innerHTML = '';
+    var placeholder = document.createElement('option');
+    placeholder.value = placeholderValue;
+    placeholder.textContent = placeholderLabel;
+    select.appendChild(placeholder);
+
+    options.forEach(function (value) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+
+    if (selectedValue && options.indexOf(selectedValue) !== -1) {
+      select.value = selectedValue;
+    } else {
+      select.value = placeholderValue;
+    }
+  }
+
+  function _syncProgramField(stageId, departmentId) {
+    var stageSelect = document.getElementById(stageId);
+    var departmentSelect = document.getElementById(departmentId);
+    if (!stageSelect || !departmentSelect) return;
+    if (departmentId === 'usersCourseFilter') return;
+
+    var stage = stageSelect.value;
+    var shouldDisable = !!stage && stage !== 'College';
+    departmentSelect.disabled = shouldDisable;
+    if (shouldDisable) {
+      departmentSelect.value = '';
+    }
+  }
+
+  function _bindStageDependentFields(stageId, yearId, departmentId, mode) {
+    var stageSelect = document.getElementById(stageId);
+    if (!stageSelect) return;
+
+    stageSelect.addEventListener('change', function () {
+      _populateYearSelect(yearId, stageSelect.value, mode);
+      _syncProgramField(stageId, departmentId);
+    });
+
+    _populateYearSelect(yearId, stageSelect.value, mode);
+    _syncProgramField(stageId, departmentId);
+  }
+
+  function _initEducationControls() {
+    _bindStageDependentFields('usersStageFilter', 'usersYearFilter', 'usersCourseFilter', 'filter');
+    _bindStageDependentFields('bulkUserStage', 'bulkUserYear', 'bulkUserDept', 'bulk');
+
+    var addStage = document.getElementById('addUserStage');
+    if (addStage && !addStage.value) addStage.value = 'College';
+    _bindStageDependentFields('addUserStage', 'addUserYear', 'addUserDept', 'form');
+
+    var editStage = document.getElementById('editUserStage');
+    if (editStage && !editStage.value) editStage.value = 'College';
+    _bindStageDependentFields('editUserStage', 'editUserYear', 'editUserDept', 'form');
+  }
+
   // ── Table ─────────────────────────────────────────────────────────────────
   async function fetchStudentsData(filters) {
     filters = filters || {};
     try {
       var params = new URLSearchParams();
       if (filters.search  && filters.search.trim())   params.append('search',      filters.search.trim());
+      if (filters.stage   && filters.stage   !== 'All') params.append('education_stage', filters.stage);
       if (filters.course  && filters.course  !== 'All') params.append('department',  filters.course);
       if (filters.year    && filters.year    !== 'All') params.append('year_level',  filters.year);
       if (filters.status  && filters.status  !== 'All') params.append('status',      filters.status);
@@ -105,7 +199,12 @@
       if (!response.ok) throw new Error('Failed to fetch students: ' + response.statusText);
       var result = await response.json();
       var students = result.data || result || [];
-      if (!filters.search && !filters.course && !filters.year && !filters.status) allStudentsData = students;
+      var noActiveFilters = !filters.search
+        && (!filters.stage || filters.stage === 'All')
+        && (!filters.course || filters.course === 'All')
+        && (!filters.year || filters.year === 'All')
+        && (!filters.status || filters.status === 'All');
+      if (noActiveFilters) allStudentsData = students;
 
       var studentsWithBooks = await Promise.all(students.map(async function (student) {
         try {
@@ -128,7 +227,7 @@
     } catch (error) {
       console.error('[UsersPage] fetchStudentsData:', error);
       var tbody = document.querySelector('.user-table tbody');
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="table-error-message">Failed to load student data. Error: ' + error.message + '</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="table-error-message">Failed to load student data. Error: ' + error.message + '</td></tr>';
     }
   }
 
@@ -142,7 +241,7 @@
     if (countEl) countEl.textContent = 'Showing ' + students.length + ' of ' + total + ' users';
 
     if (students.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px 20px;"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#666;"><span class="material-symbols-outlined" style="font-size:48px;color:#ccc;">search_off</span><h3 style="margin:0;color:#333;">No users found</h3><p style="margin:0;">Try adjusting your search or filters</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px;"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#666;"><span class="material-symbols-outlined" style="font-size:48px;color:#ccc;">search_off</span><h3 style="margin:0;color:#333;">No users found</h3><p style="margin:0;">Try adjusting your search or filters</p></div></td></tr>';
       return;
     }
 
@@ -156,8 +255,9 @@
         '<td><input type="checkbox" class="row-select" data-student-id="' + student.student_id + '"></td>' +
         '<td>' + student.fullname + '</td>' +
         '<td>' + student.student_id + '</td>' +
-        '<td>' + student.department + '</td>' +
-        '<td>' + student.year_level + '</td>' +
+        '<td>' + (student.education_stage || 'College') + '</td>' +
+        '<td>' + (student.department || '—') + '</td>' +
+        '<td>' + (student.year_level || '—') + '</td>' +
         '<td>' + student.rented_books + '</td>' +
         '<td>' + (student.books_title || '') + '</td>' +
         '<td>' + student.date_to_return + '</td>' +
@@ -198,6 +298,7 @@
   // ── Filters ───────────────────────────────────────────────────────────────
   function _initFilters() {
     var searchInput    = document.getElementById('usersSearchInput');
+    var stageFilter    = document.getElementById('usersStageFilter');
     var courseFilter   = document.getElementById('usersCourseFilter');
     var yearFilter     = document.getElementById('usersYearFilter');
     var statusFilter   = document.getElementById('usersStatusFilter');
@@ -209,12 +310,24 @@
       var val = this.value;
       filterDebounceTimer = setTimeout(function () { currentFilters.search = val; fetchStudentsData(currentFilters); }, 300);
     });
+    if (stageFilter) {
+      stageFilter.addEventListener('change', function () {
+        currentFilters.stage = this.value;
+        currentFilters.year = 'All';
+        _populateYearSelect('usersYearFilter', this.value, 'filter', 'All');
+        fetchStudentsData(currentFilters);
+      });
+    }
     courseFilter.addEventListener('change', function () { currentFilters.course  = this.value; fetchStudentsData(currentFilters); });
     yearFilter.addEventListener('change',   function () { currentFilters.year    = this.value; fetchStudentsData(currentFilters); });
     statusFilter.addEventListener('change', function () { currentFilters.status  = this.value; fetchStudentsData(currentFilters); });
     clearBtn.addEventListener('click', function () {
-      searchInput.value = ''; courseFilter.value = 'All'; yearFilter.value = 'All'; statusFilter.value = 'All';
-      currentFilters = { search: '', course: 'All', year: 'All', status: 'All' };
+      searchInput.value = '';
+      if (stageFilter) stageFilter.value = 'All';
+      courseFilter.value = 'All';
+      statusFilter.value = 'All';
+      _populateYearSelect('usersYearFilter', 'All', 'filter', 'All');
+      currentFilters = { search: '', stage: 'All', course: 'All', year: 'All', status: 'All' };
       fetchStudentsData();
     });
   }
@@ -261,9 +374,9 @@
         if (!sResult) return;
         var userData = {
           name: row.cells[1].textContent, studentId: row.cells[2].textContent,
-          department: row.cells[3].textContent, yearLevel: row.cells[4].textContent,
+          educationStage: row.cells[3].textContent, department: row.cells[4].textContent, yearLevel: row.cells[5].textContent,
           email: sResult.email, contactNumber: sResult.contact_number,
-          rentedBooksCount: row.cells[5].textContent, bookTitles: row.cells[6].textContent, returnDate: row.cells[7].textContent,
+          rentedBooksCount: row.cells[6].textContent, bookTitles: row.cells[7].textContent, returnDate: row.cells[8].textContent,
         };
         _updateUserInfoCard(userData);
       } catch (err) { console.error('[UsersPage] row click:', err); }
@@ -364,15 +477,21 @@
     if (title) title.textContent = 'Edit ' + selectedStudentIds.size + ' Selected Student' + (selectedStudentIds.size > 1 ? 's' : '');
     var form = modal.querySelector('form');
     if (form) form.reset();
+    var stageSelect = document.getElementById('bulkUserStage');
+    if (stageSelect) stageSelect.value = '';
+    _populateYearSelect('bulkUserYear', '', 'bulk', '');
+    _syncProgramField('bulkUserStage', 'bulkUserDept');
     modal.style.display = 'flex';
   }
 
   async function _handleBulkEditSubmit(e) {
     e.preventDefault();
     var update = {};
+    var stage  = document.getElementById('bulkUserStage') && document.getElementById('bulkUserStage').value;
     var dept   = document.getElementById('bulkUserDept')  && document.getElementById('bulkUserDept').value.trim();
     var year   = document.getElementById('bulkUserYear')  && document.getElementById('bulkUserYear').value;
     var status = document.getElementById('bulkUserStatus') && document.getElementById('bulkUserStatus').value;
+    if (stage)  update.education_stage = stage;
     if (dept)   update.department = dept;
     if (year)   update.year_level = year;
     if (status) update.status     = status;
@@ -757,6 +876,10 @@
     if (!modal) return;
     var form = document.getElementById('addUserForm');
     if (form) form.reset();
+    var stageEl = document.getElementById('addUserStage');
+    if (stageEl) stageEl.value = 'College';
+    _populateYearSelect('addUserYear', 'College', 'form', '');
+    _syncProgramField('addUserStage', 'addUserDept');
     var err = document.getElementById('addUserError');
     if (err) { err.textContent = ''; err.style.display = 'none'; }
     modal.classList.add('show');
@@ -773,25 +896,29 @@
     var siEl = document.getElementById('addUserStudentId');
     var emEl = document.getElementById('addUserEmail');
     var pwEl = document.getElementById('addUserPassword');
+    var stEl = document.getElementById('addUserStage');
     var dpEl = document.getElementById('addUserDept');
     var yrEl = document.getElementById('addUserYear');
     var fullname   = fnEl ? fnEl.value.trim() : '';
     var student_id = siEl ? siEl.value.trim() : '';
     var email      = emEl ? emEl.value.trim() : '';
     var password   = pwEl ? pwEl.value : '';
+    var education_stage = stEl ? stEl.value : 'College';
     var department = dpEl ? dpEl.value : '';
-    var year_level = yrEl ? yrEl.value : '1';
+    var year_level = yrEl ? yrEl.value : '';
     var errEl = document.getElementById('addUserError');
     var showErr = function (msg) {
       if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } else { alert(msg); }
     };
     if (!fullname || !student_id || !email || !password) { return showErr('Full Name, Student ID, Email and Password are required.'); }
     if (password.length < 6) { return showErr('Password must be at least 6 characters.'); }
+    if (!education_stage || !year_level) { return showErr('Education stage and year level are required.'); }
+    if (education_stage === 'College' && !department) { return showErr('Program / course is required for college students.'); }
     try {
       var res = await fetchWithCsrf('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullname: fullname, student_id: student_id, email: email, password: password, department: department, year_level: year_level }),
+        body: JSON.stringify({ fullname: fullname, student_id: student_id, email: email, password: password, education_stage: education_stage, department: department, year_level: year_level }),
       });
       var result = await res.json();
       if (!res.ok) { return showErr(result.message || 'Failed to create user.'); }
@@ -813,8 +940,10 @@
     if (err) { err.textContent = ''; err.style.display = 'none'; }
     var fnEl = document.getElementById('editUserFullname'); if (fnEl) fnEl.value = student.fullname || '';
     var emEl = document.getElementById('editUserEmail');    if (emEl) emEl.value = student.email    || '';
+    var stEl = document.getElementById('editUserStage');    if (stEl) stEl.value = student.education_stage || 'College';
+    _populateYearSelect('editUserYear', (student.education_stage || 'College'), 'form', student.year_level || '');
     var dpEl = document.getElementById('editUserDept');     if (dpEl) dpEl.value = student.department || '';
-    var yrEl = document.getElementById('editUserYear');     if (yrEl) yrEl.value = student.year_level  || '1';
+    _syncProgramField('editUserStage', 'editUserDept');
     var stEl = document.getElementById('editUserStatus');   if (stEl) stEl.value = student.status    || 'active';
     modal.classList.add('show');
   }
@@ -830,11 +959,13 @@
     if (!_editUserId) return;
     var fnEl = document.getElementById('editUserFullname');
     var emEl = document.getElementById('editUserEmail');
+    var sgEl = document.getElementById('editUserStage');
     var dpEl = document.getElementById('editUserDept');
     var yrEl = document.getElementById('editUserYear');
     var stEl = document.getElementById('editUserStatus');
     var fullname   = fnEl ? fnEl.value.trim() : '';
     var email      = emEl ? emEl.value.trim() : '';
+    var education_stage = sgEl ? sgEl.value : 'College';
     var department = dpEl ? dpEl.value : '';
     var year_level = yrEl ? yrEl.value : '';
     var status     = stEl ? stEl.value : 'active';
@@ -843,11 +974,13 @@
       if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } else { alert(msg); }
     };
     if (!fullname || !email) { return showErr('Full Name and Email are required.'); }
+    if (!education_stage || !year_level) { return showErr('Education stage and year level are required.'); }
+    if (education_stage === 'College' && !department) { return showErr('Program / course is required for college students.'); }
     try {
       var res = await fetchWithCsrf('/api/admin/users/' + _editUserId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullname: fullname, email: email, department: department, year_level: year_level, status: status }),
+        body: JSON.stringify({ fullname: fullname, email: email, education_stage: education_stage, department: department, year_level: year_level, status: status }),
       });
       var result = await res.json();
       if (!res.ok) { return showErr(result.message || 'Failed to update user.'); }
@@ -924,6 +1057,7 @@
     await SA.utils.loadAdminHeader(session.adminId);
 
     _injectStyles();
+    _initEducationControls();
     _initFilters();
     _initRowClick();
     _initDeepLink();

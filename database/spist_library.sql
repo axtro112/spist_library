@@ -104,9 +104,10 @@ CREATE TABLE IF NOT EXISTS `students` (
   `fullname` varchar(100) NOT NULL COMMENT 'Student full name',
   `email` varchar(100) NOT NULL COMMENT 'Unique email address for login',
   `password` varchar(255) NULL COMMENT 'Bcrypt hashed password (null for Google-only accounts)',
-  `department` varchar(255) NOT NULL COMMENT 'Academic department full name (e.g., BS Computer Science)',
+  `department` varchar(255) NOT NULL DEFAULT '' COMMENT 'Program/course name when applicable (e.g., BS Computer Science)',
   `department_id` INT NULL COMMENT 'FK to departments lookup table',
-  `year_level` varchar(20) NOT NULL COMMENT 'Current year level (e.g., 1st Year, 2nd Year)',
+  `education_stage` varchar(30) NOT NULL DEFAULT 'College' COMMENT 'Broad academic stage (e.g., Pre-School, Prep, Kinder, Elementary, Junior High, Senior High, College)',
+  `year_level` varchar(20) NOT NULL COMMENT 'Current grade/year level (e.g., Grade 1, Grade 11, 1st Year)',
   `student_type` ENUM('undergraduate', 'graduate', 'transferee') NOT NULL DEFAULT 'undergraduate' COMMENT 'Student classification',
   `contact_number` varchar(20) DEFAULT NULL COMMENT 'Phone number for notifications',
   `resetToken` varchar(255) DEFAULT NULL COMMENT 'Password reset token',
@@ -122,6 +123,21 @@ CREATE TABLE IF NOT EXISTS `students` (
   KEY `idx_students_dept_id` (`department_id`),
   CONSTRAINT `fk_students_department_id` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Student accounts and profiles';
+
+-- Normalize legacy education stage labels to canonical values.
+UPDATE `students`
+SET `education_stage` = CASE
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('preschool', 'pre school') THEN 'Pre-School'
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('prep', 'preparatory', 'preparatory school') THEN 'Prep'
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('kinder', 'kindergarten') THEN 'Kinder'
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('elementary', 'grade school') THEN 'Elementary'
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('junior high', 'junior high school', 'jhs') THEN 'Junior High'
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('senior high', 'senior high school', 'shs') THEN 'Senior High'
+  WHEN LOWER(TRIM(REPLACE(REPLACE(`education_stage`, '-', ' '), '  ', ' '))) IN ('college', 'college student', 'tertiary') THEN 'College'
+  ELSE `education_stage`
+END
+WHERE `education_stage` IS NOT NULL
+  AND TRIM(`education_stage`) <> '';
 
 -- --------------------------------------------
 -- Table: books

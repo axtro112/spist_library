@@ -112,17 +112,18 @@ passport.use(
             await queryDB(
               `INSERT INTO students (
                 student_id, google_id, fullname, email, password,
-                department, year_level, student_type, status, created_at
-              ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, NOW())`,
-              [studentId, googleId, fullname, email, 'General', 1, 'undergraduate', 'active']
+                department, education_stage, year_level, student_type, status, created_at
+              ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, NOW())`,
+              [studentId, googleId, fullname, email, '', 'College', '1st Year', 'undergraduate', 'active']
             );
             student = {
               student_id: studentId,
               google_id: googleId,
               fullname,
               email,
-              department: 'General',
-              year_level: 1,
+              department: '',
+              education_stage: 'College',
+              year_level: '1st Year',
               student_type: 'undergraduate',
               status: 'active',
             };

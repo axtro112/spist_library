@@ -27,7 +27,7 @@ class NotificationDeepLink {
         types: ['DUE_SOON', 'OVERDUE', 'BORROW_APPROVED', 'RETURNED', 'BORROW_REJECTED'],
         getUrl: (notif) => {
           if (isStudent) {
-            return `/dashboard/student/student-borrowed.html?borrowingId=${notif.link_id || notif.related_id}`;
+            return `/student-borrowed?borrowingId=${notif.link_id || notif.related_id}`;
           } else {
             // Admin: go to borrowings management (if you have one) or books page
             return `/dashboard/admin/admin-books.html?borrowingId=${notif.link_id || notif.related_id}`;
@@ -40,7 +40,7 @@ class NotificationDeepLink {
         types: ['NEW_BOOK', 'BOOK_AVAILABLE', 'BOOK_LOW_STOCK', 'BOOK_UPDATED'],
         getUrl: (notif) => {
           if (isStudent) {
-            return `/dashboard/student/student-books.html?bookId=${notif.link_id || notif.related_id}`;
+            return `/student-available?bookId=${notif.link_id || notif.related_id}`;
           } else if (isSuperAdmin) {
             return `/super-admin-books?bookId=${notif.link_id || notif.related_id}`;
           } else {

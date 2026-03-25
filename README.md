@@ -149,7 +149,7 @@ ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 # 5. Set Authorized redirect URIs: http://localhost:3000/auth/google/callback
 
 GOOGLE_CLIENT_ID=906990089534-6bavd9e9e6emt0hdh8m2aal44dv2niju.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=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
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 
 # Security Secrets (CRITICAL - Keep these secret!)
@@ -158,14 +158,14 @@ GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 #  Change these values before deploying to production with your own domain
 
 # Session Secret - Used for encrypting session data (64 characters)
-SESSION_SECRET=b1ef6050406d886b712a551329e3e897c1ecbbb043bab803e12dcf81551bd3e5
+SESSION_SECRET=your-strong-random-64-char-session-secret
 
 # JWT Secret - Used for JSON Web Token signing (64 characters)
-JWT_SECRET=c537995538c61d983efae48d7e62a7b9ecd397e0fa4299b6ecb6bdf7897dd4ba
+JWT_SECRET=your-strong-random-64-char-jwt-secret
 
 # Email Configuration (for password reset & borrowing notifications)
 EMAIL_USER=hahacctmo145@gmail.com
-EMAIL_PASS=bzhsyapgsajdoiyb
+EMAIL_PASS=your-gmail-app-password
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_SECURE=false
@@ -966,11 +966,8 @@ spist-library-management-system/
 │   │   ├── books.css                 # Book display styles
 │   │   └── ...                       # Other page-specific styles
 │   │
-│   ├──  dashboard/                 # Legacy static dashboard pages (student)
-│   │   └──  student/               # Student dashboard pages
-│   │       ├── student-dashboard.html # Student main dashboard
-│   │       ├── student-books.html     # Browse & search books
-│   │       └── student-borrowed.html  # Borrowing history
+│   ├──  dashboard/                 # Legacy dashboard folder (student static pages retired)
+│   │   └──  student/               # Empty after migration to EJS routes
 │   │
 │   ├──  img/                       # Image assets
 │   │   ├── logo.png                  # Application logo
@@ -1008,6 +1005,12 @@ spist-library-management-system/
 │   │
 │   └──  utils/                     # Utility functions
 │       └── update_admin_passwords.js # Password hash updater
+│
+├──  views/                         # Server-rendered EJS pages
+│   ├──  student/                   # Student pages (active)
+│   │   ├── dashboard.ejs             # Student main dashboard
+│   │   ├── available-books.ejs       # Browse & search books
+│   │   └── borrowed-books.ejs        # Borrowing history
 │
 ├──  Documentation/                 # Project documentation
 │   ├── README.md                     # Main documentation (this file)
@@ -1431,7 +1434,7 @@ A secure password reset system for both admins and students with email verificat
 
 ```env
 EMAIL_USER=hahacctmo145@gmail.com
-EMAIL_PASS=owhxwyulqxnhquxy
+EMAIL_PASS=your-gmail-app-password
 EMAIL_PASS=your-16-character-app-password
 FRONTEND_URL=http://localhost:3000
 ```
@@ -4004,4 +4007,5 @@ While this README is comprehensive, detailed reference documents are also availa
 ---
 
 *Made with  for SPIST - All documentation consolidated for easy reference*
+
 

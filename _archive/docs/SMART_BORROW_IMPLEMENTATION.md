@@ -1,5 +1,7 @@
 # Smart Borrow Feature - Implementation Complete ✅
 
+> ⚠️ Historical archive note (March 2026): This document references legacy static student pages (for example, public/dashboard/student/student-books.html) that were retired. Active student pages now use EJS routes and views: /student-dashboard, /student-available, and /student-borrowed.
+
 ## Overview
 Successfully unified the borrowing experience by combining Manual Borrow and Quick Borrow into ONE "📚 Borrow Book" button with smart search capabilities.
 

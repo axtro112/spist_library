@@ -120,6 +120,34 @@ async function sendBorrowingClaimEmail(
       </table>
     `;
 
+    const qrBlocksHtml = borrowedItems.map((item) => `
+      <div style="border: 1px solid #d1d5db; border-radius: 8px; padding: 16px; margin: 16px 0; background-color: #ffffff;">
+        <div style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 6px;">${escapeHtml(item.bookTitle || 'Borrowed Book')}</div>
+        <div style="font-size: 12px; color: #4b5563; margin-bottom: 10px;">Present this QR code at the library counter to confirm pickup for borrowing record ${escapeHtml(item.borrowingId || 'N/A')}.</div>
+        ${item.pickupQrCid ? `<img src="cid:${item.pickupQrCid}" alt="Pickup QR for borrowing ${escapeHtml(item.borrowingId || '')}" style="display:block; width:220px; max-width:100%; height:auto; margin:0 auto 10px;">` : ''}
+        <div style="font-size: 12px; color: #4b5563; text-align: center; margin-bottom: 8px;">If the QR preview is hidden in Gmail, open the attached PNG file for this borrowing.</div>
+        <div style="font-size: 12px; color: #374151; text-align: center; word-break: break-word;">${escapeHtml(item.pickupQrValue || '')}</div>
+      </div>
+    `).join('');
+
+    const attachments = borrowedItems
+      .filter((item) => item.pickupQrBuffer && item.pickupQrCid)
+      .flatMap((item) => ([
+        {
+          filename: `pickup-qr-${item.borrowingId || 'borrowing'}-inline.png`,
+          content: item.pickupQrBuffer,
+          contentType: 'image/png',
+          cid: item.pickupQrCid,
+          contentDisposition: 'inline',
+        },
+        {
+          filename: `pickup-qr-${item.borrowingId || 'borrowing'}.png`,
+          content: item.pickupQrBuffer,
+          contentType: 'image/png',
+          contentDisposition: 'attachment',
+        }
+      ]));
+
     // Build HTML email
     const htmlContent = `
       <!DOCTYPE html>
@@ -141,7 +169,7 @@ async function sendBorrowingClaimEmail(
         <body>
           <div class="container">
             <div class="header">
-              <h2>📚 SPIST LIBRARY - BORROWING NOTIFICATION</h2>
+              <h2>SPIST LIBRARY - BORROWING NOTIFICATION</h2>
             </div>
 
             <div class="content">
@@ -150,23 +178,34 @@ async function sendBorrowingClaimEmail(
               <p>This is to inform you that you have <span class="highlight">24 hours</span> remaining to claim the books you borrowed.</p>
 
               <div class="info-box">
-                <strong>📋 Borrowed Books Details:</strong>
+                <strong>Borrowed Books Details:</strong>
                 ${itemsTableHtml}
               </div>
 
               <div class="info-box">
-                <strong>⏰ Claim Deadline:</strong><br>
+                <strong>Claim Deadline:</strong><br>
                 ${expirationFormatted} (Asia/Manila Time)<br>
                 <small>Late claims will be automatically cancelled.</small>
               </div>
 
+              <div class="info-box">
+                <strong>Pickup QR Codes:</strong><br>
+                Scan or present the matching QR code below when claiming each borrowed copy.
+                ${qrBlocksHtml}
+              </div>
+
               <div class="message-box">
-                <strong>📍 Where to Claim:</strong><br>
+                <strong>Gmail Notice:</strong><br>
+                If the QR image does not appear in Gmail web or the Gmail mobile app, download and open the attached PNG file for the matching borrowing record.
+              </div>
+
+              <div class="message-box">
+                <strong>Where to Claim:</strong><br>
                 Please proceed to the <strong>Library – Imus City, Cavite (Anabu Main Campus)</strong> within the given time to claim your books.<br><br>
                 Failure to do so will result in the cancellation of your borrowing request.
               </div>
 
-              <p><strong>❓ Questions?</strong> Kindly contact the library staff for assistance.</p>
+              <p><strong>Questions?</strong> Kindly contact the library staff for assistance.</p>
 
               <p style="margin-top: 30px; color: #666;">
                 Thank you for using SPIST Library Management System!
@@ -192,7 +231,7 @@ This is to inform you that you have 24 hours remaining to claim the books you bo
 
 BORROWED BOOKS:
 ${borrowedItems.map((item, idx) => 
-  `${idx + 1}. "${item.bookTitle}" by ${item.author}\n   ISBN: ${item.isbn} | Category: ${item.category}\n   Accession No: ${item.accessionNumber}`
+  `${idx + 1}. "${item.bookTitle}" by ${item.author}\n   ISBN: ${item.isbn} | Category: ${item.category}\n   Accession No: ${item.accessionNumber}\n   Pickup QR: ${item.pickupQrValue || 'N/A'}`
 ).join('\n\n')}
 
 CLAIM DEADLINE:
@@ -201,6 +240,8 @@ ${expirationFormatted} (Asia/Manila Time)
 WHERE TO CLAIM:
 Please proceed to the Library – Imus City, Cavite (Anabu Main Campus) within the given time to claim your books.
 Failure to do so will result in the cancellation of your borrowing request.
+
+If Gmail does not show the QR image inline, open the attached PNG file for each borrowing.
 
 If you have any questions, kindly contact the library staff.
 
@@ -214,10 +255,11 @@ This is an automated email. Please do not reply to this message.
     const mailOptions = {
       from: `"SPIST Library" <${fromEmail}>`,
       to: studentEmail,
-      subject: `SPIST Library Borrowing Request - Claim within 24 hours (Due: ${expirationFormatted})`,
+      subject: `SPIST Library Borrowing Request - Claim Within 24 Hours`,
       text: textContent,
       html: htmlContent,
-      replyTo: 'library-support@spist.edu.ph'
+      replyTo: 'library-support@spist.edu.ph',
+      attachments,
     };
 
     const info = await transporter.sendMail(mailOptions);

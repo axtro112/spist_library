@@ -1,17 +1,17 @@
-<%- include('../partials/user-sidebar-top', {
-  pageTitle: 'Dashboard - SPIST Library',
+﻿<%- include('../partials/user-sidebar-top', {
+  pageTitle: 'Dashboard - Southern Philippines Institute of Science & Technology',
   studentId: studentId,
   userRole: userRole,
   activePage: 'dashboard',
   extraHead: '<link rel="stylesheet" href="/css/student/quick-borrow.css"><script src="/js/student/quick-borrow-modal.js"><\/script><script src="/js/core/utils.js"><\/script><script src="/js/student/dashboard.js" defer><\/script>'
 }) %>
 
-<!-- Hidden compat spans — dashboard.js uses Core.utils.setText() on these -->
+<!-- Hidden compat spans â€” dashboard.js uses Core.utils.setText() on these -->
 <span id="userNameHeading" style="display:none;"></span>
 
 <%- include('../partials/student-overview-cards') %>
 
-<!-- ═══ Frequently Borrowed Books ═══ -->
+<!-- â•â•â• Frequently Borrowed Books â•â•â• -->
 <div class="u-panel">
   <div class="u-panel-header">
     <h3 class="u-panel-title">Top Choices</h3>
@@ -31,13 +31,13 @@
         </tr>
       </thead>
       <tbody id="frequentlyBorrowedTableBody">
-        <tr><td colspan="7" class="text-center" style="padding:20px;color:#888;">Loading frequently borrowed books…</td></tr>
+        <tr><td colspan="7" class="text-center" style="padding:20px;color:#888;">Loading frequently borrowed booksâ€¦</td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
-<!-- ═══ Book List + Calendar ═══ -->
+<!-- â•â•â• Book List + Calendar â•â•â• -->
 <div class="u-grid-2col">
 
   <!-- Currently Borrowed Books -->
@@ -58,7 +58,7 @@
           </tr>
         </thead>
         <tbody id="borrowedBooksTableBody">
-          <tr><td colspan="5" class="text-center">Loading borrowed books…</td></tr>
+          <tr><td colspan="5" class="text-center">Loading borrowed booksâ€¦</td></tr>
         </tbody>
       </table>
     </div>
@@ -75,3 +75,4 @@
 <%- include('../partials/quick-borrow-modal') %>
 
 <%- include('../partials/user-sidebar-bottom') %>
+

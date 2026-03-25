@@ -1,6 +1,10 @@
 const db = require("../utils/db");
 const logger = require("../utils/logger");
 const { sendBorrowingClaimEmail } = require("../utils/mailer");
+const {
+  buildBorrowingPickupQrValue,
+  generateQrCodePngBuffer,
+} = require("../utils/accession");
 
 /**
  * Create a borrowing transaction and send claim notification email
@@ -138,83 +142,14 @@ async function createBorrowTransactionAndEmail(
       claimExpiresAt: claimExpiresAt.toISOString()
     });
 
-    // Fetch detailed information for email
     let emailStatus = { success: false, reason: 'Email not sent' };
 
     if (sendEmail) {
-      try {
-        // Get student info
-        const studentQuery = `SELECT fullname, email FROM students WHERE student_id = ?`;
-        const studentRows = await db.query(studentQuery, [studentId]);
-
-        if (!studentRows || studentRows.length === 0) {
-          throw new Error('Student not found');
-        }
-
-        const student = studentRows[0];
-        const { fullname, email } = student;
-
-        // Get detailed book info for all borrowed items
-        const borrowingIds = borrowingRecords.map(b => b.borrowingId).join(',');
-        const booksQuery = `
-          SELECT DISTINCT
-            bb.accession_number,
-            b.title,
-            b.author,
-            b.isbn,
-            b.category
-          FROM book_borrowings bb
-          JOIN books b ON bb.book_id = b.id
-          WHERE bb.id IN (${borrowingIds})
-          ORDER BY bb.id ASC
-        `;
-        const booksRows = await db.query(booksQuery, []);
-
-        // Format for email
-        const borrowedItems = booksRows.map(row => ({
-          bookTitle: row.title,
-          author: row.author,
-          isbn: row.isbn,
-          category: row.category,
-          accessionNumber: row.accession_number
-        }));
-
-        // Send email
-        emailStatus = await sendBorrowingClaimEmail(
-          email,
-          fullname,
-          studentId,
-          borrowedItems,
-          claimExpiresAt
-        );
-
-        // Update email_sent_at in database (even if email attempted)
-        if (emailStatus.success) {
-          await db.query(
-            `UPDATE book_borrowings SET email_sent_at = CURRENT_TIMESTAMP WHERE id IN (${borrowingIds})`
-          );
-
-          logger.info('Borrowing claim email confirmed sent', {
-            studentId,
-            borrowings: borrowingRecords.length,
-            messageId: emailStatus.messageId
-          });
-        } else {
-          logger.warn('Borrowing claim email send failed (but borrowing succeeded)', {
-            studentId,
-            borrowings: borrowingRecords.length,
-            error: emailStatus.error
-          });
-        }
-
-      } catch (emailError) {
-        logger.error('Email preparation failed', {
-          studentId,
-          error: emailError.message
-        });
-        // Don't fail the borrowing transaction if email preparation fails
-        emailStatus = { success: false, error: emailError.message };
-      }
+      emailStatus = await sendBorrowingClaimEmailForBorrowings(
+        studentId,
+        borrowingRecords.map((record) => record.borrowingId),
+        claimExpiresAt
+      );
     }
 
     return {
@@ -235,6 +170,100 @@ async function createBorrowTransactionAndEmail(
   }
 }
 
+async function sendBorrowingClaimEmailForBorrowings(studentId, borrowingIds, claimExpiresAt) {
+  try {
+    if (!studentId || !Array.isArray(borrowingIds) || borrowingIds.length === 0 || !claimExpiresAt) {
+      throw new Error('Missing required parameters for borrowing claim email');
+    }
+
+    const borrowingIdList = borrowingIds
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    if (!borrowingIdList.length) {
+      throw new Error('No valid borrowing IDs provided');
+    }
+
+    const studentQuery = `SELECT fullname, email FROM students WHERE student_id = ?`;
+    const studentRows = await db.query(studentQuery, [studentId]);
+    if (!studentRows || studentRows.length === 0) {
+      throw new Error('Student not found');
+    }
+
+    const borrowingIdsSql = borrowingIdList.join(',');
+    const booksQuery = `
+      SELECT DISTINCT
+        bb.id AS borrowing_id,
+        bb.accession_number,
+        b.title,
+        b.author,
+        b.isbn,
+        b.category
+      FROM book_borrowings bb
+      JOIN books b ON bb.book_id = b.id
+      WHERE bb.id IN (${borrowingIdsSql})
+      ORDER BY bb.id ASC
+    `;
+    const booksRows = await db.query(booksQuery, []);
+
+    const borrowedItemsWithQr = await Promise.all(
+      booksRows.map(async (row) => {
+        const pickupQrValue = buildBorrowingPickupQrValue(row.borrowing_id);
+        const pickupQrCid = `pickup-qr-${row.borrowing_id}@spist-library`;
+        return {
+          borrowingId: row.borrowing_id,
+          bookTitle: row.title,
+          author: row.author,
+          isbn: row.isbn,
+          category: row.category,
+          accessionNumber: row.accession_number,
+          pickupQrValue,
+          pickupQrCid,
+          pickupQrBuffer: await generateQrCodePngBuffer(pickupQrValue),
+        };
+      })
+    );
+
+    const { fullname, email } = studentRows[0];
+    const emailStatus = await sendBorrowingClaimEmail(
+      email,
+      fullname,
+      studentId,
+      borrowedItemsWithQr,
+      claimExpiresAt
+    );
+
+    if (emailStatus.success) {
+      await db.query(
+        `UPDATE book_borrowings SET email_sent_at = CURRENT_TIMESTAMP WHERE id IN (${borrowingIdsSql})`
+      );
+
+      logger.info('Borrowing claim email confirmed sent', {
+        studentId,
+        borrowings: borrowingIdList.length,
+        messageId: emailStatus.messageId,
+      });
+    } else {
+      logger.warn('Borrowing claim email send failed', {
+        studentId,
+        borrowings: borrowingIdList.length,
+        error: emailStatus.error,
+      });
+    }
+
+    return emailStatus;
+  } catch (emailError) {
+    logger.error('Email preparation failed', {
+      studentId,
+      borrowingIds,
+      error: emailError.message,
+    });
+
+    return { success: false, error: emailError.message };
+  }
+}
+
 module.exports = {
-  createBorrowTransactionAndEmail
+  createBorrowTransactionAndEmail,
+  sendBorrowingClaimEmailForBorrowings,
 };

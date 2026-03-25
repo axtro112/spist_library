@@ -8,16 +8,20 @@
     "start:raw": "node server.js",
     "start:clean": "node scripts/start-clean.js",
     "dev": "nodemon server.js",
-    "backfill:accessions": "node scripts/backfill-accessions.js"
+    "backfill:accessions": "node scripts/backfill-accessions.js",
+    "lint": "eslint server.js src/**/*.js scripts/**/*.js",
+    "test": "node --test tests/**/*.test.js",
+    "check": "node --check server.js && node --check src/routes/admin.js && node --check src/routes/auth.js && node --check src/routes/students.js",
+    "smoke": "node -e \"const fs=require('fs');['server.js','src/routes/admin.js','src/routes/auth.js','src/routes/students.js'].forEach(f=>{if(!fs.existsSync(f)) throw new Error('Missing '+f)}); console.log('Smoke OK');\""
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "csurf": "^1.11.0",
     "csv-parser": "^3.2.0",
     "dotenv": "^16.6.1",
     "ejs": "^4.0.1",
+    "exceljs": "^4.4.0",
     "express": "^4.18.2",
     "express-mysql-session": "^3.0.3",
     "express-rate-limit": "^8.2.1",
@@ -27,13 +31,13 @@
     "html5-qrcode": "^2.3.8",
     "multer": "^2.0.2",
     "mysql2": "^3.6.5",
-    "nodemailer": "^6.9.7",
+    "nodemailer": "^8.0.4",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "qrcode": "^1.5.4",
-    "xlsx": "^0.18.5"
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "eslint": "^9.22.0",
     "nodemon": "^3.0.2"
   }
 }

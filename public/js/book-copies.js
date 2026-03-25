@@ -29,7 +29,6 @@ class BookCopyManager {
   }
 
   init() {
-    this._injectStyles();
     this.createModal();
     this.bindEvents();
   }
@@ -38,7 +37,8 @@ class BookCopyManager {
     const modalHTML = `
       <!-- ═══════════════ Book Copies / Edit Book Modal ═══════════════ -->
       <div id="copiesModal" class="modal sa-modal">
-        <div class="sa-modal-content" style="max-width:900px;width:95%;">
+        <div class="sa-modal-dialog sa-modal-xl">
+        <div class="sa-modal-content">
 
           <!-- Green header -->
           <div class="sa-modal-header">
@@ -46,13 +46,10 @@ class BookCopyManager {
               <span class="material-symbols-outlined" id="copiesModalIcon">qr_code_2</span>
               <span id="copiesModalTitle">Book Copies</span>
             </h2>
-            <button class="sa-modal-close-btn" type="button" onclick="bookCopyManager.closeModal()">&#x2715;</button>
+            <button class="sa-modal-close sa-modal-close-btn" type="button" onclick="bookCopyManager.closeModal()">&#x2715;</button>
           </div>
 
-          <!-- White body -->
-          <div class="sa-modal-body" style="overflow-y:auto;max-height:calc(100vh - 200px);">
-
-            <!-- Book meta card -->
+          <div class="sa-modal-summary">
             <div class="bcm-meta">
               <div class="bcm-meta-top">
                 <span id="copyBookTitle" class="bcm-meta-title">Loading&#8230;</span>
@@ -66,6 +63,10 @@ class BookCopyManager {
                 <div><span class="bcm-label">Available</span><span id="copyBookAvailable">&#8212;</span></div>
               </div>
             </div>
+          </div>
+
+          <!-- White body -->
+          <div class="sa-modal-body">
 
             <!-- Tab bar -->
             <div class="bcm-tabs">
@@ -81,19 +82,19 @@ class BookCopyManager {
 
             <!-- ── Tab: Copies ── -->
             <div id="tabPaneCopies" class="bcm-tab-pane bcm-tab-pane--active">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <h3 style="margin:0;font-size:14px;font-weight:700;color:#374151;">All Copies</h3>
+              <div class="bcm-pane-head">
+                <h3>All Copies</h3>
                 <button class="sa-btn sa-btn-success" type="button" onclick="bookCopyManager.showAddCopyForm()">
-                  <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+                  <span class="material-symbols-outlined">add</span>
                   Add New Copy
                 </button>
               </div>
-              <div class="table-wrapper" style="max-height:300px;overflow-y:auto;">
+              <div class="sa-modal-table-wrap bcm-copies-table">
                 <table class="user-table">
                   <thead>
                     <tr>
-                      <th style="width:36px;text-align:center;">
-                        <input type="checkbox" id="selectAllCopies" title="Select all" style="cursor:pointer;" />
+                      <th class="bcm-select-col">
+                        <input type="checkbox" id="selectAllCopies" title="Select all" class="bcm-copy-checkbox" />
                       </th>
                       <th>Accession #</th>
                       <th>Copy #</th>
@@ -110,17 +111,17 @@ class BookCopyManager {
                   </tbody>
                 </table>
               </div>
-              <div class="sa-modal-footer" style="margin-top:4px;">
+              <div class="sa-modal-footer bcm-copies-footer sa-modal-actions-stack">
                 <button class="sa-btn sa-btn-success" type="button" onclick="bookCopyManager.bulkPrintQrLabels(false)">
-                  <span class="material-symbols-outlined" style="font-size:16px;">print</span>
+                  <span class="material-symbols-outlined">print</span>
                   Print All QR
                 </button>
                 <button class="sa-btn sa-btn-outline" type="button" id="printSelectedQrBtn" onclick="bookCopyManager.bulkPrintQrLabels(true)" disabled>
-                  <span class="material-symbols-outlined" style="font-size:16px;">checklist</span>
+                  <span class="material-symbols-outlined">checklist</span>
                   Print Selected
                 </button>
                 <button class="sa-btn sa-btn-outline" type="button" onclick="bookCopyManager.exportCopies()">
-                  <span class="material-symbols-outlined" style="font-size:16px;">download</span>
+                  <span class="material-symbols-outlined">download</span>
                   Export List
                 </button>
                 <button class="sa-btn sa-btn-outline" type="button" onclick="bookCopyManager.closeModal()">Close</button>
@@ -129,7 +130,7 @@ class BookCopyManager {
 
             <!-- ── Tab: Edit Book ── -->
             <div id="tabPaneEdit" class="bcm-tab-pane">
-              <form id="editBookForm" style="padding-top:4px;">
+              <form id="editBookForm" class="sa-modal-form bcm-edit-form">
                 <div class="sa-form-group">
                   <label for="titleEdit">Title</label>
                   <input type="text" id="titleEdit" name="title" required />
@@ -157,7 +158,7 @@ class BookCopyManager {
                     <option value="borrowed">Borrowed</option>
                   </select>
                 </div>
-                <div class="sa-form-group" id="studentSelectGroup" style="display:none;">
+                <div class="sa-form-group bcm-hidden" id="studentSelectGroup">
                   <label for="studentEdit">Assign to Student</label>
                   <select id="studentEdit" name="student">
                     <option value="">Select a student&#8230;</option>
@@ -175,22 +176,24 @@ class BookCopyManager {
 
           </div><!-- /.sa-modal-body -->
         </div><!-- /.sa-modal-content -->
+        </div><!-- /.sa-modal-dialog -->
       </div><!-- /#copiesModal -->
 
       <!-- ═══════════════ Add Copy Modal ═══════════════ -->
       <div id="addCopyModal" class="modal sa-modal">
-        <div class="sa-modal-content" style="max-width:480px;width:90%;">
+        <div class="sa-modal-dialog sa-modal-sm">
+        <div class="sa-modal-content">
           <div class="sa-modal-header">
             <h2>
               <span class="material-symbols-outlined">add_circle</span>
               Add New Copy
             </h2>
-            <button class="sa-modal-close-btn" type="button" onclick="bookCopyManager.closeAddCopyModal()">&#x2715;</button>
+            <button class="sa-modal-close sa-modal-close-btn" type="button" onclick="bookCopyManager.closeAddCopyModal()">&#x2715;</button>
           </div>
           <div class="sa-modal-body">
             <form id="addCopyForm" onsubmit="bookCopyManager.submitAddCopy(event)">
               <div class="sa-form-group">
-                <label>Condition <span style="color:#e53e3e;">*</span></label>
+                <label>Condition <span class="req">*</span></label>
                 <select id="newCopyCondition" required>
                   <option value="excellent">Excellent &#8212; Brand new</option>
                   <option value="good" selected>Good &#8212; Normal wear</option>
@@ -204,10 +207,7 @@ class BookCopyManager {
               </div>
               <div class="sa-form-group">
                 <label>Notes</label>
-                <textarea id="newCopyNotes" rows="3" placeholder="Optional notes&#8230;"
-                  style="width:100%;padding:.6rem .85rem;border:1.5px solid #d1d5db;border-radius:8px;
-                         font-size:.9rem;box-sizing:border-box;resize:vertical;color:#111827;
-                         background:#f9fafb;font-family:inherit;"></textarea>
+                <textarea id="newCopyNotes" class="bcm-notes" rows="3" placeholder="Optional notes&#8230;"></textarea>
               </div>
             </form>
           </div>
@@ -216,14 +216,16 @@ class BookCopyManager {
             <button type="button" class="sa-btn sa-btn-outline" onclick="bookCopyManager.closeAddCopyModal()">Cancel</button>
           </div>
         </div>
+        </div>
       </div><!-- /#addCopyModal -->
 
       <!-- ═══════════════ QR Preview Modal ═══════════════ -->
       <div id="qrCodeModal" class="modal sa-modal">
+        <div class="sa-modal-dialog sa-modal-sm">
         <div class="sa-modal-content qr-modal-content">
           <div class="sa-modal-header">
             <h2 id="qrModalTitle">QR Code</h2>
-            <button class="sa-modal-close-btn" id="qrModalCloseIconBtn" type="button">&#x2715;</button>
+            <button class="sa-modal-close sa-modal-close-btn" id="qrModalCloseIconBtn" type="button">&#x2715;</button>
           </div>
           <div class="sa-modal-body qr-modal-body">
             <p id="qrModalSubtitle" class="qr-modal-subtitle">Accession Number</p>
@@ -232,12 +234,13 @@ class BookCopyManager {
             </div>
             <div id="qrModalHint" class="qr-modal-hint">Preparing QR image...</div>
             <div id="qrModalError" class="qr-modal-error"></div>
-            <div class="qr-modal-actions">
-              <button type="button" id="qrPrintBtn" class="sa-btn sa-btn-outline" disabled>Print QR</button>
-              <button type="button" id="qrDownloadBtn" class="sa-btn sa-btn-success" disabled>Download</button>
-              <button type="button" id="qrCloseBtn" class="sa-btn sa-btn-outline">Close</button>
-            </div>
           </div>
+          <div class="sa-modal-footer qr-modal-actions sa-modal-actions-stack">
+            <button type="button" id="qrPrintBtn" class="sa-btn sa-btn-outline" disabled>Print QR</button>
+            <button type="button" id="qrDownloadBtn" class="sa-btn sa-btn-success" disabled>Download</button>
+            <button type="button" id="qrCloseBtn" class="sa-btn sa-btn-outline">Close</button>
+          </div>
+        </div>
         </div>
       </div>
     `;
@@ -276,89 +279,9 @@ class BookCopyManager {
 
   // ── Helpers ────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────
 
-  /** Inject scoped CSS for the bcm meta card and tabs (idempotent). */
+  /** Styles are now defined in external shared CSS; keep as no-op for compatibility. */
   _injectStyles() {
-    if (document.getElementById('sa-book-meta-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'sa-book-meta-styles';
-    style.textContent = [
-      /* ── Modal shell fallback (kicks in when admins-modal.css is NOT loaded, e.g. on the static admin page) ── */
-      '.modal.sa-modal:not(.show){display:none!important;}',
-      '.modal.sa-modal.show{display:flex!important;align-items:center;justify-content:center;}',
-      '#copiesModal .sa-modal-content,#addCopyModal .sa-modal-content{background:#fff;border-radius:16px;',
-      'width:90%;box-shadow:0 24px 64px rgba(0,0,0,.25);overflow:hidden;}',
-      '#copiesModal .sa-modal-header,#addCopyModal .sa-modal-header{',
-      'background:linear-gradient(135deg,#1b5e20,#2e7d32,#43a047);',
-      'padding:1.1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;}',
-      '#copiesModal .sa-modal-header h2,#addCopyModal .sa-modal-header h2{color:#fff;margin:0;',
-      'font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:.5rem;}',
-      '.sa-modal-close-btn{background:rgba(255,255,255,.18);border:none;color:#fff;',
-      'width:30px;height:30px;border-radius:50%;cursor:pointer;',
-      'display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;padding:0;}',
-      '.sa-modal-close-btn:hover{background:rgba(255,255,255,.35);}',
-      '#copiesModal .sa-modal-body,#addCopyModal .sa-modal-body{padding:1.4rem 1.5rem .5rem;}',
-      '#copiesModal .sa-modal-footer,#addCopyModal .sa-modal-footer{display:flex;gap:.75rem;',
-      'padding:1rem 1.5rem 1.4rem;border-top:1px solid #f0f0f0;}',
-      /* ── sa-form-group fallback ── */
-      '#copiesModal .sa-form-group,#addCopyModal .sa-form-group{margin-bottom:1rem;}',
-      '#copiesModal .sa-form-group label,#addCopyModal .sa-form-group label{display:block;',
-      'margin-bottom:.3rem;font-size:.85rem;font-weight:600;color:#374151;}',
-      '#copiesModal .sa-form-group input,#copiesModal .sa-form-group select,#copiesModal .sa-form-group textarea,',
-      '#addCopyModal .sa-form-group input,#addCopyModal .sa-form-group select,#addCopyModal .sa-form-group textarea{',
-      'width:100%;padding:.6rem .85rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.9rem;',
-      'color:#111827;background:#f9fafb;box-sizing:border-box;}',
-      '#copiesModal .sa-form-group input:focus,#copiesModal .sa-form-group select:focus,#copiesModal .sa-form-group textarea:focus,',
-      '#addCopyModal .sa-form-group input:focus,#addCopyModal .sa-form-group select:focus,#addCopyModal .sa-form-group textarea:focus{',
-      'border-color:#2e7d32;box-shadow:0 0 0 3px rgba(46,125,50,.12);outline:none;background:#fff;}',
-      /* meta strip — on white background so dark text */
-      '#copiesModal .bcm-meta{background:#f0fdf4;border:1px solid #bbf7d0;',
-      'border-radius:10px;padding:12px 16px;margin-bottom:14px;}',
-      '#copiesModal .bcm-meta-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;}',
-      '#copiesModal .bcm-meta-title{font-size:15px;font-weight:700;color:#14532d;}',
-      '#copiesModal .bcm-meta-grid{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));',
-      'gap:6px 14px;font-size:13px;color:#374151;}',
-      '#copiesModal .bcm-label{display:block;font-size:11px;font-weight:600;',
-      'color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:1px;}',
-      /* status pill */
-      '#copiesModal .bcm-status-pill{padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;',
-      'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;white-space:nowrap;}',
-      '#copiesModal .bcm-pill-borrowed{background:#fee2e2!important;color:#991b1b!important;border-color:#fca5a5!important;}',
-      '#copiesModal .bcm-pill-maintenance{background:#f3f4f6!important;color:#374151!important;border-color:#d1d5db!important;}',
-      /* tab bar */
-      '#copiesModal .bcm-tabs{display:flex;gap:4px;border-bottom:2px solid #e5e7eb;margin-bottom:14px;}',
-      '#copiesModal .bcm-tab{display:flex;align-items:center;gap:6px;padding:8px 16px;',
-      'border:none;background:transparent;color:#6b7280;font-size:13px;font-weight:600;',
-      'cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .18s;border-radius:6px 6px 0 0;}',
-      '#copiesModal .bcm-tab:hover{background:#f0fdf4;color:#2e7d32;}',
-      '#copiesModal .bcm-tab--active{color:#1b5e20!important;border-bottom-color:#2e7d32!important;}',
-      '#copiesModal .bcm-tab .material-symbols-outlined{font-size:16px;}',
-      '#copiesModal .bcm-tab-pane{display:none;}',
-      '#copiesModal .bcm-tab-pane--active{display:block;}',
-      /* sa-btn fallback so buttons render on both admin and SA pages */
-      '#copiesModal .sa-btn,#addCopyModal .sa-btn{display:inline-flex;align-items:center;gap:6px;',
-      'padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;',
-      'border:1.5px solid transparent;transition:all .18s;text-decoration:none;}',
-      '#copiesModal .sa-btn-success,#addCopyModal .sa-btn-success{background:#2e7d32;color:#fff;border-color:#2e7d32;}',
-      '#copiesModal .sa-btn-success:hover,#addCopyModal .sa-btn-success:hover{background:#1b5e20;border-color:#1b5e20;}',
-      '#copiesModal .sa-btn-outline,#addCopyModal .sa-btn-outline{background:#fff;color:#374151;border-color:#d1d5db;}',
-      '#copiesModal .sa-btn-outline:hover,#addCopyModal .sa-btn-outline:hover{background:#f9fafb;border-color:#9ca3af;}',
-      /* QR modal */
-      '#qrCodeModal .qr-modal-content{max-width:430px;width:92%;}',
-      '#qrCodeModal .qr-modal-body{text-align:center;}',
-      '#qrCodeModal .qr-modal-subtitle{margin:2px 0 12px;font-size:13px;color:#4b5563;}',
-      '#qrCodeModal .qr-modal-image-wrap{width:300px;height:300px;margin:0 auto;border:1px solid #d1d5db;',
-      'border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}',
-      '#qrCodeModal #qrModalImage{width:300px;height:300px;display:block;object-fit:contain;}',
-      '#qrCodeModal .qr-modal-hint{margin-top:10px;min-height:18px;font-size:12px;color:#6b7280;}',
-      '#qrCodeModal .qr-modal-error{display:none;margin-top:8px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;',
-      'color:#991b1b;border-radius:8px;font-size:12px;}',
-      '#qrCodeModal .qr-modal-actions{display:flex;gap:8px;justify-content:center;margin-top:12px;}',
-      '#qrCodeModal .qr-modal-actions .sa-btn[disabled]{opacity:.65;cursor:not-allowed;}',
-      '@media(max-width:900px){#copiesModal .bcm-meta-grid{grid-template-columns:repeat(2,1fr);}}',
-      '@media(max-width:520px){#copiesModal .bcm-meta-grid{grid-template-columns:1fr;}',
-      '#qrCodeModal .qr-modal-image-wrap{width:260px;height:260px;}#qrCodeModal #qrModalImage{width:260px;height:260px;}}',
-    ].join('');
-    document.head.appendChild(style);
+    return;
   }
 
   /** Safely set an element's text content with a fallback. */
@@ -600,8 +523,8 @@ class BookCopyManager {
       
       return `
         <tr data-accession="${copy.accession_number}">
-          <td style="text-align:center;">
-            <input type="checkbox" class="copy-row-check" data-accession="${copy.accession_number}" style="cursor:pointer;" />
+          <td class="bcm-select-col">
+            <input type="checkbox" class="copy-row-check bcm-copy-checkbox" data-accession="${copy.accession_number}" />
           </td>
           <td><strong>${copy.accession_number}</strong></td>
           <td>#${copy.copy_number}</td>

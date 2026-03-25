@@ -295,8 +295,11 @@ class AdminManagement {
 
     tbody.innerHTML = '';
 
+    const canBulkManage = this.currentAdminRole === 'super_admin';
+    const columnCount = canBulkManage ? 7 : 6;
+
     if (this.admins.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No admins found</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${columnCount}" class="admin-table-empty">No admins found</td></tr>`;
       return;
     }
 
@@ -316,18 +319,22 @@ class AdminManagement {
         day: 'numeric'
       });
 
-      tr.innerHTML = `
-        <td style="text-align:center;">
+      const checkboxCell = canBulkManage ? `
+        <td class="admin-select-cell">
           <input type="checkbox" class="admin-row-cb" data-admin-id="${admin.id}"
             ${admin.id === parseInt(this.currentAdminId) ? 'disabled title="Cannot select yourself"' : ''}
-            style="width:16px;height:16px;cursor:pointer;">
+            >
         </td>
+      ` : '';
+
+      tr.innerHTML = `
+        ${checkboxCell}
         <td>${admin.id}</td>
         <td>${this.escapeHtml(admin.fullname || 'N/A')}</td>
         <td>${roleDisplay}</td>
         <td>${this.escapeHtml(admin.email)}</td>
         <td>${createdDate}</td>
-        <td>
+        <td class="admin-actions-cell">
           ${this.renderActionButtons(admin)}
         </td>
       `;
@@ -335,7 +342,9 @@ class AdminManagement {
       tbody.appendChild(tr);
     });
 
-    this.initBulkSelection();
+    if (canBulkManage) {
+      this.initBulkSelection();
+    }
   }
 
   /**
@@ -344,7 +353,7 @@ class AdminManagement {
   renderActionButtons(admin) {
     // Only Super Admins can edit/delete
     if (this.currentAdminRole !== 'super_admin') {
-      return '<span style="color:#888;">View Only</span>';
+      return '<span class="admin-view-only-badge">View Only</span>';
     }
 
     // Prevent deleting self

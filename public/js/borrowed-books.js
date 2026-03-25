@@ -27,10 +27,21 @@ const KANBAN_COUNT_IDS = {
 };
 let borrowScanner = null;
 let borrowScannerMode = null;
+let borrowScannerEngine = null;
 let scannerInProgress = false;
 let scannerCurrentBorrowingId = null;
 let scannerLastCode = '';
+let scannerCooldownActive = false;
 let scannerTransitionActive = false;
+let borrowScannerNativeStream = null;
+let borrowScannerNativeVideo = null;
+let borrowScannerNativeDetector = null;
+let borrowScannerNativeAnimationId = null;
+let borrowScannerAssistDetector = null;
+let borrowScannerAssistAnimationId = null;
+let borrowScannerJsQrAnimationId = null;
+let borrowScannerJsQrCanvas = null;
+let borrowScannerJsQrContext = null;
 
 // ===========================
 // INITIALIZATION
@@ -662,6 +673,7 @@ function renderKanbanBoard(records) {
 
 function renderKanbanCard(record) {
   const status = String(record.display_status || '').toLowerCase();
+  const canApprove = status === 'pending';
   const canConfirmPickup = status === 'pending_pickup';
   const canConfirmReturn = status === 'picked_up' || status === 'overdue' || status === 'borrowed' || status === 'pending_return';
 
@@ -679,6 +691,7 @@ function renderKanbanCard(record) {
         Due Date: ${dueDate}
       </div>
       <div class="card-actions">
+        ${canApprove ? `<button type="button" class="sa-btn sa-btn-primary" onclick="approveBorrowing(${borrowId})">Approve</button>` : ''}
         ${canConfirmPickup ? `<button type="button" class="sa-btn sa-btn-success" onclick="showPickupModal(${borrowId})">Confirm Pickup</button>` : ''}
         ${canConfirmReturn ? `<button type="button" class="sa-btn sa-btn-primary" onclick="showReturnModal(${borrowId})">Confirm Return</button>` : ''}
         <button type="button" class="sa-btn sa-btn-outline" onclick="showDetailsModal(${borrowId})">Details</button>
@@ -747,6 +760,7 @@ function createBorrowingRow(record) {
 
 function getStatusBadge(status) {
   const statusMap = {
+    'pending': { label: 'Pending Approval', color: '#7c3aed', bg: '#ede9fe' },
     'pending_pickup': { label: 'Pending Pickup', color: '#f59e0b', bg: '#fef3c7' },
     'claim_expired': { label: 'Claim Expired', color: '#b91c1c', bg: '#fee2e2' },
     'picked_up': { label: 'Picked Up', color: '#3b82f6', bg: '#dbeafe' },
@@ -774,6 +788,19 @@ function getActionButtons(record, bookMissing = false) {
 
   // [ORPHAN FIX] Suppress book-dependent actions when the book no longer exists
   if (!bookMissing) {
+    if (record.display_status === 'pending' || record.status === 'pending') {
+      buttons.push(`
+        <button 
+          class="btn btn-sm btn-primary" 
+          onclick="approveBorrowing(${record.id})"
+          title="Approve Request"
+        >
+          <span class="material-symbols-outlined" style="font-size: 16px;">check</span>
+          Approve
+        </button>
+      `);
+    }
+
     // Confirm Pickup button
     if (record.display_status === 'pending_pickup') {
       buttons.push(`
@@ -891,6 +918,19 @@ function updateBorrowScannerPlaceholder() {
   placeholder.classList.toggle('is-hidden', hasPreview);
 }
 
+function setBorrowScannerResultPanelVisible(isVisible) {
+  const body = scannerEl('borrowScannerBody');
+  const panel = scannerEl('borrowScanResultPanel');
+  const footer = scannerEl('borrowScannerFooter');
+  if (!body || !panel) return;
+
+  body.classList.toggle('scanner-modal-body-collapsed', !isVisible);
+  panel.classList.toggle('scanner-result-panel-collapsed', !isVisible);
+  if (footer) {
+    footer.classList.toggle('scanner-modal-footer-collapsed', !isVisible);
+  }
+}
+
 function getDueStateText(dueDate, displayStatus) {
   if (normalizeBorrowStatus(displayStatus) === 'overdue') return 'Overdue';
   if (!dueDate) return 'N/A';
@@ -902,6 +942,7 @@ function getDueStateText(dueDate, displayStatus) {
 function setBorrowScannerResult(data) {
   const grid = scannerEl('borrowScanResultGrid');
   const empty = scannerEl('borrowScanEmpty');
+  setBorrowScannerResultPanelVisible(true);
   if (grid) grid.style.display = 'flex';
   if (empty) empty.style.display = 'none';
 
@@ -915,18 +956,33 @@ function setBorrowScannerResult(data) {
   scannerEl('borrowScanDueState').textContent = data.dueState || '—';
 }
 
-function resetBorrowScannerState(clearResultOnly) {
-  scannerLastCode = '';
-  scannerCurrentBorrowingId = null;
-
+function clearBorrowScannerResult() {
   const grid = scannerEl('borrowScanResultGrid');
   const empty = scannerEl('borrowScanEmpty');
-  const actionBtn = scannerEl('borrowScanActionBtn');
+
+  setBorrowScannerResultPanelVisible(false);
 
   if (grid) grid.style.display = 'none';
   if (empty) empty.style.display = 'block';
+
+  scannerEl('borrowScanAccession').textContent = '—';
+  scannerEl('borrowScanBookTitle').textContent = '—';
+  scannerEl('borrowScanBookAuthor').textContent = '—';
+  scannerEl('borrowScanStudentName').textContent = '—';
+  scannerEl('borrowScanBorrowStatus').textContent = '—';
+  scannerEl('borrowScanPickupDate').textContent = '—';
+  scannerEl('borrowScanDueDate').textContent = '—';
+  scannerEl('borrowScanDueState').textContent = '—';
+}
+
+function resetBorrowScannerState(clearResultOnly) {
+  scannerLastCode = '';
+  scannerCooldownActive = false;
+
+  const actionBtn = scannerEl('borrowScanActionBtn');
+
+  clearBorrowScannerResult();
   setBorrowScannerMessage('', 'info');
-  setBorrowScannerResult({});
 
   if (actionBtn) {
     actionBtn.disabled = true;
@@ -947,6 +1003,113 @@ function scannerDelay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function loadBorrowScannerScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (window.Html5Qrcode) {
+        resolve(true);
+        return;
+      }
+      existing.addEventListener('load', () => resolve(true), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Failed to load script')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Failed to load script'));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureBorrowScannerLibrary() {
+  if (window.Html5Qrcode) return true;
+
+  const sources = [
+    '/js/vendor/html5-qrcode.min.js',
+    'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js',
+    'https://cdn.jsdelivr.net/npm/html5-qrcode/minified/html5-qrcode.min.js'
+  ];
+
+  for (const src of sources) {
+    try {
+      await loadBorrowScannerScript(src);
+      if (window.Html5Qrcode) return true;
+    } catch (_) {
+      // Continue trying fallback sources.
+    }
+  }
+
+  return false;
+}
+
+async function ensureBorrowScannerJsQrLibrary() {
+  if (typeof window !== 'undefined' && typeof window.jsQR === 'function') return true;
+
+  const sources = [
+    '/js/vendor/jsQR.min.js',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+  ];
+
+  for (const src of sources) {
+    try {
+      await loadBorrowScannerScript(src);
+      if (typeof window !== 'undefined' && typeof window.jsQR === 'function') return true;
+    } catch (_) {
+      // Continue trying fallback sources.
+    }
+  }
+
+  return false;
+}
+
+function isRetryableBorrowScannerStartError(errorText) {
+  const msg = String(errorText || '').toLowerCase();
+  return msg.includes('aborterror')
+    || msg.includes('timeout starting video source')
+    || msg.includes('notreadableerror')
+    || msg.includes('trackstarterror')
+    || msg.includes('overconstrained')
+    || msg.includes('facingmode')
+    || msg.includes('constraint');
+}
+
+function getBorrowScannerConfig() {
+  return {
+    fps: 20,
+    // Use most of the viewport for detection to improve recognition on dim/low-res feeds.
+    qrbox: (viewfinderWidth, viewfinderHeight) => {
+      const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.82);
+      return { width: size, height: size };
+    },
+    aspectRatio: 1.0,
+  };
+}
+
+async function getBorrowScannerCameraAttempts() {
+  const attempts = [
+    { label: 'rear camera (ideal)', cameraConfig: { facingMode: { ideal: 'environment' } } },
+    { label: 'rear camera (exact)', cameraConfig: { facingMode: 'environment' } },
+    { label: 'front camera', cameraConfig: { facingMode: 'user' } }
+  ];
+
+  if (window.Html5Qrcode && typeof window.Html5Qrcode.getCameras === 'function') {
+    try {
+      const cameras = await window.Html5Qrcode.getCameras();
+      cameras.slice(0, 2).forEach((camera, idx) => {
+        attempts.push({ label: `camera id ${idx + 1}`, cameraConfig: { deviceId: { exact: camera.id } } });
+      });
+    } catch (_) {
+      // Ignore camera enumeration errors and continue with default attempts.
+    }
+  }
+
+  return attempts;
+}
+
 async function cleanupBorrowScannerInstance() {
   if (!borrowScanner) return;
 
@@ -965,6 +1128,213 @@ async function cleanupBorrowScannerInstance() {
   }
 
   borrowScanner = null;
+  borrowScannerEngine = null;
+}
+
+function canUseBorrowScannerNativeDetector() {
+  return typeof window !== 'undefined' && 'BarcodeDetector' in window && !!navigator.mediaDevices?.getUserMedia;
+}
+
+function cleanupBorrowScannerNativeMode() {
+  if (borrowScannerNativeAnimationId) {
+    cancelAnimationFrame(borrowScannerNativeAnimationId);
+    borrowScannerNativeAnimationId = null;
+  }
+
+  if (borrowScannerNativeVideo) {
+    try {
+      borrowScannerNativeVideo.pause();
+    } catch (_) {
+      // Ignore pause errors during cleanup.
+    }
+    borrowScannerNativeVideo.srcObject = null;
+    borrowScannerNativeVideo.remove();
+    borrowScannerNativeVideo = null;
+  }
+
+  if (borrowScannerNativeStream) {
+    borrowScannerNativeStream.getTracks().forEach((track) => track.stop());
+    borrowScannerNativeStream = null;
+  }
+
+  borrowScannerNativeDetector = null;
+  if (borrowScannerEngine === 'native') {
+    borrowScannerEngine = null;
+  }
+}
+
+function cleanupBorrowScannerAssistDetector() {
+  if (borrowScannerAssistAnimationId) {
+    cancelAnimationFrame(borrowScannerAssistAnimationId);
+    borrowScannerAssistAnimationId = null;
+  }
+  borrowScannerAssistDetector = null;
+}
+
+function cleanupBorrowScannerJsQrDetector() {
+  if (borrowScannerJsQrAnimationId) {
+    cancelAnimationFrame(borrowScannerJsQrAnimationId);
+    borrowScannerJsQrAnimationId = null;
+  }
+  borrowScannerJsQrContext = null;
+  borrowScannerJsQrCanvas = null;
+}
+
+async function startBorrowScannerJsQrDetector() {
+  const ready = await ensureBorrowScannerJsQrLibrary();
+  if (!ready || typeof window.jsQR !== 'function') return;
+
+  const host = scannerEl('borrowQrReader');
+  if (!host) return;
+
+  cleanupBorrowScannerJsQrDetector();
+  borrowScannerJsQrCanvas = document.createElement('canvas');
+  borrowScannerJsQrContext = borrowScannerJsQrCanvas.getContext('2d', { willReadFrequently: true });
+  if (!borrowScannerJsQrContext) return;
+
+  let frameCounter = 0;
+
+  const detectLoop = () => {
+    const video = host.querySelector('video');
+    if (!video || video.readyState < 2 || !borrowScannerJsQrContext || !borrowScannerJsQrCanvas) {
+      borrowScannerJsQrAnimationId = requestAnimationFrame(detectLoop);
+      return;
+    }
+
+    frameCounter += 1;
+    // Sample every other frame for performance.
+    if (frameCounter % 2 === 0) {
+      const vw = video.videoWidth || 0;
+      const vh = video.videoHeight || 0;
+      if (vw > 0 && vh > 0) {
+        borrowScannerJsQrCanvas.width = vw;
+        borrowScannerJsQrCanvas.height = vh;
+        borrowScannerJsQrContext.drawImage(video, 0, 0, vw, vh);
+
+        try {
+          const imageData = borrowScannerJsQrContext.getImageData(0, 0, vw, vh);
+          const result = window.jsQR(imageData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
+          const rawValue = String(result && result.data ? result.data : '').trim();
+          if (rawValue) {
+            onBorrowScannerScan(rawValue);
+          }
+        } catch (_) {
+          // Ignore per-frame parse failures.
+        }
+      }
+    }
+
+    borrowScannerJsQrAnimationId = requestAnimationFrame(detectLoop);
+  };
+
+  borrowScannerJsQrAnimationId = requestAnimationFrame(detectLoop);
+}
+
+function getBorrowScannerNativeCameraAttempts() {
+  return [
+    { video: { facingMode: { ideal: 'environment' } }, audio: false },
+    { video: { facingMode: 'environment' }, audio: false },
+    { video: { facingMode: 'user' }, audio: false },
+    { video: true, audio: false },
+  ];
+}
+
+function startBorrowScannerAssistDetector() {
+  if (!canUseBorrowScannerNativeDetector()) return;
+
+  const host = scannerEl('borrowQrReader');
+  if (!host) return;
+
+  cleanupBorrowScannerAssistDetector();
+  borrowScannerAssistDetector = new BarcodeDetector({ formats: ['qr_code'] });
+
+  const detectLoop = async () => {
+    const video = host.querySelector('video');
+    if (!video || video.readyState < 2 || !borrowScannerAssistDetector) {
+      borrowScannerAssistAnimationId = requestAnimationFrame(detectLoop);
+      return;
+    }
+
+    try {
+      const codes = await borrowScannerAssistDetector.detect(video);
+      if (codes && codes.length > 0) {
+        const rawValue = String(codes[0].rawValue || '').trim();
+        if (rawValue) {
+          onBorrowScannerScan(rawValue);
+        }
+      }
+    } catch (_) {
+      // Ignore intermittent detector failures on frames.
+    }
+
+    borrowScannerAssistAnimationId = requestAnimationFrame(detectLoop);
+  };
+
+  borrowScannerAssistAnimationId = requestAnimationFrame(detectLoop);
+}
+
+async function startBorrowScannerNativeMode() {
+  const host = scannerEl('borrowQrReader');
+  if (!host) {
+    throw new Error('Scanner container not found.');
+  }
+
+  cleanupBorrowScannerNativeMode();
+
+  borrowScannerNativeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+  let nativeStartError = null;
+
+  for (const constraints of getBorrowScannerNativeCameraAttempts()) {
+    try {
+      borrowScannerNativeStream = await navigator.mediaDevices.getUserMedia(constraints);
+      nativeStartError = null;
+      break;
+    } catch (error) {
+      nativeStartError = error;
+      await scannerDelay(220);
+    }
+  }
+
+  if (!borrowScannerNativeStream) {
+    throw nativeStartError || new Error('Unable to access any camera source.');
+  }
+
+  borrowScannerNativeVideo = document.createElement('video');
+  borrowScannerNativeVideo.setAttribute('playsinline', 'true');
+  borrowScannerNativeVideo.muted = true;
+  borrowScannerNativeVideo.autoplay = true;
+  borrowScannerNativeVideo.style.width = '100%';
+  borrowScannerNativeVideo.style.height = '100%';
+  borrowScannerNativeVideo.style.objectFit = 'cover';
+
+  host.innerHTML = '';
+  host.appendChild(borrowScannerNativeVideo);
+  borrowScannerNativeVideo.srcObject = borrowScannerNativeStream;
+  await borrowScannerNativeVideo.play();
+
+  const detectLoop = async () => {
+    if (!borrowScannerNativeVideo || borrowScannerNativeVideo.readyState < 2 || !borrowScannerNativeDetector) {
+      borrowScannerNativeAnimationId = requestAnimationFrame(detectLoop);
+      return;
+    }
+
+    try {
+      const codes = await borrowScannerNativeDetector.detect(borrowScannerNativeVideo);
+      if (codes && codes.length > 0) {
+        const rawValue = String(codes[0].rawValue || '').trim();
+        if (rawValue) {
+          onBorrowScannerScan(rawValue);
+        }
+      }
+    } catch (_) {
+      // Ignore intermittent detect-loop errors.
+    }
+
+    borrowScannerNativeAnimationId = requestAnimationFrame(detectLoop);
+  };
+
+  borrowScannerNativeAnimationId = requestAnimationFrame(detectLoop);
+  borrowScannerEngine = 'native';
 }
 
 async function stopBorrowScannerCamera() {
@@ -976,6 +1346,9 @@ async function stopBorrowScannerCamera() {
 
   try {
     await cleanupBorrowScannerInstance();
+    cleanupBorrowScannerNativeMode();
+    cleanupBorrowScannerAssistDetector();
+    cleanupBorrowScannerJsQrDetector();
     if (startBtn) startBtn.style.display = 'inline-flex';
     if (stopBtn) stopBtn.style.display = 'none';
     updateBorrowScannerPlaceholder();
@@ -995,38 +1368,60 @@ async function startBorrowScannerCamera() {
 
   try {
     await cleanupBorrowScannerInstance();
-    await scannerDelay(140);
+    cleanupBorrowScannerNativeMode();
+    cleanupBorrowScannerAssistDetector();
+    cleanupBorrowScannerJsQrDetector();
+    await scannerDelay(300);
 
-    if (!window.Html5Qrcode) {
-      throw new Error('QR scanner library is not available.');
-    }
-
-    const attempts = [
-      { facingMode: { ideal: 'environment' } },
-      { facingMode: 'environment' },
-      { facingMode: 'user' }
-    ];
+    const libraryReady = await ensureBorrowScannerLibrary();
+    const scanConfig = getBorrowScannerConfig();
 
     let started = false;
     let lastErr = null;
 
-    for (const cam of attempts) {
-      await cleanupBorrowScannerInstance();
-      borrowScanner = new Html5Qrcode('borrowQrReader');
+    if (libraryReady && window.Html5Qrcode) {
+      const attempts = await getBorrowScannerCameraAttempts();
 
-      try {
-        await borrowScanner.start(
-          cam,
-          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-          onBorrowScannerScan,
-          () => {}
-        );
-        started = true;
-        break;
-      } catch (err) {
-        lastErr = err;
+      for (const attempt of attempts) {
         await cleanupBorrowScannerInstance();
-        await scannerDelay(160);
+        borrowScanner = new Html5Qrcode('borrowQrReader');
+
+        try {
+          await borrowScanner.start(
+            attempt.cameraConfig,
+            scanConfig,
+            onBorrowScannerScan,
+            () => {}
+          );
+          borrowScannerEngine = 'html5';
+          startBorrowScannerAssistDetector();
+          await startBorrowScannerJsQrDetector();
+          started = true;
+          break;
+        } catch (err) {
+          lastErr = err;
+          const errMsg = String(err);
+          await cleanupBorrowScannerInstance();
+
+          if (!isRetryableBorrowScannerStartError(errMsg)) {
+            break;
+          }
+
+          await scannerDelay(320);
+        }
+      }
+    }
+
+    if (!started) {
+      if (canUseBorrowScannerNativeDetector()) {
+        try {
+          await startBorrowScannerNativeMode();
+          await startBorrowScannerJsQrDetector();
+          started = true;
+        } catch (nativeErr) {
+          lastErr = nativeErr;
+          cleanupBorrowScannerNativeMode();
+        }
       }
     }
 
@@ -1036,11 +1431,19 @@ async function startBorrowScannerCamera() {
 
     if (startBtn) startBtn.style.display = 'none';
     if (stopBtn) stopBtn.style.display = 'inline-flex';
-    setBorrowScannerStatus('Scanner active. Point camera at QR code.', 'info');
+    setBorrowScannerStatus(
+      borrowScannerEngine === 'native'
+        ? 'Scanner active. Point camera at QR code. Native mode is enabled.'
+        : 'Scanner active. Point camera at QR code.',
+      'info'
+    );
     updateBorrowScannerPlaceholder();
   } catch (err) {
     setBorrowScannerStatus(`Camera error: ${err.message || err}`, 'error');
     await cleanupBorrowScannerInstance();
+    cleanupBorrowScannerNativeMode();
+    cleanupBorrowScannerAssistDetector();
+    cleanupBorrowScannerJsQrDetector();
     if (startBtn) startBtn.style.display = 'inline-flex';
     if (stopBtn) stopBtn.style.display = 'none';
     updateBorrowScannerPlaceholder();
@@ -1071,6 +1474,43 @@ async function lookupBorrowingByAccession(accessionNumber) {
   return { copy: copyPayload.data, borrowing };
 }
 
+async function lookupBorrowingByIdFromApi(borrowingId) {
+  const res = await fetchWithCsrf(`/api/admin/borrowings/${encodeURIComponent(borrowingId)}`);
+  const payload = await res.json().catch(() => ({}));
+
+  if (!res.ok || !payload.success || !payload.data) {
+    throw new Error((payload && payload.message) ? payload.message : 'Borrowing record not found.');
+  }
+
+  return payload.data;
+}
+
+function parsePickupBorrowingId(scannedValue) {
+  const normalized = String(scannedValue || '').trim();
+  const prefixMatch = normalized.match(/^SPIST-BORROW:(\d+)$/i);
+  if (prefixMatch) {
+    return Number(prefixMatch[1]);
+  }
+
+  if (normalized.startsWith('{') && normalized.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(normalized);
+      const borrowingId = Number(parsed?.borrowingId || parsed?.borrowId || parsed?.id);
+      if (!Number.isNaN(borrowingId) && borrowingId > 0) {
+        return borrowingId;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function getBorrowingRecordById(borrowingId) {
+  return allBorrowings.find((row) => Number(row.id) === Number(borrowingId)) || null;
+}
+
 function setScannerActionButton(label, styleClass, onClickHandler) {
   const actionBtn = scannerEl('borrowScanActionBtn');
   if (!actionBtn) return;
@@ -1084,14 +1524,78 @@ function setScannerActionButton(label, styleClass, onClickHandler) {
 async function handleBorrowScannerLookup(accessionNumber) {
   const normalized = String(accessionNumber || '').trim();
   if (!normalized) return;
-  if (normalized === scannerLastCode) return;
-  scannerLastCode = normalized;
 
   setBorrowScannerStatus(`Looking up ${normalized}...`, 'info');
 
   try {
-    const { copy, borrowing } = await lookupBorrowingByAccession(normalized);
     const mode = borrowScannerMode;
+
+    if (mode === 'pickup') {
+      const scannedBorrowingId = parsePickupBorrowingId(normalized);
+      let borrowing = null;
+
+      if (scannedBorrowingId) {
+        if (scannerCurrentBorrowingId && Number(scannedBorrowingId) !== Number(scannerCurrentBorrowingId)) {
+          setBorrowScannerMessage('Scanned pickup QR does not match the selected request.', 'warning');
+          setBorrowScannerStatus('Scan the matching pickup QR for this request.', 'error');
+          return;
+        }
+
+        try {
+          borrowing = await lookupBorrowingByIdFromApi(scannedBorrowingId);
+        } catch (err) {
+          setBorrowScannerMessage(`Error looking up borrowing: ${err.message}`, 'error');
+          setBorrowScannerStatus('Failed to fetch borrowing record.', 'error');
+          return;
+        }
+      } else {
+        // Match standalone scanner behavior: allow accession QR for pickup lookup too.
+        const pickupLookup = await lookupBorrowingByAccession(normalized);
+        borrowing = pickupLookup.borrowing;
+
+        if (!borrowing) {
+          setBorrowScannerMessage('No active borrowing record found for this accession.', 'warning');
+          setBorrowScannerStatus('No active borrowing.', 'error');
+          return;
+        }
+      }
+
+      if (scannerCurrentBorrowingId && Number(borrowing.id) !== Number(scannerCurrentBorrowingId)) {
+        setBorrowScannerMessage('Scanned QR does not match the selected pickup record.', 'warning');
+        setBorrowScannerStatus('Scan the matching pickup QR for this request.', 'error');
+        return;
+      }
+
+      const displayStatus = normalizeBorrowStatus(borrowing.display_status || borrowing.status);
+      const dueState = getDueStateText(borrowing.due_date, displayStatus);
+
+      setBorrowScannerResult({
+        accession: borrowing.accession_number || `Borrowing #${borrowing.id}`,
+        bookTitle: borrowing.book_title || 'N/A',
+        author: borrowing.book_author || 'N/A',
+        studentName: borrowing.student_name || 'N/A',
+        statusLabel: displayStatus || 'pending_pickup',
+        pickupDate: borrowing.picked_up_at ? formatDate(borrowing.picked_up_at) : 'Pending',
+        dueDate: borrowing.due_date ? formatDate(borrowing.due_date) : 'N/A',
+        dueState,
+      });
+
+      if (displayStatus !== 'pending_pickup') {
+        setBorrowScannerMessage('Scanned record is not in pending pickup status.', 'warning');
+        setBorrowScannerStatus(`Status is ${displayStatus || 'unknown'}; cannot confirm pickup.`, 'error');
+        return;
+      }
+
+      setBorrowScannerMessage('Pickup record verified. You can confirm pickup.', 'success');
+      setBorrowScannerStatus('Ready to confirm pickup.', 'success');
+      setScannerActionButton('Confirm Pickup', 'sa-btn-success', async () => {
+        await confirmPickup(Number(borrowing.id));
+        resetBorrowScannerState(false);
+      });
+      return;
+    }
+
+    const { copy, borrowing } = await lookupBorrowingByAccession(normalized);
     const displayStatus = normalizeBorrowStatus((borrowing && borrowing.display_status) || (copy && copy.status));
     const dueState = getDueStateText((borrowing && borrowing.due_date) || (copy && copy.due_date), displayStatus);
     const rowTitle = (borrowing && borrowing.book_title) || copy.title || 'N/A';
@@ -1112,28 +1616,6 @@ async function handleBorrowScannerLookup(accessionNumber) {
     if (!borrowing) {
       setBorrowScannerMessage('No active borrowing record found.', 'warning');
       setBorrowScannerStatus('No active borrowing.', 'error');
-      return;
-    }
-
-    if (mode === 'pickup') {
-      if (displayStatus !== 'pending_pickup') {
-        setBorrowScannerMessage('Scanned record is not in pending pickup status.', 'warning');
-        setBorrowScannerStatus(`Status is ${displayStatus || 'unknown'}; cannot confirm pickup.`, 'error');
-        return;
-      }
-
-      if (scannerCurrentBorrowingId && Number(borrowing.id) !== Number(scannerCurrentBorrowingId)) {
-        setBorrowScannerMessage('Scanned QR does not match the selected pickup record.', 'warning');
-        setBorrowScannerStatus('Scan the matching pickup QR for this request.', 'error');
-        return;
-      }
-
-      setBorrowScannerMessage('Pickup record verified. You can confirm pickup.', 'success');
-      setBorrowScannerStatus('Ready to confirm pickup.', 'success');
-      setScannerActionButton('Confirm Pickup', 'sa-btn-success', async () => {
-        await confirmPickup(Number(borrowing.id));
-        resetBorrowScannerState(false);
-      });
       return;
     }
 
@@ -1167,7 +1649,18 @@ async function handleBorrowScannerLookup(accessionNumber) {
 }
 
 function onBorrowScannerScan(decodedText) {
-  handleBorrowScannerLookup(decodedText);
+  const normalized = String(decodedText || '').trim();
+  if (!normalized || scannerCooldownActive) return;
+  if (normalized === scannerLastCode) return;
+
+  scannerLastCode = normalized;
+  scannerCooldownActive = true;
+
+  setTimeout(() => {
+    scannerCooldownActive = false;
+  }, 4000);
+
+  handleBorrowScannerLookup(normalized);
 }
 
 function openBorrowScannerModal(mode, borrowingId) {
@@ -1350,6 +1843,48 @@ async function cancelBorrowing(borrowingId) {
     updateTabCounters();
   } catch (error) {
     console.error('[Borrowed Books] Error cancelling borrowing:', error);
+    showToast('Error: ' + error.message, 'error');
+  }
+}
+
+function formatApprovalToastMessage(payload) {
+  const data = payload && payload.data ? payload.data : {};
+  const emailStatus = data.emailStatus || {};
+
+  if (emailStatus.success) {
+    return `Request approved. Pickup QR email sent${data.accessionNumber ? ` for copy ${data.accessionNumber}` : ''}.`;
+  }
+
+  if (emailStatus.error) {
+    return `Request approved, but the pickup QR email failed to send: ${emailStatus.error}`;
+  }
+
+  return `Request approved${data.accessionNumber ? ` for copy ${data.accessionNumber}` : ''}.`;
+}
+
+async function approveBorrowing(borrowingId) {
+  if (!confirm('Approve this borrow request and send the pickup QR email?')) return;
+
+  try {
+    const response = await fetchWithCsrf(`/api/admin/borrowings/${borrowingId}/approve`, {
+      method: 'POST'
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        handleAdminAccessDenied(result.message || 'Access denied. Admin privileges required.');
+        return;
+      }
+      throw new Error(result.message || 'Failed to approve borrow request');
+    }
+
+    showToast(formatApprovalToastMessage(result), result?.data?.emailStatus?.success === false ? 'warning' : 'success');
+    await loadBorrowings();
+    updateTabCounters();
+  } catch (error) {
+    console.error('[Borrowed Books] Error approving borrowing:', error);
     showToast('Error: ' + error.message, 'error');
   }
 }

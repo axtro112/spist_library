@@ -3,7 +3,7 @@ const path = require("path");
 const bodyParser = require("body-parser");
 const session = require("express-session");
 const MySQLStore = require("express-mysql-session")(session);
-const csrf = require("csurf");
+const crypto = require("crypto");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const cors = require("cors");
@@ -25,15 +25,37 @@ const studentRoutes = fs.existsSync(studentsRoutePath)
   ? require("./src/routes/students")
   : null;
 
-//  Validate critical environment variables on startup
-const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME', 'SESSION_SECRET'];
+// Validate critical environment variables on startup
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME', 'SESSION_SECRET', 'JWT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-  console.error(' Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Missing required environment variables:', missingEnvVars.join(', '));
   console.error('Please check your .env file');
   process.exit(1);
 }
+
+function validateStrongSecret(secretName, secretValue) {
+  const weakPatterns = [
+    /change-in-production/i,
+    /your-?secret/i,
+    /example/i,
+    /spist-library-secret-key/i,
+  ];
+
+  if (String(secretValue).length < 32) {
+    console.error(`${secretName} must be at least 32 characters long.`);
+    process.exit(1);
+  }
+
+  if (weakPatterns.some((pattern) => pattern.test(String(secretValue)))) {
+    console.error(`${secretName} appears to be a placeholder/weak value. Use a strong random value.`);
+    process.exit(1);
+  }
+}
+
+validateStrongSecret('SESSION_SECRET', process.env.SESSION_SECRET);
+validateStrongSecret('JWT_SECRET', process.env.JWT_SECRET);
 
 // Optional warnings for feature-specific variables
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -178,7 +200,7 @@ const sessionStore = new MySQLStore(sessionStoreOptions);
 app.use(
   session({
     key: 'spist_library_session',
-    secret: process.env.SESSION_SECRET || "spist-library-secret-key-change-in-production",
+    secret: process.env.SESSION_SECRET,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -200,33 +222,71 @@ app.use(passport.session());
 app.use(express.static("public"));
 app.use("/pages", express.static(path.join(__dirname, "src/pages")));
 
-// CSRF Protection middleware - apply only to specific routes
-const csrfProtection = csrf({ cookie: false }); // Use session-based tokens
+const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const CSRF_PROTECTED_AUTH_PATHS = new Set([
+  "/auth/logout",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+]);
+const CSRF_EXEMPT_PATHS = new Set([
+  "/auth/csrf-token",
+]);
+
+function tokensMatch(expected, provided) {
+  if (!expected || !provided) return false;
+  const expectedBuf = Buffer.from(String(expected));
+  const providedBuf = Buffer.from(String(provided));
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
+}
+
+function shouldProtectRoute(req) {
+  if (CSRF_SAFE_METHODS.has(req.method)) return false;
+  if (CSRF_EXEMPT_PATHS.has(req.path)) return false;
+  if (req.path.startsWith("/api/")) return true;
+  if (CSRF_PROTECTED_AUTH_PATHS.has(req.path)) return true;
+  return false;
+}
+
+function csrfProtection(req, res, next) {
+  if (!shouldProtectRoute(req)) return next();
+
+  const sessionToken = req.session && req.session.csrfToken;
+  const headerToken =
+    req.headers["x-csrf-token"] || req.headers["csrf-token"] || req.body?._csrf;
+
+  if (!tokensMatch(sessionToken, headerToken)) {
+    const csrfError = new Error("invalid csrf token");
+    csrfError.code = "EBADCSRFTOKEN";
+    return next(csrfError);
+  }
+
+  return next();
+}
 
 // Middleware to make CSRF token available to all routes
 app.use((req, res, next) => {
-  // Only set csrfToken if middleware has been applied
-  try {
-    res.locals.csrfToken = req.csrfToken();
-  } catch (err) {
-    res.locals.csrfToken = null;
-  }
+  res.locals.csrfToken = req.session ? req.session.csrfToken || null : null;
   next();
 });
+
+app.use(csrfProtection);
 
 // Audit Logging Middleware - logs all CRUD operations
 app.use(auditLogMiddleware());
 
-// Debug endpoint to check session
-app.get("/api/debug/session", (req, res) => {
-  res.json({
-    hasSession: !!req.session,
-    sessionData: req.session,
-    isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false
+// Debug endpoint to check session (disabled by default; never enabled in production)
+if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEBUG_ENDPOINTS === 'true') {
+  app.get('/api/debug/session', (req, res) => {
+    res.json({
+      hasSession: !!req.session,
+      sessionData: req.session,
+      isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
+    });
   });
-});
+}
 
-// Mount routes - CSRF disabled for auth routes (protected by rate limiting + bcrypt)
+// Mount routes - auth paths with state changes are CSRF-protected
 app.use("/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 if (studentRoutes) {
@@ -424,6 +484,17 @@ app.get("/student-available", (req, res) => {
     studentId: sessionUser.studentId || sessionUser.id || '',
     userRole: 'student',
   });
+});
+
+// Legacy static student dashboard URLs (kept for backward compatibility)
+app.get("/dashboard/student/student-dashboard.html", (req, res) => res.redirect("/student-dashboard"));
+app.get("/dashboard/student/student-books.html", (req, res) => {
+  const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  res.redirect(`/student-available${query}`);
+});
+app.get("/dashboard/student/student-borrowed.html", (req, res) => {
+  const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  res.redirect(`/student-borrowed${query}`);
 });
 
 // Handle Chrome DevTools / browser well-known probes cleanly

@@ -82,6 +82,9 @@ router.post("/login", async (req, res) => {
         role: admin.role
       };
 
+      // Rotate CSRF token after auth state change
+      req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+
       await saveSession(req);
       
       return res.json({
@@ -102,6 +105,9 @@ router.post("/login", async (req, res) => {
         email: student.email,
         userRole: "student"
       };
+
+      // Rotate CSRF token after auth state change
+      req.session.csrfToken = crypto.randomBytes(32).toString("hex");
 
       await saveSession(req);
       
@@ -154,6 +160,7 @@ router.post("/signup", async (req, res) => {
       email,
       password,
       department,
+      education_stage,
       year_level,
       student_type,
       contact_number,
@@ -161,9 +168,12 @@ router.post("/signup", async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!student_id || !fullname || !email || !password || !department || !year_level || !student_type || !contact_number) {
+    if (!student_id || !fullname || !email || !password || !education_stage || !year_level || !contact_number) {
       logger.warn('Signup attempt with missing fields');
       return response.validationError(res, 'All fields are required');
+    }
+    if (education_stage === 'College' && !String(department || '').trim()) {
+      return response.validationError(res, 'Program / course is required for college students');
     }
 
     const existingCheck = await checkExistingStudent(email, student_id);
@@ -176,21 +186,22 @@ router.post("/signup", async (req, res) => {
     const insertQuery = `
       INSERT INTO students (
         student_id, fullname, email, password, 
-        department, year_level, student_type, 
+        department, education_stage, year_level, student_type, 
         contact_number, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    logger.debug('Creating new student account', { student_id, email, department });
+    logger.debug('Creating new student account', { student_id, email, department, education_stage });
 
     await db.query(insertQuery, [
       student_id,
       fullname,
       email,
       hashedPassword,
-      department,
+      department || '',
+      education_stage,
       year_level,
-      student_type,
+      student_type || 'undergraduate',
       contact_number,
       status || 'active',
     ]);
@@ -353,6 +364,8 @@ router.get(
         role: user.role,
       };
 
+      req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+
       await saveSession(req);
 
       // Set admin cookies for client-side use
@@ -375,6 +388,8 @@ router.get(
         userRole: "student",
       };
 
+      req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+
       await saveSession(req);
 
       // Set student cookies for client-side use
@@ -382,23 +397,28 @@ router.get(
       res.cookie("studentEmail", user.email, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       res.cookie("studentName", user.fullname, { httpOnly: false, maxAge: 24 * 60 * 60 * 1000 });
       
-      res.redirect("/dashboard/student/student-dashboard.html");
+      res.redirect("/student-dashboard");
     }
   }
 );
 
-// GET /auth/csrf-token - Returns a dummy token (CSRF disabled for auth routes)
-// Login is protected by bcrypt, rate limiting, and session-based auth
+// GET /auth/csrf-token - Returns a per-session CSRF token
 router.get("/csrf-token", (req, res) => {
   logger.info("CSRF token requested");
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+  }
   res.json({
     success: true,
-    csrfToken: "no-csrf",
+    csrfToken: req.session.csrfToken,
   });
 });
 
 // POST /auth/logout  — destroys the server-side session
 router.post("/logout", (req, res) => {
+  if (req.session) {
+    delete req.session.csrfToken;
+  }
   req.session.destroy((err) => {
     if (err) {
       logger.error("Session destroy error on logout", { error: err.message });

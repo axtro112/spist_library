@@ -1,5 +1,7 @@
 # ⚡ Quick Borrowed Modal UI Refactor
 
+> ⚠️ Historical archive note (March 2026): This document targets legacy static student pages (for example, public/dashboard/student/student-books.html) that were retired. Current student pages are served via EJS routes: /student-dashboard, /student-available, and /student-borrowed.
+
 ## Overview
 Applied the new "⚡ Quick Borrowed ⚡" UI design to the existing Smart Borrow feature. This is a **UI/UX refactor only** - no backend, API, or functionality changes were made.
 

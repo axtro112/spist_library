@@ -7,9 +7,164 @@
 
   let _reload = null;
   let _toast  = null;
+  let _restoreModalBound = false;
+  let _deleteConfirmModalBound = false;
+  let _deleteTypeModalBound = false;
 
   function toast(msg, type) {
     if (typeof _toast === 'function') return _toast(msg, type || 'info');
+  }
+
+  function bindRestoreModalEvents(modal, confirmBtn, cancelBtn, closeBtn) {
+    if (_restoreModalBound) return;
+    _restoreModalBound = true;
+
+    function closeWith(result) {
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      if (typeof modal._resolve === 'function') {
+        const resolve = modal._resolve;
+        modal._resolve = null;
+        resolve(result);
+      }
+    }
+
+    confirmBtn?.addEventListener('click', function () { closeWith(true); });
+    cancelBtn?.addEventListener('click', function () { closeWith(false); });
+    closeBtn?.addEventListener('click', function () { closeWith(false); });
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeWith(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('show')) closeWith(false);
+    });
+  }
+
+  function confirmRestoreWithModal(message) {
+    const modal = document.getElementById('trashRestoreModal');
+    const messageEl = document.getElementById('trashRestoreMessage');
+    const confirmBtn = document.getElementById('trashRestoreConfirmBtn');
+    const cancelBtn = document.getElementById('trashRestoreCancelBtn');
+    const closeBtn = document.getElementById('trashRestoreClose');
+
+    if (!modal || !messageEl || !confirmBtn || !cancelBtn) {
+      return Promise.resolve(confirm(message));
+    }
+
+    bindRestoreModalEvents(modal, confirmBtn, cancelBtn, closeBtn);
+    messageEl.textContent = message;
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    confirmBtn.focus();
+
+    return new Promise(function (resolve) {
+      modal._resolve = resolve;
+    });
+  }
+
+  function bindDeleteConfirmModalEvents(modal, confirmBtn, cancelBtn, closeBtn) {
+    if (_deleteConfirmModalBound) return;
+    _deleteConfirmModalBound = true;
+
+    function closeWith(result) {
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      if (typeof modal._resolve === 'function') {
+        const resolve = modal._resolve;
+        modal._resolve = null;
+        resolve(result);
+      }
+    }
+
+    confirmBtn?.addEventListener('click', function () { closeWith(true); });
+    cancelBtn?.addEventListener('click', function () { closeWith(false); });
+    closeBtn?.addEventListener('click', function () { closeWith(false); });
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeWith(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('show')) closeWith(false);
+    });
+  }
+
+  function confirmDeleteWithModal(message) {
+    const modal = document.getElementById('trashDeleteConfirmModal');
+    const messageEl = document.getElementById('trashDeleteConfirmMessage');
+    const confirmBtn = document.getElementById('trashDeleteConfirmBtn');
+    const cancelBtn = document.getElementById('trashDeleteCancelBtn');
+    const closeBtn = document.getElementById('trashDeleteClose');
+
+    if (!modal || !messageEl || !confirmBtn || !cancelBtn) {
+      return Promise.resolve(confirm(message));
+    }
+
+    bindDeleteConfirmModalEvents(modal, confirmBtn, cancelBtn, closeBtn);
+    messageEl.textContent = message;
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    confirmBtn.focus();
+
+    return new Promise(function (resolve) {
+      modal._resolve = resolve;
+    });
+  }
+
+  function bindDeleteTypeModalEvents(modal, confirmBtn, cancelBtn, closeBtn, input) {
+    if (_deleteTypeModalBound) return;
+    _deleteTypeModalBound = true;
+
+    function closeWith(result) {
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      if (typeof modal._resolve === 'function') {
+        const resolve = modal._resolve;
+        modal._resolve = null;
+        resolve(result);
+      }
+    }
+
+    function syncConfirmState() {
+      const value = (input?.value || '').trim();
+      if (confirmBtn) confirmBtn.disabled = value !== 'DELETE';
+    }
+
+    input?.addEventListener('input', syncConfirmState);
+    confirmBtn?.addEventListener('click', function () { closeWith((input?.value || '').trim()); });
+    cancelBtn?.addEventListener('click', function () { closeWith(null); });
+    closeBtn?.addEventListener('click', function () { closeWith(null); });
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeWith(null);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!modal.classList.contains('show')) return;
+      if (e.key === 'Escape') closeWith(null);
+      if (e.key === 'Enter' && !confirmBtn?.disabled) {
+        closeWith((input?.value || '').trim());
+      }
+    });
+  }
+
+  function promptDeleteWordWithModal() {
+    const modal = document.getElementById('trashDeleteTypeModal');
+    const input = document.getElementById('trashDeleteTypeInput');
+    const confirmBtn = document.getElementById('trashDeleteTypeConfirmBtn');
+    const cancelBtn = document.getElementById('trashDeleteTypeCancelBtn');
+    const closeBtn = document.getElementById('trashDeleteTypeClose');
+
+    if (!modal || !input || !confirmBtn || !cancelBtn) {
+      return Promise.resolve(prompt('Type DELETE to confirm:'));
+    }
+
+    bindDeleteTypeModalEvents(modal, confirmBtn, cancelBtn, closeBtn, input);
+    input.value = '';
+    confirmBtn.disabled = true;
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    input.focus();
+
+    return new Promise(function (resolve) {
+      modal._resolve = resolve;
+    });
   }
 
   /* ── single restore ── */
@@ -25,9 +180,10 @@
 
   /* ── single permanent delete ── */
   async function deleteSingle(entity, id, name) {
-    if (!confirm(`Permanently delete "${name}"?\n\nThis CANNOT be undone.`)) return;
-    const typed = prompt('Type DELETE to confirm:');
-    if (typed !== 'DELETE') { toast('Cancalled.', 'info'); return; }
+    const confirmed = await confirmDeleteWithModal(`Permanently delete "${name}"?\n\nThis CANNOT be undone.`);
+    if (!confirmed) return;
+    const typed = await promptDeleteWordWithModal();
+    if (typed !== 'DELETE') { toast('Cancelled.', 'info'); return; }
     const result = await TrashServices.permanentDelete(entity, id);
     if (result.ok) {
       toast('Item permanently deleted.', 'success');
@@ -41,7 +197,8 @@
   async function bulkRestore(entity, ids) {
     const n = ids.length;
     if (!n) return;
-    if (!confirm(`Restore ${n} selected item${n > 1 ? 's' : ''}?`)) return;
+    const confirmed = await confirmRestoreWithModal(`Restore ${n} selected item${n > 1 ? 's' : ''}?`);
+    if (!confirmed) return;
     const btn = document.getElementById('trashBulkRestoreBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Restoring…'; }
     const result = await TrashServices.bulkRestore(entity, ids);
@@ -60,8 +217,9 @@
   async function bulkDelete(entity, ids) {
     const n = ids.length;
     if (!n) return;
-    if (!confirm(`PERMANENTLY DELETE ${n} selected item${n > 1 ? 's' : ''}?\n\nThis CANNOT be undone.`)) return;
-    const typed = prompt('Type DELETE to confirm:');
+    const confirmed = await confirmDeleteWithModal(`PERMANENTLY DELETE ${n} selected item${n > 1 ? 's' : ''}?\n\nThis CANNOT be undone.`);
+    if (!confirmed) return;
+    const typed = await promptDeleteWordWithModal();
     if (typed !== 'DELETE') { toast('Cancelled.', 'info'); return; }
     const btn = document.getElementById('trashBulkDeleteBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Deleting…'; }

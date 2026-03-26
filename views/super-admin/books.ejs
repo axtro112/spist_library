@@ -1,11 +1,8 @@
 ﻿<%
-  var extraHead = '<script src="/js/admin/books.js" defer><\/script><script src="/js/admin.js" defer><\/script><script src="/js/books.js" defer><\/script><script src="/js/book-copies.js" defer><\/script><script src="/js/books-import-export.js" defer><\/script><script src="/js/bulk-operations.js" defer><\/script><script src="/js/books-lifecycle-tabs.js" defer><\/script><script src="/js/book-details-modal.js" defer><\/script><script src="/js/super-admin/books.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script>';
+  var extraHead = '<link rel="stylesheet" href="/css/super-admin/admins-modal.css?v=20260327b" /><script src="/js/admin/books.js" defer><\/script><script src="/js/admin.js" defer><\/script><script src="/js/books.js" defer><\/script><script src="/js/book-copies.js" defer><\/script><script src="/js/books-import-export.js?v=20260327c" defer><\/script><script src="/js/bulk-operations.js?v=20260327c" defer><\/script><script src="/js/books-lifecycle-tabs.js" defer><\/script><script src="/js/book-details-modal.js" defer><\/script><script src="/js/super-admin/books.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script>';
 %>
 <%- include('../partials/super-admin-layout', {
   title: 'Book Management - Southern Philippines Institute of Science & Technology',
-  adminEmail: adminEmail,
-  adminId: adminId,
-  adminRole: adminRole,
   activePage: 'books',
   extraHead: extraHead,
   body: `
@@ -277,8 +274,25 @@
         </form>
       </div>
     </div>
+    <!-- Toast Notification -->
+    <div id=\"toastNotification\"></div>
 
-
+    <!-- Process Confirmation Modal (Bulk actions) -->
+    <div id=\"processConfirmModal\" class=\"modal sa-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"processConfirmTitle\">
+      <div class=\"sa-modal-content\">
+        <div class=\"sa-modal-header\">
+          <h2 id=\"processConfirmTitle\">Confirm Action</h2>
+          <button type=\"button\" class=\"sa-modal-close-btn\" id=\"processConfirmCloseBtn\" aria-label=\"Close\">&times;</button>
+        </div>
+        <div class=\"sa-modal-body\">
+          <p id=\"processConfirmMessage\" class=\"process-confirm-message\">Are you sure you want to continue?</p>
+        </div>
+        <div class=\"sa-modal-footer\">
+          <button type=\"button\" id=\"processConfirmOkBtn\" class=\"sa-btn sa-btn-danger\">Confirm</button>
+          <button type=\"button\" id=\"processConfirmCancelBtn\" class=\"sa-btn sa-btn-outline cancel-btn\">Cancel</button>
+        </div>
+      </div>
+    </div>
   `
 }) %>
 

@@ -11,6 +11,33 @@ const YEAR_LEVEL_OPTIONS = {
   College: ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
 };
 
+function hideAuthMessage() {
+  const messageBox = document.getElementById("errorMessage");
+  if (!messageBox) return;
+  messageBox.style.display = "none";
+  messageBox.textContent = "";
+}
+
+function showAuthMessage(message, type = "error") {
+  const messageBox = document.getElementById("errorMessage");
+  if (!messageBox) {
+    alert(message);
+    return;
+  }
+
+  messageBox.classList.remove("error-message", "success-message");
+  messageBox.classList.add(type === "success" ? "success-message" : "error-message", "dismissible-alert");
+  messageBox.innerHTML =
+    '<span class="message-text"></span><button type="button" class="message-close-btn" aria-label="Dismiss message">&times;</button>';
+
+  const textNode = messageBox.querySelector(".message-text");
+  if (textNode) {
+    textNode.textContent = message;
+  }
+
+  messageBox.style.display = "flex";
+}
+
 function getYearOptionsForStage(stage) {
   return YEAR_LEVEL_OPTIONS[stage] || [];
 }
@@ -82,6 +109,15 @@ document.addEventListener('DOMContentLoaded', function() {
     populateSignupYearLevels(educationStageSelect.value);
     syncSignupProgramField();
   }
+
+  const messageBox = document.getElementById("errorMessage");
+  if (messageBox) {
+    messageBox.addEventListener("click", (event) => {
+      if (event.target && event.target.classList.contains("message-close-btn")) {
+        hideAuthMessage();
+      }
+    });
+  }
 });
 
 // ================================================================
@@ -126,23 +162,25 @@ function goToStep2() {
 
   // Validate Step 1 fields are not empty
   if (!fullname || !email || !studentId) {
-    alert("Please fill in all fields before proceeding.");
+    showAuthMessage("Please fill in all fields before proceeding.");
     return;
   }
 
   // Validate email format
   const emailPattern = /c22-\d{4}-\d{2}@spist\.edu\.ph/;
   if (!emailPattern.test(email)) {
-    alert("Please enter a valid SPIST email address (c22-xxxx-xx@spist.edu.ph)");
+    showAuthMessage("Please enter a valid SPIST email address (c22-xxxx-xx@spist.edu.ph)");
     return;
   }
 
   // Validate student ID format
   const studentIdPattern = /c22-\d{4}-\d{2}/;
   if (!studentIdPattern.test(studentId)) {
-    alert("Please enter a valid Student ID (c22-xxxx-xx)");
+    showAuthMessage("Please enter a valid Student ID (c22-xxxx-xx)");
     return;
   }
+
+  hideAuthMessage();
 
   // Hide Step 1, Show Step 2
   document.querySelector(".signup-step-1").style.display = "none";
@@ -168,14 +206,16 @@ function goToStep3() {
 
   // Validate Step 2 fields are not empty
   if (!educationStage || !yearLevel) {
-    alert("Please fill in your education stage and year level before proceeding.");
+    showAuthMessage("Please fill in your education stage and year level before proceeding.");
     return;
   }
 
   if (educationStage === 'College' && !department) {
-    alert("Please select your program or course for college students.");
+    showAuthMessage("Please select your program or course for college students.");
     return;
   }
+
+  hideAuthMessage();
 
   // Hide Step 2, Show Step 3
   document.querySelector(".signup-step-2").style.display = "none";
@@ -248,6 +288,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Handle form submission
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    hideAuthMessage();
 
     const fullname = document.getElementById("fullname").value;
     const email = document.getElementById("email").value;
@@ -269,12 +310,12 @@ document.addEventListener("DOMContentLoaded", () => {
       !yearLevel ||
       !contactNumber
     ) {
-      alert("Please fill in all required fields");
+      showAuthMessage("Please fill in all required fields");
       return;
     }
 
     if (educationStage === 'College' && !department) {
-      alert('Program / course is required for college students');
+      showAuthMessage('Program / course is required for college students');
       return;
     }
 
@@ -293,13 +334,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Basic validation
     if (password !== confirmPassword) {
-      alert("Passwords do not match!");
+      showAuthMessage("Passwords do not match!");
       return;
     }
 
     // Validate contact number format
     if (!/^[0-9]{11}$/.test(contactNumber)) {
-      alert("Please enter a valid 11-digit contact number!");
+      showAuthMessage("Please enter a valid 11-digit contact number!");
       return;
     }
 
@@ -336,29 +377,29 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("Server response:", data);
       } catch (error) {
         console.error("Failed to parse server response:", error);
-        alert(`Server error: ${error.message}. Please refresh the page and try again.`);
+        showAuthMessage(`Server error: ${error.message}. Please refresh the page and try again.`);
         throw error;
       }
 
       if (!response.ok) {
         // Show the actual error message from the server
-        alert(data.message || `Error: ${response.status}`);
+        showAuthMessage(data.message || `Error: ${response.status}`);
         throw new Error(`HTTP error! status: ${response.status} - ${data.message || 'Unknown error'}`);
       }
 
       if (data.success) {
-        alert("Account created successfully! Please login.");
+        showAuthMessage("Account created successfully! Please login.", "success");
         // Fade out and redirect to login page
         form.classList.add("fade-out");
         setTimeout(() => {
           window.location.href = "/login";
-        }, 500);
+        }, 900);
       } else {
-        alert(data.message || "Error creating account. Please try again.");
+        showAuthMessage(data.message || "Error creating account. Please try again.");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("An error occurred during signup. Please try again.");
+      showAuthMessage(error.message || "An error occurred during signup. Please try again.");
     }
   });
 });

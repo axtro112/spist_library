@@ -6,6 +6,67 @@
 let selectedBookIds = new Set();
 
 /**
+ * Show process confirmation modal and return a Promise that resolves to user's choice
+ * @param {string} message The confirmation message
+ * @param {string} title The modal title
+ * @returns {Promise<boolean>} true if confirmed, false if cancelled
+ */
+function showProcessConfirmModal(message, title) {
+  const modal = document.getElementById('processConfirmModal');
+  const titleEl = document.getElementById('processConfirmTitle');
+  const messageEl = document.getElementById('processConfirmMessage');
+  const okBtn = document.getElementById('processConfirmOkBtn');
+  const cancelBtn = document.getElementById('processConfirmCancelBtn');
+  const closeBtn = document.getElementById('processConfirmCloseBtn');
+
+  if (!modal || !titleEl || !messageEl || !okBtn || !cancelBtn) {
+    // Fallback to native confirm if modal not found
+    return Promise.resolve(confirm(message));
+  }
+
+  titleEl.textContent = title || 'Confirm Action';
+  messageEl.textContent = message;
+
+  return new Promise(function (resolve) {
+    function handleConfirm() {
+      cleanup();
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      resolve(true);
+    }
+
+    function handleCancel() {
+      cleanup();
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      resolve(false);
+    }
+
+    function cleanup() {
+      okBtn.removeEventListener('click', handleConfirm);
+      cancelBtn.removeEventListener('click', handleCancel);
+      closeBtn.removeEventListener('click', handleCancel);
+      document.removeEventListener('keydown', handleEscape);
+    }
+
+    function handleEscape(e) {
+      if (e.key === 'Escape') {
+        handleCancel();
+      }
+    }
+
+    okBtn.addEventListener('click', handleConfirm);
+    cancelBtn.addEventListener('click', handleCancel);
+    closeBtn.addEventListener('click', handleCancel);
+    document.addEventListener('keydown', handleEscape);
+
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    okBtn.focus();
+  });
+}
+
+/**
  * Parse availability and total quantity from a table row.
  * Prefers data-available / data-quantity attributes; falls back to
  * scanning cells for the "X/Y" pattern.
@@ -291,7 +352,7 @@ function getSelectedBookIds() {
 
 /**
  * Handle bulk delete action
- * Shows confirmation dialog and sends delete request to backend
+ * Shows confirmation modal and sends delete request to backend
  */
 async function handleBulkDelete() {
   const selectedIds = getSelectedBookIds();
@@ -302,8 +363,9 @@ async function handleBulkDelete() {
   }
   
   const confirmMessage = `Move ${selectedIds.length} selected book${selectedIds.length > 1 ? 's' : ''} to trash?`;
+  const confirmed = await showProcessConfirmModal(confirmMessage, 'Move Books to Trash');
   
-  if (!confirm(confirmMessage)) {
+  if (!confirmed) {
     return;
   }
   
@@ -322,7 +384,9 @@ async function handleBulkDelete() {
       throw new Error(result.message || 'Failed to move books to trash');
     }
     
-    alert(`Moved ${result.deletedCount} book${result.deletedCount > 1 ? 's' : ''} to trash`);
+    const data = result.data || result;
+    const deletedCount = data.deletedCount || 0;
+    alert(`Moved ${deletedCount} book${deletedCount > 1 ? 's' : ''} to trash`);
     
     // Clear selection and reload table with stats
     clearSelection();

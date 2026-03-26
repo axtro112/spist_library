@@ -413,6 +413,22 @@ SET @sql := IF(@col_exists = 0,
   'SELECT ''soft-delete columns already exist in books'' AS message');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- Add books.trash_id for stable trash identity (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'books' AND COLUMN_NAME = 'trash_id');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `books` ADD COLUMN `trash_id` VARCHAR(36) DEFAULT NULL AFTER `deleted_at`',
+  'SELECT ''column trash_id already exists in books'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add index for books.trash_id (if not exist)
+SET @idx_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'books' AND INDEX_NAME = 'idx_books_trash_id');
+SET @sql := IF(@idx_exists = 0,
+  'CREATE INDEX `idx_books_trash_id` ON `books` (`trash_id`)',
+  'SELECT ''index idx_books_trash_id already exists'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- Add soft-delete columns to admins (if not exist)
 SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admins' AND COLUMN_NAME = 'deleted_at');

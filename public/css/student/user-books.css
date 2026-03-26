@@ -505,11 +505,25 @@
   font-weight: 700;
 }
 
+/* Keep borrowed list sections from stretching the page when rows are many. */
+#pendingBorrowedWrapper,
+#activeBorrowedWrapper,
+#borrowHistoryWrapper {
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {
   .u-stats-row { grid-template-columns: 1fr 1fr; }
   .u-modal-box { padding: 20px; }
   .borrow-tab { padding: 8px 14px; font-size: 12px; }
+
+  #pendingBorrowedWrapper,
+  #activeBorrowedWrapper,
+  #borrowHistoryWrapper {
+    max-height: 42vh;
+  }
 }
 @media (max-width: 480px) {
   .u-stats-row { grid-template-columns: 1fr; }

@@ -152,3 +152,136 @@
 #trashTableWrap {
   padding-top: 14px;
 }
+
+/* ── RESTORE CONFIRM MODAL (super admin trash) ── */
+.trash-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1050;
+  padding: 1rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.trash-modal.show {
+  display: flex !important;
+}
+
+.trash-modal-content {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 460px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.trash-modal-header {
+  padding: 1.1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.trash-modal-header--restore {
+  background: linear-gradient(135deg, #1b5e20, #2e7d32, #43a047);
+}
+
+.trash-modal-header--danger {
+  background: linear-gradient(135deg, #7f1d1d, #b91c1c, #dc2626);
+}
+
+.trash-modal-header h2 {
+  color: #fff;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trash-modal-close {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.trash-modal-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.trash-modal-body {
+  padding: 1.4rem 1.5rem 0.6rem;
+}
+
+.trash-modal-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.trash-modal-info i {
+  color: #3b82f6;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.trash-modal-info p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.55;
+}
+
+.trash-modal-info--danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.trash-modal-info--danger i {
+  color: #dc2626;
+}
+
+.trash-delete-input-wrap {
+  margin-top: 0.9rem;
+}
+
+#trashDeleteTypeInput {
+  width: 100%;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.trash-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.4rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.trash-modal-footer .sa-btn {
+  flex: 1;
+  justify-content: center;
+}

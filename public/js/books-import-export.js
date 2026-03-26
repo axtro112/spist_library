@@ -387,6 +387,7 @@ async function handleImportSubmit(e) {
       `Import Completed!\n\n` +
       `✓ New books added: ${result.summary.successfully_imported}\n` +
       `↻ Existing books updated: ${result.summary.updated_existing || 0}\n` +
+      `⚠ Skipped (ISBN in trash): ${(result.summary.skipped_duplicate_isbns || []).length}\n` +
       `✗ Skipped (missing fields): ${result.summary.skipped_missing_fields.length}\n` +
       ` Zero quantity entries: ${result.summary.zero_quantity_entries.length}`
     );
@@ -500,6 +501,7 @@ function displayImportResults(summary) {
   
   const updated = summary.updated_existing || 0;
   const inserted = summary.successfully_imported || 0;
+  const skippedTrashIsbn = (summary.skipped_duplicate_isbns || []).length;
   
   // Generate explanatory note based on import outcome
   let explanationNote = '';
@@ -509,6 +511,13 @@ function displayImportResults(summary) {
         <strong>ℹ️ Why no new books?</strong><br>
         All ${updated} imported ISBN(s) already exist in the system, so rows were <strong>updated</strong> with new data instead of inserted as new records.
         Check the "Updated books" section below for details.
+      </div>
+    `;
+  } else if (inserted === 0 && updated === 0 && skippedTrashIsbn > 0) {
+    explanationNote = `
+      <div style="margin-bottom: 10px; padding: 8px; background-color: #fff3e0; border-left: 3px solid #ff9800; font-size: 0.9em; color: #333;">
+        <strong>⚠ Import skipped trashed ISBN rows</strong><br>
+        ${skippedTrashIsbn} row(s) were skipped because matching ISBN(s) are in Trash Bin.
       </div>
     `;
   } else if (inserted === 0 && updated === 0) {
@@ -527,6 +536,7 @@ function displayImportResults(summary) {
       <strong>Summary:</strong><br>
       ✓ New Books Added: ${inserted}<br>
       ↻ Existing Books Updated: ${updated}<br>
+      ⚠ Skipped (ISBN in Trash Bin): ${skippedTrashIsbn}<br>
       ✗ Skipped (Missing Fields): ${summary.skipped_missing_fields.length}<br>
        Zero Quantity Entries: ${summary.zero_quantity_entries.length}
     </div>
@@ -541,7 +551,16 @@ function displayImportResults(summary) {
     html += `</div>`;
   }
 
-  // skipped_duplicate_isbns is now always empty (upsert behavior)
+  if (skippedTrashIsbn > 0) {
+    html += `<div style="margin-bottom: 10px; padding: 10px; background-color: #fff3e0; border-left: 4px solid #ff9800;">
+      <strong>Skipped Rows (ISBN already in Trash Bin):</strong><br>`;
+    (summary.skipped_duplicate_isbns || []).forEach((item) => {
+      const reason = item.reason || 'Same ISBN exists in trash';
+      html += `<div style="margin: 5px 0;">Row ${item.row}: "${item.title}" (${item.isbn}) - ${reason}</div>`;
+    });
+    html += `</div>`;
+  }
+
   if (updated > 0) {
     html += `<div style="margin-bottom: 10px; padding: 10px; background-color: #e3f2fd; border-left: 4px solid #2196F3;">
       <strong>↻ Updated ${updated} existing book${updated !== 1 ? 's' : ''} with new data from file.</strong>

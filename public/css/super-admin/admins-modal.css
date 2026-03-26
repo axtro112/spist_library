@@ -186,6 +186,13 @@
 
 .sa-modal-footer .sa-btn { flex: 1; justify-content: center; }
 
+.process-confirm-message {
+  margin: 0;
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 /* ----------------------------------
    .form-group fallback — used by
    Edit and Delete modals (no sa- classes)

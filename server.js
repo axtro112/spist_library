@@ -515,18 +515,8 @@ app.get("*", (req, res) => {
     });
   }
 
-  const requestedPage = req.path.substring(1);
-  const pagesPath = path.join(__dirname, "src/pages", requestedPage);
-
-  try {
-    if (fs.existsSync(pagesPath)) {
-      return res.sendFile(pagesPath);
-    }
-    res.sendFile(path.resolve(__dirname, "src/pages/home.html"));
-  } catch (err) {
-    console.error(err);
-    res.sendFile(path.resolve(__dirname, "src/pages/home.html"));
-  }
+  // Route not found - redirect to landing page
+  res.status(404).render('404', { pageContent: null });
 });
 
 const server = app.listen(PORT, () => {

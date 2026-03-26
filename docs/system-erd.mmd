@@ -1,0 +1,130 @@
+erDiagram
+    ADMINS {
+      INT id PK
+      VARCHAR fullname
+      VARCHAR email UK
+      ENUM role
+      BOOLEAN is_active
+      DATETIME deleted_at
+      VARCHAR google_id
+    }
+
+    DEPARTMENTS {
+      INT id PK
+      VARCHAR code UK
+      VARCHAR name UK
+    }
+
+    STUDENTS {
+      INT id PK
+      VARCHAR student_id UK
+      VARCHAR fullname
+      VARCHAR email UK
+      INT department_id FK
+      VARCHAR education_stage
+      VARCHAR year_level
+      ENUM student_type
+      ENUM status
+      DATETIME deleted_at
+      VARCHAR google_id
+    }
+
+    BOOKS {
+      INT id PK
+      VARCHAR title
+      VARCHAR author
+      VARCHAR isbn UK
+      VARCHAR category
+      ENUM status
+      INT added_by FK
+      INT quantity
+      INT available_quantity
+      DATETIME deleted_at
+    }
+
+    BOOK_COPIES {
+      INT id PK
+      VARCHAR accession_number UK
+      INT book_id FK
+      INT copy_number
+      ENUM condition_status
+      ENUM status
+    }
+
+    BOOK_BORROWINGS {
+      INT id PK
+      INT book_id FK
+      VARCHAR student_id FK
+      INT approved_by FK
+      VARCHAR accession_number
+      DATETIME borrow_date
+      DATETIME due_date
+      DATETIME return_date
+      DATETIME picked_up_at
+      DATETIME claim_expires_at
+      ENUM status
+    }
+
+    NOTIFICATIONS {
+      INT id PK
+      ENUM user_type
+      VARCHAR user_id
+      VARCHAR title
+      TEXT message
+      ENUM type
+      BOOLEAN is_read
+      VARCHAR target_type
+      VARCHAR target_id
+      INT borrowing_id
+      INT book_id
+    }
+
+    NOTIFICATION_PREFERENCES {
+      INT id PK
+      ENUM user_type
+      VARCHAR user_id
+      BOOLEAN enable_in_app
+      BOOLEAN enable_realtime
+      BOOLEAN enable_due_reminders
+      BOOLEAN enable_overdue_alerts
+      INT reminder_days_before
+    }
+
+    AUDIT_LOGS {
+      BIGINT id PK
+      VARCHAR table_name
+      INT record_id
+      ENUM action
+      ENUM user_type
+      VARCHAR user_id
+      DATETIME created_at
+    }
+
+    ACCESSION_SEQUENCE {
+      INT year PK
+      INT last_sequence
+    }
+
+    BOOK_COPY_AUDIT {
+      INT id PK
+      VARCHAR accession_number
+      ENUM action
+      INT performed_by
+      DATETIME performed_at
+    }
+
+    DEPARTMENTS ||--o{ STUDENTS : department_id
+    ADMINS ||--o{ BOOKS : added_by
+    BOOKS ||--o{ BOOK_COPIES : book_id
+    BOOKS ||--o{ BOOK_BORROWINGS : book_id
+    STUDENTS ||--o{ BOOK_BORROWINGS : student_id
+    ADMINS ||--o{ BOOK_BORROWINGS : approved_by
+
+    BOOK_COPIES ||..o{ BOOK_BORROWINGS : accession_number logical
+    BOOK_COPIES ||..o{ BOOK_COPY_AUDIT : accession_number logical
+    ADMINS ||..o{ BOOK_COPY_AUDIT : performed_by logical
+
+    STUDENTS ||..o{ NOTIFICATIONS : user_id when user_type student
+    ADMINS ||..o{ NOTIFICATIONS : user_id when user_type admin
+    STUDENTS ||..|| NOTIFICATION_PREFERENCES : user_id when user_type student
+    ADMINS ||..|| NOTIFICATION_PREFERENCES : user_id when user_type admin

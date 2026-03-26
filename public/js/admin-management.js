@@ -109,7 +109,12 @@ class AdminManagement {
     const ids = Array.from(this.selectedAdminIds);
     if (ids.length === 0) return;
 
-    if (!confirm(`Move ${ids.length} admin(s) to trash? You can restore them later.`)) return;
+    const confirmed = await this.showProcessConfirm(
+      `Move ${ids.length} admin(s) to trash? You can restore them later.`,
+      'Move Admins To Trash',
+      'Move to Trash'
+    );
+    if (!confirmed) return;
 
     let success = 0, failed = 0;
     for (const id of ids) {
@@ -726,7 +731,9 @@ class AdminManagement {
       return;
     }
     toast.textContent = message;
-    toast.style.background = type === 'success' ? '#4caf50' : '#f44336';
+    toast.classList.remove('toast-success', 'toast-error');
+    toast.classList.add(type === 'success' ? 'toast-success' : 'toast-error');
+    toast.style.color = '#ffffff';
     toast.style.display = 'block';
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => {
@@ -746,6 +753,58 @@ class AdminManagement {
    */
   showErrorMessage(message) {
     this.showToast('Error: ' + message, 'error');
+  }
+
+  /**
+   * Helper: Show custom process confirmation modal
+   */
+  showProcessConfirm(message, title = 'Confirm Action', confirmLabel = 'Confirm') {
+    const modal = document.getElementById('processConfirmModal');
+    const titleEl = document.getElementById('processConfirmTitle');
+    const messageEl = document.getElementById('processConfirmMessage');
+    const okBtn = document.getElementById('processConfirmOkBtn');
+    const cancelBtn = document.getElementById('processConfirmCancelBtn');
+    const closeBtn = document.getElementById('processConfirmCloseBtn');
+
+    if (!modal || !okBtn || !cancelBtn) {
+      return Promise.resolve(confirm(message));
+    }
+
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    okBtn.textContent = confirmLabel;
+
+    return new Promise((resolve) => {
+      const close = (result) => {
+        modal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        if (closeBtn) closeBtn.removeEventListener('click', onCancel);
+        modal.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onEsc);
+        resolve(result);
+      };
+
+      const onOk = () => close(true);
+      const onCancel = () => close(false);
+      const onBackdrop = (e) => {
+        if (e.target === modal) close(false);
+      };
+      const onEsc = (e) => {
+        if (e.key === 'Escape') close(false);
+      };
+
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      if (closeBtn) closeBtn.addEventListener('click', onCancel);
+      modal.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onEsc);
+
+      modal.classList.add('show');
+      document.body.classList.add('modal-open');
+      okBtn.focus();
+    });
   }
 }
 

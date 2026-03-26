@@ -52,6 +52,7 @@
   var _editUserId        = null;
   var _deleteUserId      = null;
   var _displayedStudents = [];
+  var _isSystemAdminReadOnly = false;
 
   // ── Dynamic styles ────────────────────────────────────────────────────────
   function _injectStyles() {
@@ -87,6 +88,8 @@
       '.copy-item{background:white;border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}',
       '.copy-info{flex:1;}.btn-select-copy{background:#4CAF50;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;}',
       '.borrow-summary{background:#e8f5e9;padding:15px;border-radius:8px;margin-bottom:20px;}',
+      '.books-title-cell{max-width:430px;}',
+      '.books-title-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;line-height:1.35;max-height:4.05em;word-break:break-word;}',
       '.bulk-borrow-container{display:grid;grid-template-columns:350px 1fr;gap:20px;}',
       '.selected-books-cart{background:#f9f9f9;padding:20px;border-radius:8px;position:sticky;top:20px;max-height:600px;overflow-y:auto;}',
       '.cart-items{max-height:300px;overflow-y:auto;}',
@@ -99,6 +102,15 @@
       '.loading-text{text-align:center;color:#666;padding:20px;}',
     ].join('');
     document.head.appendChild(s);
+  }
+
+  function _escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function _getAllYearLevels() {
@@ -246,25 +258,38 @@
     }
 
     students.forEach(function (student) {
+      var stageValue = (student.education_stage || student.educationStage || student.stage || '').toString().trim();
+      var departmentValue = (student.department || student.course || student.program || '').toString().trim();
+      var yearValue = (student.year_level || student.yearLevel || '').toString().trim();
+      var booksTitleValue = (student.books_title || 'No active rentals').toString();
+      var escapedBooksTitle = _escapeHtml(booksTitleValue);
+
       var row = document.createElement('tr');
       row.dataset.studentId = student.student_id;
       row.setAttribute('data-user-id', student.student_id);
       row.dataset.overviewType = 'user';
       row.dataset.overviewId   = String(student.student_id);
+      var selectCell = _isSystemAdminReadOnly
+        ? '<td></td>'
+        : '<td><input type="checkbox" class="row-select" data-student-id="' + student.student_id + '"></td>';
+      var actionCell = _isSystemAdminReadOnly
+        ? '<td class="action-cell"><span class="admin-view-only-badge">View Only</span></td>'
+        : '<td class="action-cell">' +
+            '<button class="action-btn edit-user-btn" onclick="event.stopPropagation();openEditUserModal(' + student.id + ')" title="Edit User"><span class="material-symbols-outlined">edit</span></button>' +
+            '<button class="action-btn delete-user-btn" onclick="event.stopPropagation();openDeleteUserModal(' + student.id + ')" title="Delete User"><span class="material-symbols-outlined">delete</span></button>' +
+          '</td>';
+
       row.innerHTML =
-        '<td><input type="checkbox" class="row-select" data-student-id="' + student.student_id + '"></td>' +
+        selectCell +
         '<td>' + student.fullname + '</td>' +
         '<td>' + student.student_id + '</td>' +
-        '<td>' + (student.education_stage || 'College') + '</td>' +
-        '<td>' + (student.department || '—') + '</td>' +
-        '<td>' + (student.year_level || '—') + '</td>' +
+        '<td>' + (stageValue || '—') + '</td>' +
+        '<td>' + (departmentValue || '—') + '</td>' +
+        '<td>' + (yearValue || '—') + '</td>' +
         '<td>' + student.rented_books + '</td>' +
-        '<td>' + (student.books_title || '') + '</td>' +
+        '<td class="books-title-cell"><div class="books-title-text" title="' + escapedBooksTitle + '">' + escapedBooksTitle + '</div></td>' +
         '<td>' + student.date_to_return + '</td>' +
-        '<td class="action-cell">' +
-          '<button class="action-btn edit-user-btn" onclick="event.stopPropagation();openEditUserModal(' + student.id + ')" title="Edit User"><span class="material-symbols-outlined">edit</span></button>' +
-          '<button class="action-btn delete-user-btn" onclick="event.stopPropagation();openDeleteUserModal(' + student.id + ')" title="Delete User"><span class="material-symbols-outlined">delete</span></button>' +
-        '</td>';
+        actionCell;
       tbody.appendChild(row);
     });
 
@@ -427,6 +452,19 @@
   function _initBulkSelection() {
     selectedStudentIds.clear();
     _updateBulkBar();
+
+    if (_isSystemAdminReadOnly) {
+      var selectAllHidden = document.getElementById('selectAllUsers');
+      var selectedCountHidden = document.getElementById('selectedCount');
+      var bulkDelBtnHidden = document.getElementById('bulkDeleteBtn');
+      var bulkEditBtnHidden = document.getElementById('bulkEditUsersBtn');
+      if (selectAllHidden) selectAllHidden.style.display = 'none';
+      if (selectedCountHidden) selectedCountHidden.style.display = 'none';
+      if (bulkDelBtnHidden) bulkDelBtnHidden.style.display = 'none';
+      if (bulkEditBtnHidden) bulkEditBtnHidden.style.display = 'none';
+      return;
+    }
+
     var selectAll = document.getElementById('selectAllUsers');
     if (selectAll) { selectAll.checked = false; selectAll.addEventListener('change', _handleSelectAll); }
     document.querySelectorAll('.row-select').forEach(function (cb) { cb.addEventListener('change', _handleRowSelect); });
@@ -514,9 +552,72 @@
     } catch (err) { console.error('[UsersPage] bulkEditSubmit:', err); alert('Failed to update students: ' + err.message); }
   }
 
+  /**
+   * Show process confirmation modal and return a Promise that resolves to user's choice
+   * @param {string} message The confirmation message
+   * @param {string} title The modal title
+   * @returns {Promise<boolean>} true if confirmed, false if cancelled
+   */
+  function _showProcessConfirmModal(message, title) {
+    var modal = document.getElementById('processConfirmModal');
+    var titleEl = document.getElementById('processConfirmTitle');
+    var messageEl = document.getElementById('processConfirmMessage');
+    var okBtn = document.getElementById('processConfirmOkBtn');
+    var cancelBtn = document.getElementById('processConfirmCancelBtn');
+    var closeBtn = document.getElementById('processConfirmCloseBtn');
+
+    if (!modal || !titleEl || !messageEl || !okBtn || !cancelBtn) {
+      // Fallback to native confirm if modal not found
+      return Promise.resolve(confirm(message));
+    }
+
+    titleEl.textContent = title || 'Confirm Action';
+    messageEl.textContent = message;
+
+    return new Promise(function (resolve) {
+      function handleConfirm() {
+        cleanup();
+        modal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+        resolve(true);
+      }
+
+      function handleCancel() {
+        cleanup();
+        modal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+        resolve(false);
+      }
+
+      function cleanup() {
+        okBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
+        closeBtn.removeEventListener('click', handleCancel);
+        document.removeEventListener('keydown', handleEscape);
+      }
+
+      function handleEscape(e) {
+        if (e.key === 'Escape') {
+          handleCancel();
+        }
+      }
+
+      okBtn.addEventListener('click', handleConfirm);
+      cancelBtn.addEventListener('click', handleCancel);
+      closeBtn.addEventListener('click', handleCancel);
+      document.addEventListener('keydown', handleEscape);
+
+      modal.classList.add('show');
+      document.body.classList.add('modal-open');
+      okBtn.focus();
+    });
+  }
+
   async function _handleBulkDelete() {
     if (selectedStudentIds.size === 0) { alert('No students selected'); return; }
-    if (!confirm('Move ' + selectedStudentIds.size + ' student(s) to trash?\n\nAny active borrowings will be automatically returned. You can restore them later.')) return;
+    var message = 'Move ' + selectedStudentIds.size + ' student' + (selectedStudentIds.size > 1 ? 's' : '') + ' to trash?\n\nAny active borrowings will be automatically returned. You can restore them later.';
+    var confirmed = await _showProcessConfirmModal(message, 'Move Students to Trash');
+    if (!confirmed) return;
     try {
       var response = await fetchWithCsrf('/api/students/bulk', {
         method: 'DELETE',
@@ -870,6 +971,15 @@
     if (m) m.remove();
   }
 
+  function _togglePasswordField(inputId, iconId) {
+    var input = document.getElementById(inputId);
+    var icon = document.getElementById(iconId);
+    if (!input) return;
+    var isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    if (icon) icon.textContent = isPassword ? 'visibility_off' : 'visibility';
+  }
+
   // ── User CRUD ─────────────────────────────────────────────────────────────
   function openAddUserModal() {
     var modal = document.getElementById('adminModal');
@@ -882,6 +992,14 @@
     _syncProgramField('addUserStage', 'addUserDept');
     var err = document.getElementById('addUserError');
     if (err) { err.textContent = ''; err.style.display = 'none'; }
+    var pw = document.getElementById('addUserPassword');
+    var cpw = document.getElementById('addUserConfirmPassword');
+    var eyePw = document.getElementById('eyeAddUserPassword');
+    var eyeCpw = document.getElementById('eyeAddUserConfirmPassword');
+    if (pw) pw.type = 'password';
+    if (cpw) cpw.type = 'password';
+    if (eyePw) eyePw.textContent = 'visibility';
+    if (eyeCpw) eyeCpw.textContent = 'visibility';
     modal.classList.add('show');
   }
 
@@ -896,6 +1014,7 @@
     var siEl = document.getElementById('addUserStudentId');
     var emEl = document.getElementById('addUserEmail');
     var pwEl = document.getElementById('addUserPassword');
+    var cpEl = document.getElementById('addUserConfirmPassword');
     var stEl = document.getElementById('addUserStage');
     var dpEl = document.getElementById('addUserDept');
     var yrEl = document.getElementById('addUserYear');
@@ -903,6 +1022,7 @@
     var student_id = siEl ? siEl.value.trim() : '';
     var email      = emEl ? emEl.value.trim() : '';
     var password   = pwEl ? pwEl.value : '';
+    var confirmPassword = cpEl ? cpEl.value : '';
     var education_stage = stEl ? stEl.value : 'College';
     var department = dpEl ? dpEl.value : '';
     var year_level = yrEl ? yrEl.value : '';
@@ -910,8 +1030,9 @@
     var showErr = function (msg) {
       if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } else { alert(msg); }
     };
-    if (!fullname || !student_id || !email || !password) { return showErr('Full Name, Student ID, Email and Password are required.'); }
+    if (!fullname || !student_id || !email || !password || !confirmPassword) { return showErr('Full Name, Student ID, Email, Password and Re-enter Password are required.'); }
     if (password.length < 6) { return showErr('Password must be at least 6 characters.'); }
+    if (password !== confirmPassword) { return showErr('Password and Re-enter Password do not match.'); }
     if (!education_stage || !year_level) { return showErr('Education stage and year level are required.'); }
     if (education_stage === 'College' && !department) { return showErr('Program / course is required for college students.'); }
     try {
@@ -940,11 +1061,22 @@
     if (err) { err.textContent = ''; err.style.display = 'none'; }
     var fnEl = document.getElementById('editUserFullname'); if (fnEl) fnEl.value = student.fullname || '';
     var emEl = document.getElementById('editUserEmail');    if (emEl) emEl.value = student.email    || '';
-    var stEl = document.getElementById('editUserStage');    if (stEl) stEl.value = student.education_stage || 'College';
-    _populateYearSelect('editUserYear', (student.education_stage || 'College'), 'form', student.year_level || '');
-    var dpEl = document.getElementById('editUserDept');     if (dpEl) dpEl.value = student.department || '';
+    var stageValue = student.education_stage || student.educationStage || student.stage || 'College';
+    var yearValue = student.year_level || student.yearLevel || '';
+    var departmentValue = student.department || student.course || student.program || '';
+    var stEl = document.getElementById('editUserStage');    if (stEl) stEl.value = stageValue;
+    _populateYearSelect('editUserYear', stageValue, 'form', yearValue);
+    var dpEl = document.getElementById('editUserDept');     if (dpEl) dpEl.value = departmentValue;
     _syncProgramField('editUserStage', 'editUserDept');
     var stEl = document.getElementById('editUserStatus');   if (stEl) stEl.value = student.status    || 'active';
+    var pwEl = document.getElementById('editUserPassword');
+    var cpEl = document.getElementById('editUserConfirmPassword');
+    var eyePw = document.getElementById('eyeEditUserPassword');
+    var eyeCp = document.getElementById('eyeEditUserConfirmPassword');
+    if (pwEl) { pwEl.value = ''; pwEl.type = 'password'; }
+    if (cpEl) { cpEl.value = ''; cpEl.type = 'password'; }
+    if (eyePw) eyePw.textContent = 'visibility';
+    if (eyeCp) eyeCp.textContent = 'visibility';
     modal.classList.add('show');
   }
 
@@ -963,12 +1095,16 @@
     var dpEl = document.getElementById('editUserDept');
     var yrEl = document.getElementById('editUserYear');
     var stEl = document.getElementById('editUserStatus');
+    var pwEl = document.getElementById('editUserPassword');
+    var cpEl = document.getElementById('editUserConfirmPassword');
     var fullname   = fnEl ? fnEl.value.trim() : '';
     var email      = emEl ? emEl.value.trim() : '';
     var education_stage = sgEl ? sgEl.value : 'College';
     var department = dpEl ? dpEl.value : '';
     var year_level = yrEl ? yrEl.value : '';
     var status     = stEl ? stEl.value : 'active';
+    var password   = pwEl ? pwEl.value : '';
+    var confirmPassword = cpEl ? cpEl.value : '';
     var errEl = document.getElementById('editUserError');
     var showErr = function (msg) {
       if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } else { alert(msg); }
@@ -976,11 +1112,15 @@
     if (!fullname || !email) { return showErr('Full Name and Email are required.'); }
     if (!education_stage || !year_level) { return showErr('Education stage and year level are required.'); }
     if (education_stage === 'College' && !department) { return showErr('Program / course is required for college students.'); }
+    if ((password || confirmPassword) && password.length < 6) { return showErr('New password must be at least 6 characters.'); }
+    if ((password || confirmPassword) && password !== confirmPassword) { return showErr('New password and re-enter password do not match.'); }
     try {
+      var payload = { fullname: fullname, email: email, education_stage: education_stage, department: department, year_level: year_level, status: status };
+      if (password) payload.password = password;
       var res = await fetchWithCsrf('/api/admin/users/' + _editUserId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullname: fullname, email: email, education_stage: education_stage, department: department, year_level: year_level, status: status }),
+        body: JSON.stringify(payload),
       });
       var result = await res.json();
       if (!res.ok) { return showErr(result.message || 'Failed to update user.'); }
@@ -1029,6 +1169,7 @@
     // on hard refresh (100ms gives enough time for MySQL session store)
     await new Promise(resolve => setTimeout(resolve, 100));
     var session = SA.utils.getSession();
+    _isSystemAdminReadOnly = String(session.adminRole || '').toLowerCase() === 'system_admin';
 
     // Expose globals required by onclick handlers
     window.openBorrowModal        = openBorrowModal;
@@ -1064,8 +1205,32 @@
 
     var addUserForm  = document.getElementById('addUserForm');
     var editUserForm = document.getElementById('editUserForm');
+    var togglePwBtn = document.getElementById('toggleAddUserPassword');
+    var toggleCpwBtn = document.getElementById('toggleAddUserConfirmPassword');
+    var toggleEditPwBtn = document.getElementById('toggleEditUserPassword');
+    var toggleEditCpwBtn = document.getElementById('toggleEditUserConfirmPassword');
     if (addUserForm)  addUserForm.addEventListener('submit', _saveNewUser);
     if (editUserForm) editUserForm.addEventListener('submit', _saveEditUser);
+    if (togglePwBtn) {
+      togglePwBtn.addEventListener('click', function () {
+        _togglePasswordField('addUserPassword', 'eyeAddUserPassword');
+      });
+    }
+    if (toggleCpwBtn) {
+      toggleCpwBtn.addEventListener('click', function () {
+        _togglePasswordField('addUserConfirmPassword', 'eyeAddUserConfirmPassword');
+      });
+    }
+    if (toggleEditPwBtn) {
+      toggleEditPwBtn.addEventListener('click', function () {
+        _togglePasswordField('editUserPassword', 'eyeEditUserPassword');
+      });
+    }
+    if (toggleEditCpwBtn) {
+      toggleEditCpwBtn.addEventListener('click', function () {
+        _togglePasswordField('editUserConfirmPassword', 'eyeEditUserConfirmPassword');
+      });
+    }
 
     fetchStudentsData();
   }

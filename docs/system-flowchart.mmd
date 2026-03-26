@@ -1,0 +1,72 @@
+flowchart TD
+    A[User opens system] --> B{Role}
+    B -->|Student| C[Student Login or Google OAuth]
+    B -->|Admin| D[Admin Login or Google OAuth]
+
+    C --> E[Student Dashboard]
+    D --> F{Admin Type}
+    F -->|System Admin| G[System Admin Dashboard]
+    F -->|Super Admin| H[Super Admin Dashboard]
+
+    E --> I[Browse or Search Books]
+    I --> J{Book available?}
+    J -->|No| K[Show unavailable status]
+    J -->|Yes| L[Create borrow request]
+
+    L --> M{Approval required?}
+    M -->|Yes| N[Create borrowing pending]
+    M -->|No| O[Assign copy and create borrowing borrowed]
+
+    N --> P[Notify admins]
+    P --> Q[Admin reviews request]
+    Q --> R{Approve?}
+    R -->|No| S[Cancel request and notify student]
+    R -->|Yes| O
+
+    O --> T[Generate pickup QR and send claim email]
+    T --> U[Student receives QR]
+    U --> V[Admin scans pickup QR]
+    V --> W{QR matches pending pickup?}
+    W -->|No| X[Show mismatch warning]
+    W -->|Yes| Y[Confirm pickup and set picked_up_at]
+
+    Y --> Z[Borrow period active]
+    Z --> AA{Due date reached?}
+    AA -->|No| Z
+    AA -->|Yes| AB[Mark overdue and send reminders]
+
+    Z --> AC[Admin scans accession QR for return]
+    AB --> AC
+    AC --> AD{Active borrowing found?}
+    AD -->|No| AE[Show no active borrowing]
+    AD -->|Yes| AF[Confirm return]
+
+    AF --> AG[Set return_date and returned status]
+    AG --> AH[Increase available quantity]
+    AH --> AI[Set copy status available]
+    AI --> AJ[Create notifications and audit logs]
+
+    G --> AK[Manage Books]
+    H --> AK
+    AK --> AL[Import CSV or XLSX]
+    AL --> AM{ISBN exists?}
+    AM -->|Yes| AN[Update existing book]
+    AM -->|No| AO[Insert new book]
+    AN --> AP[Ensure copy and accession coverage]
+    AO --> AP
+
+    G --> AQ[Manage Borrowings]
+    H --> AQ
+    G --> AR[Manage Users]
+    H --> AR
+    H --> AS[Manage Admins and Settings]
+
+    AJ --> AT[In-app notifications]
+    AT --> AU[Unread counters and deep links]
+    AB --> AV[Overdue email scheduler]
+    T --> AW[Borrow claim email sender]
+
+    C --> AX[CSRF-protected API calls]
+    D --> AX
+    AX --> AY[Session and role validation]
+    AY --> AZ[Database transactions]

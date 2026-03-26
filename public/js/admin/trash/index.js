@@ -94,12 +94,12 @@
       wrap.addEventListener('click', function (e) {
         const restoreBtn = e.target.closest('.trash-btn-restore');
         if (restoreBtn) {
-          TrashActions.restoreSingle(restoreBtn.dataset.entity, parseInt(restoreBtn.dataset.id, 10));
+          TrashActions.restoreSingle(restoreBtn.dataset.entity, restoreBtn.dataset.id);
           return;
         }
         const deleteBtn = e.target.closest('.trash-btn-delete');
         if (deleteBtn) {
-          TrashActions.deleteSingle(deleteBtn.dataset.entity, parseInt(deleteBtn.dataset.id, 10), deleteBtn.dataset.name);
+          TrashActions.deleteSingle(deleteBtn.dataset.entity, deleteBtn.dataset.id, deleteBtn.dataset.name);
         }
       });
     }

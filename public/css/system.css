@@ -69,6 +69,34 @@ body {
   min-height: 0;
 }
 
+/* Ensure Recent System Activity stays readable on admin dashboards. */
+.sa-content #activityList .activity-item,
+.sa-content #activityList .activity-content,
+.sa-content #activityList .activity-main,
+.sa-content #activityList .activity-detail,
+.sa-content #activityList .activity-type,
+.sa-content #activityList .time {
+  color: #1f2937 !important;
+}
+
+.sa-content #activityList .activity-type {
+  background: #e8f5e9 !important;
+  color: #1b5e20 !important;
+}
+
+.sa-content #activityList .activity-item::before {
+  background: #2e7d32 !important;
+}
+
+.sa-content .recent-activity-card .activity-title,
+.sa-content .recent-activity-card .activity-title i {
+  color: #14532d !important;
+}
+
+.sa-content .recent-activity-card #activityList .notif-loading {
+  color: #374151 !important;
+}
+
 .actions-menu {
   list-style: none !important;
   padding-left: 0 !important;
@@ -77,4 +105,45 @@ body {
 
 .actions-menu li {
   list-style: none !important;
+}
+
+/* Admin management toast (super admin + system admin). */
+#toastNotification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 12000;
+  display: none;
+  max-width: min(92vw, 420px);
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  word-break: break-word;
+}
+
+#toastNotification.toast-success {
+  background: linear-gradient(135deg, #2f9e44 0%, #2b8a3e 100%);
+}
+
+#toastNotification.toast-error {
+  background: linear-gradient(135deg, #e03131 0%, #c92a2a 100%);
+}
+
+/* Global custom alert modal (replaces browser alert for admin layouts). */
+#globalAlertMessage {
+  margin: 0;
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#globalAlertOkBtn {
+  min-width: 120px;
 }

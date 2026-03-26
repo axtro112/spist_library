@@ -359,6 +359,29 @@ body {
   margin-top: 16px;
 }
 
+.remember-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.remember-label {
+  color: white;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.remember-label input[type="checkbox"] {
+  accent-color: #2f6e43;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 .form-links a {
   color: white;
   text-decoration: none;
@@ -444,6 +467,33 @@ body {
   margin-bottom: 16px;
   font-size: 13px;
   text-align: center;
+}
+
+.dismissible-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.dismissible-alert .message-text {
+  flex: 1;
+}
+
+.message-close-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0.85;
+  padding: 0;
+}
+
+.message-close-btn:hover {
+  opacity: 1;
 }
 
 .success-message {

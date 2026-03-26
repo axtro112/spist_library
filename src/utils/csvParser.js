@@ -3,6 +3,7 @@ const csv = require("csv-parser");
 const ExcelJS = require("exceljs");
 const db = require("../config/database");
 const dbUtils = require("./db");
+const logger = require("./logger");
 const { ensureBookCopyCoverage } = require("./accession");
 
 /**
@@ -260,8 +261,9 @@ const importBooks = async (books) => {
     total_rows: books.length,
     successfully_imported: 0,
     updated_existing: 0,
+    restored_from_trash: 0,
     skipped_missing_fields: [],
-    skipped_duplicate_isbns: [], // kept for backward-compat, always empty now
+    skipped_duplicate_isbns: [], // kept for backward-compat
     zero_quantity_entries: [],
   };
 
@@ -295,10 +297,10 @@ const importBooks = async (books) => {
         });
       }
 
-      // Check whether this ISBN already exists
+      // Check whether this ISBN already exists among active books
       await dbUtils.withTransaction(async (conn) => {
         const existingBook = await conn.queryAsync(
-          "SELECT id FROM books WHERE isbn = ? FOR UPDATE",
+          "SELECT id FROM books WHERE isbn = ? AND deleted_at IS NULL FOR UPDATE",
           [book.isbn.trim()]
         );
 
@@ -318,8 +320,8 @@ const importBooks = async (books) => {
             `UPDATE books
                SET title = ?, author = ?, category = ?, quantity = ?,
                    available_quantity = ?,
-                   status = ?, deleted_at = NULL
-             WHERE isbn = ?`,
+                   status = ?, updated_at = NOW()
+             WHERE id = ? AND deleted_at IS NULL`,
             [
               book.title.trim(),
               book.author.trim(),
@@ -327,7 +329,7 @@ const importBooks = async (books) => {
               newTotalQty,
               newAvailQty,
               status,
-              book.isbn.trim(),
+              existingBook[0].id,
             ]
           );
 
@@ -339,6 +341,28 @@ const importBooks = async (books) => {
           });
 
           summary.updated_existing++;
+          return;
+        }
+
+        const trashedBook = await conn.queryAsync(
+          "SELECT id, quantity, available_quantity FROM books WHERE isbn = ? AND deleted_at IS NOT NULL ORDER BY COALESCE(updated_at, added_date) DESC, id DESC LIMIT 1 FOR UPDATE",
+          [book.isbn.trim()]
+        );
+
+        if (trashedBook.length > 0) {
+          logger.info('Import skipped row because ISBN exists in trash', {
+            row: rowNum,
+            isbn: book.isbn,
+            title: book.title,
+            trashedBookId: trashedBook[0].id,
+          });
+
+          summary.skipped_duplicate_isbns.push({
+            row: rowNum,
+            isbn: book.isbn,
+            title: book.title,
+            reason: 'Book with the same ISBN is in trash. Restore it from Trash Bin instead of importing.',
+          });
           return;
         }
 

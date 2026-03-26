@@ -46,6 +46,29 @@
   transform: translateX(0);
 }
 
+/* User overview opens as centered modal style */
+.sa-overview-panel.sa-overview-mode-user {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  height: auto;
+  max-height: min(86vh, 760px);
+  width: min(92vw, 560px);
+  max-width: min(92vw, 560px);
+  border-radius: 12px;
+  transform: translate(-50%, calc(-50% + 24px)) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.sa-overview-panel.sa-overview-mode-user.is-open {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
 /* ── Header ──────────────────────────────────────────────── */
 .sa-overview-header {
   background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 55%, #388e3c 100%);
@@ -113,6 +136,31 @@
   /* Slim custom scrollbar */
   scrollbar-width: thin;
   scrollbar-color: rgba(46, 125, 50, 0.35) transparent;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-body {
+  padding: 14px 16px 12px;
+  background: #ffffff;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-header {
+  padding: 14px 20px;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-kicker {
+  display: none;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-close {
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
 }
 
 .sa-overview-body::-webkit-scrollbar {
@@ -204,6 +252,57 @@ tr[data-overview-type]:hover td {
   padding-bottom: 0;
 }
 
+/* User modal section layout */
+.sa-user-modal-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sa-user-modal-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.sa-user-modal-section h4 {
+  margin: 0 0 10px;
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sa-user-modal-kv {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eef1f4;
+}
+
+.sa-user-modal-kv .sa-overview-k {
+  font-size: 12px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.sa-user-modal-kv .sa-overview-v {
+  font-size: 12px;
+  color: #111827;
+  font-weight: 600;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-list li {
+  font-size: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid #eef1f4;
+}
+
+.sa-overview-panel.sa-overview-mode-user .sa-overview-list {
+  border-top: 1px solid #eef1f4;
+}
+
 /* ── Badge ───────────────────────────────────────────────── */
 .sa-overview-badge {
   display: inline-flex;
@@ -277,5 +376,40 @@ tr[data-overview-type]:hover td {
 
   .sa-overview-panel.is-open {
     transform: translateY(0);
+  }
+
+  .sa-overview-panel.sa-overview-mode-user {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    width: min(96vw, 560px);
+    max-width: min(96vw, 560px);
+    height: auto;
+    max-height: 90vh;
+    border-radius: 12px;
+    transform: translate(-50%, calc(-50% + 20px));
+  }
+
+  .sa-overview-panel.sa-overview-mode-user.is-open {
+    transform: translate(-50%, -50%);
+  }
+
+  .sa-overview-panel.sa-overview-mode-user .sa-overview-title {
+    font-size: 18px;
+  }
+
+  .sa-user-modal-section h4 {
+    font-size: 14px;
+  }
+
+  .sa-user-modal-kv {
+    grid-template-columns: 92px 1fr;
+  }
+
+  .sa-user-modal-kv .sa-overview-k,
+  .sa-user-modal-kv .sa-overview-v,
+  .sa-overview-panel.sa-overview-mode-user .sa-overview-list li {
+    font-size: 13px;
   }
 }

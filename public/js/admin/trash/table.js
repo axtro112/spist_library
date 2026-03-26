@@ -43,7 +43,8 @@
       cols: 10,
       head: '<tr><th class="trash-checkbox-col"></th><th>ID</th><th>Title</th><th>Author</th><th>Copies</th><th>Category</th><th>ISBN</th><th>Deleted At</th><th>Deleted By</th><th>Actions</th></tr>',
       row(x) {
-        return `${cbCell('books', x.id)}
+        const rid = x.trash_id || x.id;
+        return `${cbCell('books', rid)}
           <td>${x.id}</td>
           <td>${esc(x.title)}</td>
           <td>${esc(x.author)}</td>
@@ -52,7 +53,7 @@
           <td>${esc(x.isbn || '—')}</td>
           <td>${fmtDate(x.deleted_at)}</td>
           <td>${esc(x.added_by_name || 'Unknown')}</td>
-          ${btns('books', x.id, x.title)}`;
+          ${btns('books', rid, x.title)}`;
       },
       empty: 'No books in trash',
     },
@@ -136,7 +137,7 @@
 
     getSelectedIds() {
       return Array.from(document.querySelectorAll('.trash-row-cb:checked'))
-        .map(cb => parseInt(cb.dataset.id, 10));
+        .map(cb => cb.dataset.id);
     },
 
     clearSelection() {

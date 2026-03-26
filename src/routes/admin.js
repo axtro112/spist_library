@@ -301,7 +301,7 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
   try {
     await db.withTransaction(async (conn) => {
       const book = await conn.queryAsync(
-        "SELECT id, status, quantity, available_quantity FROM books WHERE id = ?",
+        "SELECT id, status, quantity, available_quantity FROM books WHERE id = ? AND deleted_at IS NULL",
         [bookId]
       );
       if (book.length === 0) throw new Error("Book not found");
@@ -335,7 +335,7 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
       else if (status === 'retired') dbStatus = 'retired';
 
       await conn.queryAsync(
-        `UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ?, available_quantity = ?, updated_at = NOW() WHERE id = ?`,
+        `UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ?, available_quantity = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
         [title, author, category, isbn, dbStatus, bookQuantity, newAvailableQty, bookId]
       );
 
@@ -411,7 +411,7 @@ router.delete("/books/:id", requireAdmin, async (req, res) => {
     }
 
     // Soft delete the book (move to trash)
-    await db.query("UPDATE books SET deleted_at = NOW() WHERE id = ?", [bookId]);
+    await db.query("UPDATE books SET deleted_at = NOW(), trash_id = UUID() WHERE id = ?", [bookId]);
 
     logger.info('Book moved to trash successfully', { bookId });
     response.success(res, null, 'Book moved to trash successfully');
@@ -1149,7 +1149,7 @@ router.post("/books/import", requireAdmin, upload.single("file"), async (req, re
     // Return detailed summary
     res.json({
       success: true,
-      message: `Import completed: ${summary.successfully_imported} books imported, ${
+      message: `Import completed: ${summary.successfully_imported} books imported, ${summary.updated_existing || 0} updated, ${(summary.skipped_duplicate_isbns || []).length} skipped (ISBN in trash), ${
         summary.skipped_missing_fields.length + summary.skipped_duplicate_isbns.length
       } skipped`,
       summary: summary,
@@ -1227,7 +1227,7 @@ router.post("/books/bulk-delete", requireAdmin, async (req, res) => {
         }
         
         // Soft delete — move to trash
-        await db.query("UPDATE books SET deleted_at = NOW() WHERE id = ?", [bookId]);
+        await db.query("UPDATE books SET deleted_at = NOW(), trash_id = UUID() WHERE id = ?", [bookId]);
         
         deletedCount++;
         logger.info('Book moved to trash in bulk operation', { bookId, title: book[0].title });
@@ -2240,6 +2240,7 @@ router.get('/books/trash', requireAdmin, async (req, res) => {
     let query = `
       SELECT 
         b.*,
+        b.trash_id,
         a.fullname as added_by_name,
         COUNT(DISTINCT bc.id) as total_copies
       FROM books b
@@ -2304,7 +2305,7 @@ router.post('/books/:id/soft-delete', requireAdmin, async (req, res) => {
 
     // Soft delete the book
     await db.query(
-      'UPDATE books SET deleted_at = NOW() WHERE id = ?',
+      'UPDATE books SET deleted_at = NOW(), trash_id = UUID() WHERE id = ?',
       [bookId]
     );
     
@@ -2329,7 +2330,7 @@ router.post('/books/:id/restore', requireAdmin, async (req, res) => {
     
     // Check if book exists and is deleted
     const [book] = await db.query(
-      'SELECT id, title, deleted_at FROM books WHERE id = ?',
+      'SELECT id, title, isbn, deleted_at FROM books WHERE id = ?',
       [bookId]
     );
     
@@ -2340,10 +2341,18 @@ router.post('/books/:id/restore', requireAdmin, async (req, res) => {
     if (!book.deleted_at) {
       return response.validationError(res, 'Book is not in trash');
     }
+
+    const isbnConflict = await db.query(
+      'SELECT id FROM books WHERE isbn = ? AND deleted_at IS NULL AND id != ? LIMIT 1',
+      [book.isbn, bookId]
+    );
+    if (isbnConflict.length > 0) {
+      return response.validationError(res, 'Cannot restore book: an active book with the same ISBN already exists');
+    }
     
     // Restore the book
     await db.query(
-      'UPDATE books SET deleted_at = NULL WHERE id = ?',
+      'UPDATE books SET deleted_at = NULL, trash_id = NULL WHERE id = ?',
       [bookId]
     );
     
@@ -2444,13 +2453,16 @@ router.post('/users', requireSuperAdmin, async (req, res) => {
 router.put('/users/:id', requireSuperAdmin, async (req, res) => {
   try {
     const userId = req.params.id;
-    const { fullname, email, department, education_stage, year_level, student_type, contact_number, status } = req.body;
+    const { fullname, email, password, department, education_stage, year_level, student_type, contact_number, status } = req.body;
     const existing = await db.query('SELECT id, department, education_stage FROM students WHERE id = ? AND deleted_at IS NULL', [userId]);
     if (existing.length === 0) return response.notFound(res, 'Student not found');
     const currentStudent = existing[0];
     if (email) {
       const dup = await db.query('SELECT id FROM students WHERE email = ? AND id != ?', [email, userId]);
       if (dup.length > 0) return response.validationError(res, 'Email already in use');
+    }
+    if (password && String(password).length < 6) {
+      return response.validationError(res, 'Password must be at least 6 characters');
     }
     const nextEducationStage = education_stage !== undefined ? education_stage : (currentStudent.education_stage || 'College');
     const nextDepartment = department !== undefined ? department : (currentStudent.department || '');
@@ -2466,6 +2478,7 @@ router.put('/users/:id', requireSuperAdmin, async (req, res) => {
     if (student_type !== undefined)  { updates.push('student_type = ?');    params.push(student_type); }
     if (contact_number !== undefined){ updates.push('contact_number = ?');  params.push(contact_number); }
     if (status)                      { updates.push('status = ?');          params.push(status); }
+    if (password)                    { updates.push('password = ?');        params.push(await bcrypt.hash(password, 10)); }
     if (updates.length === 0) return response.validationError(res, 'No fields to update');
     params.push(userId);
     await db.query('UPDATE students SET ' + updates.join(', ') + ' WHERE id = ?', params);
@@ -2918,6 +2931,7 @@ router.get('/trash', requireAdmin, async (req, res) => {
       let booksQuery = `
         SELECT 
           b.id,
+          b.trash_id,
           b.title,
           b.author,
           b.isbn,
@@ -3041,7 +3055,7 @@ router.post('/trash/:type/:id/restore', requireAdmin, async (req, res) => {
     switch (type) {
       case 'book': {
         const [book] = await db.query(
-          'SELECT id, title, deleted_at FROM books WHERE id = ?',
+          'SELECT id, title, isbn, deleted_at FROM books WHERE id = ?',
           [itemId]
         );
         
@@ -3052,8 +3066,16 @@ router.post('/trash/:type/:id/restore', requireAdmin, async (req, res) => {
         if (!book.deleted_at) {
           return response.validationError(res, 'Book is not in trash');
         }
+
+        const isbnConflict = await db.query(
+          'SELECT id FROM books WHERE isbn = ? AND deleted_at IS NULL AND id != ? LIMIT 1',
+          [book.isbn, itemId]
+        );
+        if (isbnConflict.length > 0) {
+          return response.validationError(res, 'Cannot restore book: an active book with the same ISBN already exists');
+        }
         
-        await db.query('UPDATE books SET deleted_at = NULL WHERE id = ?', [itemId]);
+        await db.query('UPDATE books SET deleted_at = NULL, trash_id = NULL WHERE id = ?', [itemId]);
         
         logger.info('Book restored from unified trash', { 
           bookId: itemId, 
@@ -3285,7 +3307,7 @@ router.get('/trash/:entity', requireAdmin, async (req, res) => {
   const { search = '', category, year_level, department, role: filterRole } = req.query;
   try {
     if (entity === 'books') {
-      let q = `SELECT b.*, a.fullname AS added_by_name, COUNT(DISTINCT bc.id) AS total_copies
+      let q = `SELECT b.*, b.trash_id, a.fullname AS added_by_name, COUNT(DISTINCT bc.id) AS total_copies
                FROM books b
                LEFT JOIN admins a ON b.added_by = a.id
                LEFT JOIN book_copies bc ON b.id = bc.book_id
@@ -3327,19 +3349,36 @@ router.get('/trash/:entity', requireAdmin, async (req, res) => {
 // POST /api/admin/trash/:entity/restore   — restore single item (id in body)
 router.post('/trash/:entity/restore', requireAdmin, async (req, res) => {
   const { entity } = req.params;
-  const { id } = req.body;
+  const { id, trashId } = req.body;
   const role = req.session?.user?.role;
   if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
-  const itemId = parseInt(id, 10);
-  if (!itemId || itemId <= 0) return response.validationError(res, 'Invalid id');
+  const idStr = id == null ? '' : String(id).trim();
+  const trashIdStr = trashId == null ? '' : String(trashId).trim();
+  const itemId = parseInt(idStr, 10);
+  const hasNumericId = !isNaN(itemId) && itemId > 0;
+  const hasTrashId = !!trashIdStr || (!!idStr && !hasNumericId);
+  if (!hasNumericId && !hasTrashId) return response.validationError(res, 'Invalid id');
   if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') return response.forbidden(res, 'Super Admin access required');
   try {
     if (entity === 'books') {
-      const [book] = await db.query('SELECT id, deleted_at FROM books WHERE id = ?', [itemId]);
+      const bookLookupSql = hasTrashId
+        ? 'SELECT id, isbn, trash_id, deleted_at FROM books WHERE trash_id = ?'
+        : 'SELECT id, isbn, trash_id, deleted_at FROM books WHERE id = ?';
+      const bookLookupParam = hasTrashId ? (trashIdStr || idStr) : itemId;
+      const [book] = await db.query(bookLookupSql, [bookLookupParam]);
       if (!book)            return response.notFound(res, 'Book not found');
       if (!book.deleted_at) return response.validationError(res, 'Book is not in trash');
-      await db.query('UPDATE books SET deleted_at = NULL WHERE id = ?', [itemId]);
-      return response.success(res, { id: itemId }, 'Book restored');
+
+      const isbnConflict = await db.query(
+        'SELECT id FROM books WHERE isbn = ? AND deleted_at IS NULL AND id != ? LIMIT 1',
+        [book.isbn, book.id]
+      );
+      if (isbnConflict.length > 0) {
+        return response.validationError(res, 'Cannot restore book: an active book with the same ISBN already exists');
+      }
+
+      await db.query('UPDATE books SET deleted_at = NULL, trash_id = NULL WHERE id = ?', [book.id]);
+      return response.success(res, { id: book.id }, 'Book restored');
     }
     if (entity === 'users') {
       const [user] = await db.query('SELECT id, deleted_at FROM students WHERE id = ?', [itemId]);
@@ -3364,20 +3403,28 @@ router.post('/trash/:entity/restore', requireAdmin, async (req, res) => {
 // DELETE /api/admin/trash/:entity/permanent   — permanent delete single item (id in body)
 router.delete('/trash/:entity/permanent', requireSuperAdmin, async (req, res) => {
   const { entity } = req.params;
-  const { id } = req.body;
+  const { id, trashId } = req.body;
   if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
-  const itemId = parseInt(id, 10);
-  if (!itemId || itemId <= 0) return response.validationError(res, 'Invalid id');
+  const idStr = id == null ? '' : String(id).trim();
+  const trashIdStr = trashId == null ? '' : String(trashId).trim();
+  const itemId = parseInt(idStr, 10);
+  const hasNumericId = !isNaN(itemId) && itemId > 0;
+  const hasTrashId = !!trashIdStr || (!!idStr && !hasNumericId);
+  if (!hasNumericId && !hasTrashId) return response.validationError(res, 'Invalid id');
   try {
     if (entity === 'books') {
-      const [book] = await db.query('SELECT id, title, deleted_at FROM books WHERE id = ?', [itemId]);
+      const bookLookupSql = hasTrashId
+        ? 'SELECT id, title, trash_id, deleted_at FROM books WHERE trash_id = ?'
+        : 'SELECT id, title, trash_id, deleted_at FROM books WHERE id = ?';
+      const bookLookupParam = hasTrashId ? (trashIdStr || idStr) : itemId;
+      const [book] = await db.query(bookLookupSql, [bookLookupParam]);
       if (!book)            return response.notFound(res, 'Book not found');
       if (!book.deleted_at) return response.validationError(res, 'Book must be in trash first');
-      const [{ cnt }] = await db.query("SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id = ? AND status IN ('borrowed','overdue','approved') AND return_date IS NULL", [itemId]);
+      const [{ cnt }] = await db.query("SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id = ? AND status IN ('borrowed','overdue','approved') AND return_date IS NULL", [book.id]);
       if (cnt > 0) return response.validationError(res, 'Cannot delete book with active borrowings');
-      await db.query('DELETE FROM book_copies WHERE book_id = ?', [itemId]);
-      await db.query('DELETE FROM books WHERE id = ?', [itemId]);
-      return response.success(res, { id: itemId }, 'Book permanently deleted');
+      await db.query('DELETE FROM book_copies WHERE book_id = ?', [book.id]);
+      await db.query('DELETE FROM books WHERE id = ?', [book.id]);
+      return response.success(res, { id: book.id }, 'Book permanently deleted');
     }
     if (entity === 'users') {
       const [user] = await db.query('SELECT id, student_id, deleted_at FROM students WHERE id = ?', [itemId]);
@@ -3409,12 +3456,34 @@ router.post('/trash/:entity/bulk-restore', requireAdmin, async (req, res) => {
   if (!Array.isArray(ids) || ids.length === 0) return response.validationError(res, 'ids must be a non-empty array');
   if (ids.length > 100) return response.validationError(res, 'Cannot bulk restore more than 100 items at once');
   if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') return response.forbidden(res, 'Super Admin access required');
-  const safeIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-  if (safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
+  const rawIds = ids.map(id => String(id).trim()).filter(Boolean);
+  const safeIds = rawIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+  const safeTrashIds = rawIds.filter(id => isNaN(parseInt(id, 10)));
+  if (entity !== 'books' && safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
+  if (entity === 'books' && safeIds.length === 0 && safeTrashIds.length === 0) return response.validationError(res, 'No valid IDs provided');
   const ph = safeIds.map(() => '?').join(',');
+  const phTrash = safeTrashIds.map(() => '?').join(',');
   try {
     let result;
-    if (entity === 'books')  result = await db.query(`UPDATE books    SET deleted_at = NULL                        WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+    if (entity === 'books') {
+      const where = [];
+      const params = [];
+      if (safeIds.length > 0) { where.push(`id IN (${ph})`); params.push(...safeIds); }
+      if (safeTrashIds.length > 0) { where.push(`trash_id IN (${phTrash})`); params.push(...safeTrashIds); }
+      result = await db.query(
+        `UPDATE books b
+         SET b.deleted_at = NULL, b.trash_id = NULL
+         WHERE (${where.join(' OR ')})
+           AND b.deleted_at IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM books a
+             WHERE a.isbn = b.isbn
+               AND a.deleted_at IS NULL
+               AND a.id <> b.id
+           )`,
+        params
+      );
+    }
     if (entity === 'users')  result = await db.query(`UPDATE students SET deleted_at = NULL, status = 'active'  WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
     if (entity === 'admins') result = await db.query(`UPDATE admins   SET deleted_at = NULL, is_active = TRUE   WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
     const restoredCount = result?.affectedRows || 0;
@@ -3433,19 +3502,33 @@ router.delete('/trash/:entity/bulk-permanent', requireSuperAdmin, async (req, re
   if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
   if (!Array.isArray(ids) || ids.length === 0) return response.validationError(res, 'ids must be a non-empty array');
   if (ids.length > 50) return response.validationError(res, 'Cannot bulk delete more than 50 items at once');
-  const safeIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-  if (safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
+  const rawIds = ids.map(id => String(id).trim()).filter(Boolean);
+  const safeIds = rawIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+  const safeTrashIds = rawIds.filter(id => isNaN(parseInt(id, 10)));
+  if (entity !== 'books' && safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
+  if (entity === 'books' && safeIds.length === 0 && safeTrashIds.length === 0) return response.validationError(res, 'No valid IDs provided');
   const ph = safeIds.map(() => '?').join(',');
+  const phTrash = safeTrashIds.map(() => '?').join(',');
   try {
     let deletedCount = 0;
     if (entity === 'books') {
-      const countResult = await db.query(`SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id IN (${ph}) AND status IN ('borrowed','overdue','approved') AND return_date IS NULL`, safeIds);
+      const where = [];
+      const params = [];
+      if (safeIds.length > 0) { where.push(`id IN (${ph})`); params.push(...safeIds); }
+      if (safeTrashIds.length > 0) { where.push(`trash_id IN (${phTrash})`); params.push(...safeTrashIds); }
+      const targetRows = await db.query(`SELECT id FROM books WHERE deleted_at IS NOT NULL AND (${where.join(' OR ')})`, params);
+      const targetIds = targetRows.map(r => r.id);
+      if (targetIds.length === 0) {
+        return response.success(res, { deletedCount: 0 }, `0 ${entity} permanently deleted`);
+      }
+      const phTarget = targetIds.map(() => '?').join(',');
+      const countResult = await db.query(`SELECT COUNT(*) AS cnt FROM book_borrowings WHERE book_id IN (${phTarget}) AND status IN ('borrowed','overdue','approved') AND return_date IS NULL`, targetIds);
       const cnt = Array.isArray(countResult) && countResult.length > 0 ? countResult[0].cnt : 0;
       if (cnt > 0) return response.validationError(res, 'Cannot delete: some selected books have active borrowings');
       // Delete all borrowing records first (including returned ones) due to foreign key constraint
-      await db.query(`DELETE FROM book_borrowings WHERE book_id IN (${ph})`, safeIds);
-      await db.query(`DELETE FROM book_copies WHERE book_id IN (${ph})`, safeIds);
-      const r = await db.query(`DELETE FROM books WHERE id IN (${ph}) AND deleted_at IS NOT NULL`, safeIds);
+      await db.query(`DELETE FROM book_borrowings WHERE book_id IN (${phTarget})`, targetIds);
+      await db.query(`DELETE FROM book_copies WHERE book_id IN (${phTarget})`, targetIds);
+      const r = await db.query(`DELETE FROM books WHERE id IN (${phTarget}) AND deleted_at IS NOT NULL`, targetIds);
       deletedCount = r?.affectedRows || 0;
     }
     if (entity === 'users') {

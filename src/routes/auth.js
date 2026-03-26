@@ -61,7 +61,8 @@ const authenticateStudent = async (email, password) => {
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
+    const isRememberMe = Boolean(rememberMe);
 
     if (!email || !password) {
       return res.status(400).json({
@@ -84,6 +85,11 @@ router.post("/login", async (req, res) => {
 
       // Rotate CSRF token after auth state change
       req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+
+      // Extend session lifetime when remember me is enabled.
+      req.session.cookie.maxAge = isRememberMe
+        ? 30 * 24 * 60 * 60 * 1000
+        : 8 * 60 * 60 * 1000;
 
       await saveSession(req);
       
@@ -108,6 +114,11 @@ router.post("/login", async (req, res) => {
 
       // Rotate CSRF token after auth state change
       req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+
+      // Extend session lifetime when remember me is enabled.
+      req.session.cookie.maxAge = isRememberMe
+        ? 30 * 24 * 60 * 60 * 1000
+        : 8 * 60 * 60 * 1000;
 
       await saveSession(req);
       
@@ -350,7 +361,7 @@ router.get(
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login.html" }),
+  passport.authenticate("google", { failureRedirect: "/login" }),
   async (req, res) => {
     // Successful authentication
     const user = req.user;

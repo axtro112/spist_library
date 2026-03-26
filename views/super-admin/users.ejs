@@ -1,5 +1,5 @@
 ﻿<%
-  var extraHead = '<link rel="stylesheet" href="/css/super-admin/admins-modal.css"><script src="/js/admin/users.js" defer><\/script><script src="/js/notification-user-modal.js" defer><\/script><script src="/js/user-violations-modal.js" defer><\/script><script src="/js/super-admin/users.js" defer><\/script><script src="/js/admin.js" defer><\/script><script src="/js/user.js" defer><\/script><script src="/js/super-admin/overview.js" defer><\/script>';
+  var extraHead = '<link rel=\"stylesheet\" href=\"/css/super-admin/admins-modal.css?v=20260327b\" /><link rel=\"stylesheet\" href=\"/css/system-admin/users-interface.css?v=20260327c\"><script src=\"/js/admin/users.js\" defer><\/script><script src=\"/js/notification-user-modal.js\" defer><\/script><script src=\"/js/user-violations-modal.js\" defer><\/script><script src=\"/js/super-admin/users.js?v=20260327b\" defer><\/script><script src=\"/js/admin.js\" defer><\/script><script src=\"/js/user.js\" defer><\/script><script src=\"/js/super-admin/overview.js\" defer><\/script>';
 %>
 <%- include('../partials/super-admin-layout', {
   title: 'User Management - Southern Philippines Institute of Science & Technology',
@@ -20,7 +20,7 @@
       </button>
     </div>
 
-    <div class="section-card">
+    <div class="section-card users-interface-card">
     <div class="sa-filter-bar mb-3">
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
           <input type="checkbox" id="selectAllUsers" style="width:18px;height:18px;cursor:pointer;" title="Select all" />
@@ -80,7 +80,7 @@
       <div id="usersResultCount" class="text-end text-muted small mb-2">Showing 0 of 0 users</div>
 
       <div class="sa-table-wrapper">
-        <table class="user-table w-100">
+        <table class="user-table users-interface-table w-100">
           <thead>
             <tr>
               <th style="width:40px;"></th>
@@ -97,6 +97,26 @@
           </thead>
           <tbody><tr><td>Loading students data...</td></tr></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id=\"toastNotification\"></div>
+
+    <!-- Process Confirmation Modal (Bulk actions) -->
+    <div id=\"processConfirmModal\" class=\"modal sa-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"processConfirmTitle\">
+      <div class=\"sa-modal-content\">
+        <div class=\"sa-modal-header\">
+          <h2 id=\"processConfirmTitle\">Confirm Action</h2>
+          <button type=\"button\" class=\"sa-modal-close-btn\" id=\"processConfirmCloseBtn\" aria-label=\"Close\">&times;</button>
+        </div>
+        <div class=\"sa-modal-body\">
+          <p id=\"processConfirmMessage\" class=\"process-confirm-message\">Are you sure you want to continue?</p>
+        </div>
+        <div class=\"sa-modal-footer\">
+          <button type=\"button\" id=\"processConfirmOkBtn\" class=\"sa-btn sa-btn-danger\">Confirm</button>
+          <button type=\"button\" id=\"processConfirmCancelBtn\" class=\"sa-btn sa-btn-outline cancel-btn\">Cancel</button>
+        </div>
       </div>
     </div>
 
@@ -200,7 +220,21 @@
             </div>
             <div class="sa-form-group">
               <label for="addUserPassword">Password <span class="req">*</span></label>
-              <input type="password" id="addUserPassword" required placeholder="Minimum 6 characters" />
+              <div class="sa-password-wrap">
+                <input type="password" id="addUserPassword" required placeholder="Minimum 6 characters" />
+                <button type="button" class="sa-eye-toggle" id="toggleAddUserPassword" tabindex="-1" aria-label="Toggle password visibility">
+                  <span class="material-symbols-outlined" id="eyeAddUserPassword">visibility</span>
+                </button>
+              </div>
+            </div>
+            <div class="sa-form-group">
+              <label for="addUserConfirmPassword">Re-enter Password <span class="req">*</span></label>
+              <div class="sa-password-wrap">
+                <input type="password" id="addUserConfirmPassword" required placeholder="Re-enter password" />
+                <button type="button" class="sa-eye-toggle" id="toggleAddUserConfirmPassword" tabindex="-1" aria-label="Toggle confirm password visibility">
+                  <span class="material-symbols-outlined" id="eyeAddUserConfirmPassword">visibility</span>
+                </button>
+              </div>
             </div>
             <div class="sa-form-group">
               <label for="addUserDept">Program / Course</label>
@@ -300,6 +334,24 @@
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
+            </div>
+            <div class="sa-form-group">
+              <label for="editUserPassword">New Password</label>
+              <div class="sa-password-wrap">
+                <input type="password" id="editUserPassword" placeholder="Leave blank to keep current password" />
+                <button type="button" class="sa-eye-toggle" id="toggleEditUserPassword" tabindex="-1" aria-label="Toggle new password visibility">
+                  <span class="material-symbols-outlined" id="eyeEditUserPassword">visibility</span>
+                </button>
+              </div>
+            </div>
+            <div class="sa-form-group">
+              <label for="editUserConfirmPassword">Re-enter New Password</label>
+              <div class="sa-password-wrap">
+                <input type="password" id="editUserConfirmPassword" placeholder="Re-enter new password" />
+                <button type="button" class="sa-eye-toggle" id="toggleEditUserConfirmPassword" tabindex="-1" aria-label="Toggle confirm password visibility">
+                  <span class="material-symbols-outlined" id="eyeEditUserConfirmPassword">visibility</span>
+                </button>
+              </div>
             </div>
           </div>
           <div class="sa-modal-footer">

@@ -1,6 +1,35 @@
 ﻿// Add console log to verify script is loaded
 console.log("login.js loaded successfully");
 
+const REMEMBER_EMAIL_KEY = "rememberedLoginEmail";
+
+function hideAuthMessage() {
+  const messageBox = document.getElementById("errorMessage");
+  if (!messageBox) return;
+  messageBox.style.display = "none";
+  messageBox.textContent = "";
+}
+
+function showAuthMessage(message, type = "error") {
+  const messageBox = document.getElementById("errorMessage");
+  if (!messageBox) {
+    alert(message);
+    return;
+  }
+
+  messageBox.classList.remove("error-message", "success-message");
+  messageBox.classList.add(type === "success" ? "success-message" : "error-message", "dismissible-alert");
+  messageBox.innerHTML =
+    '<span class="message-text"></span><button type="button" class="message-close-btn" aria-label="Dismiss message">&times;</button>';
+
+  const textNode = messageBox.querySelector(".message-text");
+  if (textNode) {
+    textNode.textContent = message;
+  }
+
+  messageBox.style.display = "flex";
+}
+
 // Initialize event listeners when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   // Bind form submit
@@ -53,6 +82,23 @@ document.addEventListener('DOMContentLoaded', function() {
       return false;
     });
   }
+
+  const rememberMeInput = document.getElementById("rememberMe");
+  const emailInput = document.getElementById("email");
+  const rememberedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+  if (rememberMeInput && emailInput && rememberedEmail) {
+    rememberMeInput.checked = true;
+    emailInput.value = rememberedEmail;
+  }
+
+  const messageBox = document.getElementById("errorMessage");
+  if (messageBox) {
+    messageBox.addEventListener("click", (event) => {
+      if (event.target && event.target.classList.contains("message-close-btn")) {
+        hideAuthMessage();
+      }
+    });
+  }
 });
 
 function togglePasswordVisibility(fieldId) {
@@ -103,9 +149,11 @@ document.querySelectorAll(".primaryNavigation a").forEach((link) => {
 
 async function handleSubmit(event) {
   event.preventDefault();
+  hideAuthMessage();
 
   const emailInput = document.getElementById("email").value;
   const passwordInput = document.getElementById("password").value;
+  const rememberMe = document.getElementById("rememberMe")?.checked || false;
 
   try {
     const response = await fetchWithCsrf("/auth/login", {
@@ -116,6 +164,7 @@ async function handleSubmit(event) {
       body: JSON.stringify({
         email: emailInput,
         password: passwordInput,
+        rememberMe,
       }),
     });
 
@@ -144,6 +193,12 @@ async function handleSubmit(event) {
     const data = await safeJsonParse(response);
 
     if (data.success) {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_EMAIL_KEY, emailInput);
+      } else {
+        localStorage.removeItem(REMEMBER_EMAIL_KEY);
+      }
+
       sessionStorage.setItem("isLoggedIn", "true");
       sessionStorage.setItem("userRole", data.userRole);
       if (data.studentId) {
@@ -173,11 +228,11 @@ async function handleSubmit(event) {
         }
       }, 500);
     } else {
-      alert("Invalid email or password. Please try again.");
+      showAuthMessage("Invalid email or password. Please try again.");
     }
   } catch (error) {
     console.error("Error:", error);
-    alert("An error occurred during login. Please try again.");
+    showAuthMessage(error.message || "An error occurred during login. Please try again.");
   }
 }
 

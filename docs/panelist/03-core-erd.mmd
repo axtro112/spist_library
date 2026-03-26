@@ -1,0 +1,53 @@
+erDiagram
+    ADMINS {
+      INT id PK
+      VARCHAR email UK
+      ENUM role
+    }
+
+    STUDENTS {
+      INT id PK
+      VARCHAR student_id UK
+      VARCHAR fullname
+      VARCHAR email UK
+      INT department_id FK
+    }
+
+    DEPARTMENTS {
+      INT id PK
+      VARCHAR code UK
+      VARCHAR name UK
+    }
+
+    BOOKS {
+      INT id PK
+      VARCHAR title
+      VARCHAR isbn UK
+      INT added_by FK
+      INT quantity
+      INT available_quantity
+    }
+
+    BOOK_COPIES {
+      INT id PK
+      VARCHAR accession_number UK
+      INT book_id FK
+      ENUM status
+    }
+
+    BOOK_BORROWINGS {
+      INT id PK
+      INT book_id FK
+      VARCHAR student_id FK
+      INT approved_by FK
+      VARCHAR accession_number
+      DATETIME due_date
+      ENUM status
+    }
+
+    DEPARTMENTS ||--o{ STUDENTS : department_id
+    ADMINS ||--o{ BOOKS : added_by
+    BOOKS ||--o{ BOOK_COPIES : book_id
+    BOOKS ||--o{ BOOK_BORROWINGS : book_id
+    STUDENTS ||--o{ BOOK_BORROWINGS : student_id
+    ADMINS ||--o{ BOOK_BORROWINGS : approved_by

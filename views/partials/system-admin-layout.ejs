@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/css/system.css" />
+  <link rel="stylesheet" href="/css/system.css?v=20260327b" />
   <%- extraHead || '' %>
 
   <script src="/js/csrf-helper.js"></script>
@@ -52,9 +52,9 @@
       <a href="/admin-borrowed-books" class="<%= activePage === 'borrowed-books' ? 'active' : '' %>">
         <i class="bi bi-journal-bookmark"></i><span class="nav-label">Borrowed Books</span>
       </a>
-      <a href="/admin-qr-scanner" class="<%= activePage === 'qr-scanner' ? 'active' : '' %>">
+   <!--<a href="/admin-qr-scanner" class="<%= activePage === 'qr-scanner' ? 'active' : '' %>">
         <i class="bi bi-qr-code-scan"></i><span class="nav-label">QR Scanner</span>
-      </a>
+      </a>-->
       <div class="sa-nav-divider"></div>
       <a href="/admin-trash-bin" class="<%= activePage === 'trash-bin' ? 'active' : '' %>">
         <i class="bi bi-trash2"></i><span class="nav-label">Trash Bin</span>
@@ -113,6 +113,21 @@
   </div>
 </div>
 
+<div id="globalAlertModal" class="modal sa-modal" role="dialog" aria-modal="true" aria-labelledby="globalAlertTitle">
+  <div class="sa-modal-content">
+    <div class="sa-modal-header">
+      <h2 id="globalAlertTitle">Notice</h2>
+      <button type="button" class="sa-modal-close-btn" id="globalAlertCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="sa-modal-body">
+      <p id="globalAlertMessage">Message</p>
+    </div>
+    <div class="sa-modal-footer">
+      <button type="button" class="sa-btn sa-btn-primary" id="globalAlertOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
 <div id="logoutModal" class="modal">
   <div class="modal-content" style="max-width:380px;">
     <h2>Confirm Logout</h2>
@@ -128,6 +143,69 @@
 <script src="/js/sidebar-toggle.js" defer></script>
 <script src="/js/notification-deeplink.js"></script>
 <script src="/js/notification-highlight.js"></script>
+<script>
+(function () {
+  if (window.__customAlertInstalled) return;
+  window.__customAlertInstalled = true;
+
+  var nativeAlert = window.alert.bind(window);
+  var queue = [];
+  var isOpen = false;
+
+  function openNext() {
+    if (isOpen || queue.length === 0) return;
+
+    var modal = document.getElementById('globalAlertModal');
+    var messageEl = document.getElementById('globalAlertMessage');
+    var okBtn = document.getElementById('globalAlertOkBtn');
+    var closeBtn = document.getElementById('globalAlertCloseBtn');
+
+    if (!modal || !messageEl || !okBtn) {
+      while (queue.length) nativeAlert(queue.shift());
+      return;
+    }
+
+    isOpen = true;
+    messageEl.textContent = queue.shift();
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    okBtn.focus();
+
+    function closeModal() {
+      cleanup();
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      isOpen = false;
+      openNext();
+    }
+
+    function handleEsc(e) {
+      if (e.key === 'Escape') closeModal();
+    }
+
+    function handleBackdrop(e) {
+      if (e.target === modal) closeModal();
+    }
+
+    function cleanup() {
+      okBtn.removeEventListener('click', closeModal);
+      if (closeBtn) closeBtn.removeEventListener('click', closeModal);
+      modal.removeEventListener('click', handleBackdrop);
+      document.removeEventListener('keydown', handleEsc);
+    }
+
+    okBtn.addEventListener('click', closeModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', handleBackdrop);
+    document.addEventListener('keydown', handleEsc);
+  }
+
+  window.alert = function (message) {
+    queue.push(message == null ? '' : String(message));
+    openNext();
+  };
+})();
+</script>
 <%- include('./overview-panel') %>
 </body>
 </html>

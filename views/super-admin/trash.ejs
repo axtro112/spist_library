@@ -1,13 +1,13 @@
 ﻿<%
   var extraHead = [
-     '<link rel="stylesheet" href="/css/admin/trash.css">',
-    '<script src="/js/admin/trash-bootstrap.js" defer><\/script>',
-    '<script src="/js/shared/utils/safeFetch.js" defer><\/script>',
-    '<script src="/js/admin/trash/services.js" defer><\/script>',
-    '<script src="/js/admin/trash/table.js" defer><\/script>',
-    '<script src="/js/admin/trash/actions.js" defer><\/script>',
-    '<script src="/js/admin/trash/filters.js" defer><\/script>',
-    '<script src="/js/admin/trash/index.js" defer><\/script>',
+    '<link rel="stylesheet" href="/css/admin/trash.css?v=20260327c">',
+    '<script src="/js/admin/trash-bootstrap.js?v=20260327c" defer><\/script>',
+    '<script src="/js/shared/utils/safeFetch.js?v=20260327c" defer><\/script>',
+    '<script src="/js/admin/trash/services.js?v=20260327c" defer><\/script>',
+    '<script src="/js/admin/trash/table.js?v=20260327c" defer><\/script>',
+    '<script src="/js/admin/trash/actions.js?v=20260327c" defer><\/script>',
+    '<script src="/js/admin/trash/filters.js?v=20260327c" defer><\/script>',
+    '<script src="/js/admin/trash/index.js?v=20260327c" defer><\/script>',
   ].join('');
 %>
 <%- include('../partials/super-admin-layout', {
@@ -31,7 +31,7 @@
 
         <div class="sa-search-wrap">
           <i class="bi bi-search"></i>
-          <input type="text" id="trashSearch" placeholder="Searchâ€¦">
+          <input type="text" id="trashSearch" placeholder="Search">
         </div>
 
         <select id="trashTabFilter" class="sa-filter-select" style="min-width:150px;"></select>
@@ -71,6 +71,72 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div id="trashRestoreModal" class="trash-modal" role="dialog" aria-modal="true" aria-labelledby="trashRestoreTitle">
+      <div class="trash-modal-content">
+        <div class="trash-modal-header trash-modal-header--restore">
+          <h2 id="trashRestoreTitle"><i class="bi bi-arrow-counterclockwise"></i> Restore Items</h2>
+          <button type="button" class="trash-modal-close" id="trashRestoreClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="trash-modal-body">
+          <div class="trash-modal-info">
+            <i class="bi bi-info-circle-fill"></i>
+            <p id="trashRestoreMessage">Restore selected items?</p>
+          </div>
+        </div>
+        <div class="trash-modal-footer">
+          <button type="button" id="trashRestoreConfirmBtn" class="sa-btn sa-btn-success">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+          </button>
+          <button type="button" id="trashRestoreCancelBtn" class="sa-btn sa-btn-outline cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="trashDeleteConfirmModal" class="trash-modal" role="dialog" aria-modal="true" aria-labelledby="trashDeleteConfirmTitle">
+      <div class="trash-modal-content">
+        <div class="trash-modal-header trash-modal-header--danger">
+          <h2 id="trashDeleteConfirmTitle"><i class="bi bi-exclamation-triangle-fill"></i> Permanent Delete</h2>
+          <button type="button" class="trash-modal-close" id="trashDeleteClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="trash-modal-body">
+          <div class="trash-modal-info trash-modal-info--danger">
+            <i class="bi bi-exclamation-octagon-fill"></i>
+            <p id="trashDeleteConfirmMessage">Permanently delete selected items?</p>
+          </div>
+        </div>
+        <div class="trash-modal-footer">
+          <button type="button" id="trashDeleteConfirmBtn" class="sa-btn sa-btn-danger">
+            <i class="bi bi-trash3-fill me-1"></i> Delete Forever
+          </button>
+          <button type="button" id="trashDeleteCancelBtn" class="sa-btn sa-btn-outline cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="trashDeleteTypeModal" class="trash-modal" role="dialog" aria-modal="true" aria-labelledby="trashDeleteTypeTitle">
+      <div class="trash-modal-content">
+        <div class="trash-modal-header trash-modal-header--danger">
+          <h2 id="trashDeleteTypeTitle"><i class="bi bi-shield-exclamation"></i> Confirm Deletion</h2>
+          <button type="button" class="trash-modal-close" id="trashDeleteTypeClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="trash-modal-body">
+          <div class="trash-modal-info trash-modal-info--danger">
+            <i class="bi bi-keyboard-fill"></i>
+            <p>Type <strong>DELETE</strong> to continue.</p>
+          </div>
+          <div class="trash-delete-input-wrap">
+            <input id="trashDeleteTypeInput" type="text" class="sa-filter-select" placeholder="Type DELETE" autocomplete="off" />
+          </div>
+        </div>
+        <div class="trash-modal-footer">
+          <button type="button" id="trashDeleteTypeConfirmBtn" class="sa-btn sa-btn-danger" disabled>
+            <i class="bi bi-check2-circle me-1"></i> Confirm
+          </button>
+          <button type="button" id="trashDeleteTypeCancelBtn" class="sa-btn sa-btn-outline cancel-btn">Cancel</button>
+        </div>
       </div>
     </div>
   `

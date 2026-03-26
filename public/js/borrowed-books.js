@@ -684,7 +684,7 @@ function renderKanbanCard(record) {
   const borrowId = Number(record.id);
 
   return `
-    <div class="borrow-card" data-borrowing-id="${borrowId}">
+    <div class="borrow-card" data-borrowing-id="${borrowId}" onclick="handleBorrowCardClick(event, ${borrowId})">
       <div class="card-title">${bookTitle}</div>
       <div class="card-meta">
         Student: ${studentName} (${studentId})<br>
@@ -694,10 +694,17 @@ function renderKanbanCard(record) {
         ${canApprove ? `<button type="button" class="sa-btn sa-btn-primary" onclick="approveBorrowing(${borrowId})">Approve</button>` : ''}
         ${canConfirmPickup ? `<button type="button" class="sa-btn sa-btn-success" onclick="showPickupModal(${borrowId})">Confirm Pickup</button>` : ''}
         ${canConfirmReturn ? `<button type="button" class="sa-btn sa-btn-primary" onclick="showReturnModal(${borrowId})">Confirm Return</button>` : ''}
-        <button type="button" class="sa-btn sa-btn-outline" onclick="showDetailsModal(${borrowId})">Details</button>
       </div>
     </div>
   `;
+}
+
+function handleBorrowCardClick(event, borrowingId) {
+  if (event && event.target && event.target.closest('button, a, input, select, textarea, label')) {
+    return;
+  }
+  if (event) event.stopPropagation();
+  showDetailsModal(Number(borrowingId));
 }
 
 function updateKanbanCounters(groups) {
@@ -711,6 +718,9 @@ function updateKanbanCounters(groups) {
 function createBorrowingRow(record) {
   const tr = document.createElement('tr');
   tr.dataset.borrowingId = record.id;
+  tr.setAttribute('data-no-overview', 'true');
+  tr.removeAttribute('data-overview-type');
+  tr.removeAttribute('data-overview-id');
 
   // [ORPHAN FIX] Treat MySQL tinyint(1) 1 or JS true both as missing
   const bookMissing = record.book_missing === 1 || record.book_missing === true;
@@ -754,6 +764,14 @@ function createBorrowingRow(record) {
       </div>
     </td>
   `;
+
+  tr.addEventListener('click', (event) => {
+    if (event.target && event.target.closest('button, input, a, select, textarea, label')) {
+      return;
+    }
+    event.stopPropagation();
+    showDetailsModal(Number(record.id));
+  });
 
   return tr;
 }
@@ -839,17 +857,6 @@ function getActionButtons(record, bookMissing = false) {
       `);
     }
   }
-
-  // View Details button (always available, even for orphan records)
-  buttons.push(`
-    <button 
-      class="btn btn-sm btn-secondary" 
-      onclick="showDetailsModal(${record.id})"
-      title="View Details"
-    >
-      <span class="material-symbols-outlined" style="font-size: 16px;">info</span>
-    </button>
-  `);
 
   return buttons.join('');
 }
@@ -956,6 +963,102 @@ function setBorrowScannerResult(data) {
   scannerEl('borrowScanDueState').textContent = data.dueState || '—';
 }
 
+function getBorrowScannerHistoryEntries(studentId, limit = 12) {
+  if (!studentId) return [];
+
+  const normalizedId = String(studentId).trim();
+  if (!normalizedId) return [];
+
+  const rows = allBorrowings.filter((row) => String(row.student_id || '').trim() === normalizedId);
+  rows.sort((a, b) => {
+    const aTime = new Date(a.borrow_date || 0).getTime();
+    const bTime = new Date(b.borrow_date || 0).getTime();
+    if (aTime === bTime) return Number(b.id || 0) - Number(a.id || 0);
+    return bTime - aTime;
+  });
+
+  return rows.slice(0, limit);
+}
+
+function getBorrowScannerHistoryStatus(statusValue) {
+  const status = normalizeBorrowStatus(statusValue);
+  const map = {
+    pending_pickup: 'pending pickup',
+    claim_expired: 'claim expired',
+    picked_up: 'picked up',
+    pending_return: 'pending return',
+    borrowed: 'borrowed',
+    overdue: 'overdue',
+    returned: 'returned',
+  };
+  return map[status] || (status || 'unknown');
+}
+
+function renderBorrowScannerHistory(record) {
+  const wrapper = scannerEl('borrowScanHistory');
+  const list = scannerEl('borrowScanHistoryList');
+  const empty = scannerEl('borrowScanHistoryEmpty');
+
+  if (!wrapper || !list || !empty) return;
+
+  const entries = getBorrowScannerHistoryEntries(record && record.student_id);
+  wrapper.style.display = 'block';
+
+  if (!entries.length) {
+    list.style.display = 'none';
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = 'No borrowing history found for this student.';
+    return;
+  }
+
+  list.innerHTML = entries.map((row) => {
+    const isCurrent = record && Number(row.id) === Number(record.id);
+    const title = escapeHtml(row.book_title || 'Untitled');
+    const due = row.due_date ? formatDate(row.due_date) : 'N/A';
+    const status = escapeHtml(getBorrowScannerHistoryStatus(row.display_status || row.status));
+
+    return `
+      <li class="scanner-history-item${isCurrent ? ' current' : ''}">
+        <div class="scanner-history-title">${title}</div>
+        <div class="scanner-history-meta">Due ${due} <span class="scanner-history-pill">${status}</span></div>
+      </li>
+    `;
+  }).join('');
+
+  list.style.display = 'flex';
+  empty.style.display = 'none';
+}
+
+function prefillBorrowScannerWithRecord(record, mode) {
+  if (!record) return;
+
+  const normalizedStatus = normalizeBorrowStatus(record.display_status || record.status);
+  const dueState = getDueStateText(record.due_date, normalizedStatus);
+
+  setBorrowScannerResult({
+    accession: record.accession_number || `Borrowing #${record.id}`,
+    bookTitle: record.book_title || 'N/A',
+    author: record.book_author || 'N/A',
+    studentName: record.student_name || 'N/A',
+    statusLabel: normalizedStatus || 'N/A',
+    pickupDate: record.picked_up_at ? formatDate(record.picked_up_at) : 'Pending',
+    dueDate: record.due_date ? formatDate(record.due_date) : 'N/A',
+    dueState,
+  });
+
+  renderBorrowScannerHistory(record);
+
+  if (mode === 'pickup') {
+    setBorrowScannerMessage('Selected borrowing details loaded. Scan pickup QR to confirm this record.', 'info');
+    setBorrowScannerStatus('Ready to scan pickup QR for selected record.', 'info');
+    return;
+  }
+
+  setBorrowScannerMessage('Selected borrowing details loaded. Scan book QR/accession to confirm return.', 'info');
+  setBorrowScannerStatus('Ready to scan return QR for selected record.', 'info');
+}
+
 function clearBorrowScannerResult() {
   const grid = scannerEl('borrowScanResultGrid');
   const empty = scannerEl('borrowScanEmpty');
@@ -973,6 +1076,19 @@ function clearBorrowScannerResult() {
   scannerEl('borrowScanPickupDate').textContent = '—';
   scannerEl('borrowScanDueDate').textContent = '—';
   scannerEl('borrowScanDueState').textContent = '—';
+
+  const historyWrapper = scannerEl('borrowScanHistory');
+  const historyList = scannerEl('borrowScanHistoryList');
+  const historyEmpty = scannerEl('borrowScanHistoryEmpty');
+  if (historyWrapper) historyWrapper.style.display = 'none';
+  if (historyList) {
+    historyList.style.display = 'none';
+    historyList.innerHTML = '';
+  }
+  if (historyEmpty) {
+    historyEmpty.style.display = 'none';
+    historyEmpty.textContent = '';
+  }
 }
 
 function resetBorrowScannerState(clearResultOnly) {
@@ -1580,6 +1696,8 @@ async function handleBorrowScannerLookup(accessionNumber) {
         dueState,
       });
 
+      renderBorrowScannerHistory(borrowing);
+
       if (displayStatus !== 'pending_pickup') {
         setBorrowScannerMessage('Scanned record is not in pending pickup status.', 'warning');
         setBorrowScannerStatus(`Status is ${displayStatus || 'unknown'}; cannot confirm pickup.`, 'error');
@@ -1618,6 +1736,8 @@ async function handleBorrowScannerLookup(accessionNumber) {
       setBorrowScannerStatus('No active borrowing.', 'error');
       return;
     }
+
+    renderBorrowScannerHistory(borrowing);
 
     if (['borrowed', 'overdue', 'pending_return', 'picked_up'].includes(displayStatus)) {
       if (scannerCurrentBorrowingId && Number(borrowing.id) !== Number(scannerCurrentBorrowingId)) {
@@ -1677,6 +1797,11 @@ function openBorrowScannerModal(mode, borrowingId) {
     title.textContent = mode === 'pickup' ? 'Scan to Confirm Pickup' : 'Scan to Confirm Return';
   }
 
+  if (scannerCurrentBorrowingId) {
+    const selectedRecord = getBorrowingRecordById(scannerCurrentBorrowingId);
+    prefillBorrowScannerWithRecord(selectedRecord, mode);
+  }
+
   modal.style.display = 'flex';
   document.body.classList.add('modal-open');
 }
@@ -1708,112 +1833,80 @@ function showDetailsModal(borrowingId) {
   }
   
   const modal = document.getElementById('detailsModal');
-  const modalBody = modal.querySelector('.modal-body');
+  const modalBody = modal?.querySelector('.borrow-details-body') || modal?.querySelector('.sa-modal-body') || modal?.querySelector('.modal-body');
+
+  if (!modal || !modalBody) {
+    showToast('Details modal container not found', 'error');
+    return;
+  }
+
+  const titleEl = modal.querySelector('.sa-modal-header h2') || modal.querySelector('.modal-header h2');
+  if (titleEl) {
+    titleEl.textContent = escapeHtml(record.student_name || 'Borrowing Details');
+  }
+
+  const studentHistory = getBorrowScannerHistoryEntries(record.student_id, 24);
+  const statusLabelMap = {
+    pending_pickup: 'Pending Pickup',
+    claim_expired: 'Claim Expired',
+    picked_up: 'Picked Up',
+    pending_return: 'Pending Return',
+    borrowed: 'Borrowed',
+    overdue: 'Overdue',
+    returned: 'Returned',
+  };
+  const getStatusClass = (status) => {
+    const normalized = normalizeBorrowStatus(status);
+    if (normalized === 'returned') return 'returned';
+    if (normalized === 'picked_up' || normalized === 'borrowed' || normalized === 'pending_return') return 'active';
+    if (normalized === 'pending_pickup') return 'pending';
+    if (normalized === 'overdue' || normalized === 'claim_expired') return 'warning';
+    return 'neutral';
+  };
+
+  const historyListHtml = studentHistory.length
+    ? studentHistory.map((entry) => {
+        const normalized = normalizeBorrowStatus(entry.display_status || entry.status);
+        const statusLabel = statusLabelMap[normalized] || (normalized || 'Unknown');
+        const dueLabel = entry.due_date ? formatDate(entry.due_date) : 'No due date';
+        const currentClass = Number(entry.id) === Number(record.id) ? ' current' : '';
+        return `
+          <li class="borrow-overview-book-item${currentClass}">
+            <div class="borrow-overview-book-line">
+              <span class="borrow-overview-book-title">${escapeHtml(entry.book_title || 'Untitled')}</span>
+              <span class="borrow-overview-book-due">Due ${dueLabel}</span>
+            </div>
+            <span class="borrow-overview-badge ${getStatusClass(normalized)}">${escapeHtml(statusLabel)}</span>
+          </li>
+        `;
+      }).join('')
+    : '<div class="borrow-overview-empty">No borrowing history available.</div>';
   
   modalBody.innerHTML = `
-    <div class="modal-detail-grid">
-      <h4>Student Information</h4>
-      <div class="detail-row">
-        <span class="detail-label">Name:</span>
-        <span class="detail-value">${escapeHtml(record.student_name)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">ID:</span>
-        <span class="detail-value">${escapeHtml(record.student_id)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Email:</span>
-        <span class="detail-value">${escapeHtml(record.student_email)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Course:</span>
-        <span class="detail-value">${escapeHtml(record.student_course || 'N/A')}</span>
-      </div>
-      
-      <h4 class="mt-3">Book Information</h4>
-      <div class="detail-row">
-        <span class="detail-label">Title:</span>
-        <span class="detail-value">${escapeHtml(record.book_title)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Author:</span>
-        <span class="detail-value">${escapeHtml(record.book_author)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">ISBN:</span>
-        <span class="detail-value">${escapeHtml(record.book_isbn || 'N/A')}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Category:</span>
-        <span class="detail-value">${escapeHtml(record.book_category || 'N/A')}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Accession No:</span>
-        <span class="detail-value"><code>${escapeHtml(record.accession_number || 'N/A')}</code></span>
-      </div>
-      
-      <h4 class="mt-3">Borrowing Timeline</h4>
-      <div class="detail-row">
-        <span class="detail-label">Borrow Date:</span>
-        <span class="detail-value">${formatDate(record.borrow_date)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Due Date:</span>
-        <span class="detail-value">${formatDate(record.due_date)}</span>
-      </div>
-      ${record.claim_expires_at ? `
-      <div class="detail-row">
-        <span class="detail-label">Claim Deadline:</span>
-        <span class="detail-value">${formatDate(record.claim_expires_at)}</span>
-      </div>
-      ` : ''}
-      <div class="detail-row">
-        <span class="detail-label">Picked Up:</span>
-        <span class="detail-value">${record.picked_up_at ? formatDate(record.picked_up_at) : '<span style="color: #9ca3af;">Not picked up</span>'}</span>
-      </div>
-      ${record.picked_up_by_name ? `
-      <div class="detail-row">
-        <span class="detail-label">Confirmed by:</span>
-        <span class="detail-value">${escapeHtml(record.picked_up_by_name)}</span>
-      </div>
-      ` : ''}
-      <div class="detail-row">
-        <span class="detail-label">Return Date:</span>
-        <span class="detail-value">${record.return_date ? formatDate(record.return_date) : '<span style="color: #9ca3af;">Not returned</span>'}</span>
-      </div>
-      ${record.returned_by_name ? `
-      <div class="detail-row">
-        <span class="detail-label">Returned to:</span>
-        <span class="detail-value">${escapeHtml(record.returned_by_name)}</span>
-      </div>
-      ` : ''}
-      <div class="detail-row">
-        <span class="detail-label">Status:</span>
-        <span class="detail-value">${getStatusBadge(record.display_status)}</span>
-      </div>
-      
-      ${record.copy_condition_at_borrow || record.copy_condition_at_return ? `
-      <h4 class="mt-3">Book Condition</h4>
-      ${record.copy_condition_at_borrow ? `
-      <div class="detail-row">
-        <span class="detail-label">At Borrow:</span>
-        <span class="detail-value">${capitalizeFirst(record.copy_condition_at_borrow)}</span>
-      </div>
-      ` : ''}
-      ${record.copy_condition_at_return ? `
-      <div class="detail-row">
-        <span class="detail-label">At Return:</span>
-        <span class="detail-value">${capitalizeFirst(record.copy_condition_at_return)}</span>
-      </div>
-      ` : ''}
-      ` : ''}
-      
-      ${record.notes ? `
-      <h4 class="mt-3">Notes</h4>
-      <div class="detail-row">
-        <span class="detail-value">${escapeHtml(record.notes)}</span>
-      </div>
-      ` : ''}
+    <div class="borrow-overview-shell">
+      <div class="borrow-overview-kicker">Overview</div>
+      <div class="borrow-overview-title">${escapeHtml(record.student_name || 'Borrowing Details')}</div>
+
+      <section class="borrow-overview-card">
+        <h4 class="borrow-overview-card-title">User Details</h4>
+        <div class="borrow-overview-kv">
+          <div class="borrow-overview-k">Full Name</div><div class="borrow-overview-v">${escapeHtml(record.student_name || 'N/A')}</div>
+          <div class="borrow-overview-k">Student ID</div><div class="borrow-overview-v">${escapeHtml(record.student_id || 'N/A')}</div>
+          <div class="borrow-overview-k">Course/Dept</div><div class="borrow-overview-v">${escapeHtml(record.student_course || 'N/A')}</div>
+          <div class="borrow-overview-k">Email</div><div class="borrow-overview-v">${escapeHtml(record.student_email || 'N/A')}</div>
+          <div class="borrow-overview-k">Status</div><div class="borrow-overview-v">${getStatusBadge(record.display_status || record.status)}</div>
+          <div class="borrow-overview-k">Accession</div><div class="borrow-overview-v"><code>${escapeHtml(record.accession_number || 'N/A')}</code></div>
+          <div class="borrow-overview-k">Borrow Date</div><div class="borrow-overview-v">${formatDate(record.borrow_date)}</div>
+          <div class="borrow-overview-k">Due Date</div><div class="borrow-overview-v">${formatDate(record.due_date)}</div>
+        </div>
+      </section>
+
+      <section class="borrow-overview-card">
+        <h4 class="borrow-overview-card-title">Borrowed Books</h4>
+        <ul class="borrow-overview-book-list">
+          ${historyListHtml}
+        </ul>
+      </section>
     </div>
   `;
   

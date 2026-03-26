@@ -62,6 +62,7 @@
       if (!n.overlay || !n.panel) return;
       n.overlay.classList.remove('is-open');
       n.panel.classList.remove('is-open');
+      n.panel.classList.remove('sa-overview-mode-user');
       n.overlay.setAttribute('aria-hidden', 'true');
       n.panel.setAttribute('aria-hidden', 'true');
     }
@@ -178,6 +179,15 @@
       if (t) t.textContent = text || 'Overview';
     }
 
+    function _setMode(type) {
+      var n = _nodes();
+      if (!n.panel) return;
+      n.panel.classList.remove('sa-overview-mode-user');
+      if (String(type || '').toLowerCase() === 'user') {
+        n.panel.classList.add('sa-overview-mode-user');
+      }
+    }
+
     function _renderError(msg) {
       _setBody(_empty(msg || 'Failed to load data.'));
     }
@@ -247,30 +257,29 @@
       else if (st === 'inactive') statusBadge = _badge('Inactive', 'red');
       else if (status !== '—')    statusBadge = _badge(status,     'gray');
 
-      var detailsHTML = _kvGrid([
-        ['Full Name',    name],
-        ['Student ID',   String(sid)],
-        ['Course/Dept',  dept],
-        ['Year Level',   String(year)],
-        ['Email',        email],
-        ['Contact',      contact],
-        ['Status',       statusBadge ? '' : status],
-        ['Rented',       String(borrowCount) + ' book' + (borrowCount !== 1 ? 's' : '')],
-        ['Next Due',     nextDue],
-      ]);
+      var detailsHTML =
+        '<div class="sa-user-modal-sections">' +
+          '<section class="sa-user-modal-section">' +
+            '<h4>Student Information</h4>' +
+            '<div class="sa-user-modal-kv">' +
+              _kv('Name', name) +
+              _kv('ID', String(sid)) +
+              _kv('Email', email) +
+              _kv('Course', dept) +
+              _kv('Year Level', String(year)) +
+              _kv('Contact', contact) +
+              _kvRaw('Status', statusBadge || _esc(status)) +
+              _kv('Rented', String(borrowCount) + ' book' + (borrowCount !== 1 ? 's' : '')) +
+              _kv('Next Due', nextDue) +
+            '</div>' +
+          '</section>' +
+          '<section class="sa-user-modal-section">' +
+            '<h4>Borrowed Books</h4>' +
+            (bookItems || _empty('No active borrowed books.')) +
+          '</section>' +
+        '</div>';
 
-      // Patch status cell with badge if available
-      if (statusBadge) {
-        detailsHTML = detailsHTML.replace(
-          '<div class="sa-overview-v" title=""></div>',
-          '<div class="sa-overview-v">' + statusBadge + '</div>'
-        );
-      }
-
-      _setBody(
-        _card('User Details', 'bi bi-person-fill', detailsHTML) +
-        _card('Borrowed Books', 'bi bi-journal-bookmark-fill', bookItems)
-      );
+      _setBody(detailsHTML);
     }
 
     // ── Book overview ─────────────────────────────────────────
@@ -459,6 +468,7 @@
       _openShell('Loading…');
 
       var t = String(type).toLowerCase();
+      _setMode(t);
       try {
         if (t === 'user')  return await _loadUser(id);
         if (t === 'book')  return await _loadBook(id);

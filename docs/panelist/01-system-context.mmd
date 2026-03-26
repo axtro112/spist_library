@@ -1,0 +1,16 @@
+flowchart LR
+    A[Student] --> B[Web App UI]
+    C[System Admin] --> B
+    D[Super Admin] --> B
+
+    B --> E[Auth and Session Layer]
+    B --> F[Borrowing and Inventory Layer]
+    B --> G[Notification Layer]
+
+    E --> H[(MySQL Database)]
+    F --> H
+    G --> H
+
+    G --> I[Email Service]
+
+    H --> J[Audit and Reports]

@@ -1,0 +1,298 @@
+/* System Admin Users Page - UI refresh matching admin grid style */
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-card {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  background: rgba(245, 248, 245, 0.92);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+}
+
+body[data-active-page="admins"] .users-interface-card {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  background: rgba(245, 248, 245, 0.92);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-card .sa-filter-bar {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d8e2d4;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+body[data-active-page="admins"] .users-interface-card .sa-filter-bar {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d8e2d4;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] #usersResultCount {
+  color: #4b5563 !important;
+  font-weight: 600;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-card .sa-table-wrapper {
+  border: 1px solid #d4ddd0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f4f6f3;
+}
+
+body[data-active-page="admins"] .users-interface-card .sa-table-wrapper {
+  border: 1px solid #d4ddd0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f4f6f3;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+body[data-active-page="admins"] .users-interface-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table thead th {
+  background: #3a943f;
+  color: #ffffff;
+  border-bottom: none;
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 12px 12px;
+  white-space: nowrap;
+}
+
+body[data-active-page="admins"] .users-interface-table thead th {
+  background: #3a943f;
+  color: #ffffff;
+  border-bottom: none;
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 12px 12px;
+  white-space: nowrap;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table tbody td {
+  font-size: 0.9rem;
+  color: #2f3440;
+  border-bottom: 1px solid #dde3db;
+  padding: 12px 12px;
+  vertical-align: middle;
+}
+
+body[data-active-page="admins"] .users-interface-table tbody td {
+  font-size: 0.9rem;
+  color: #2f3440;
+  border-bottom: 1px solid #dde3db;
+  padding: 12px 12px;
+  vertical-align: middle;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table tbody tr:nth-child(odd) {
+  background: #f8faf7;
+}
+
+body[data-active-page="admins"] .users-interface-table tbody tr:nth-child(odd) {
+  background: #f8faf7;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table tbody tr:nth-child(even) {
+  background: #eef2ea;
+}
+
+body[data-active-page="admins"] .users-interface-table tbody tr:nth-child(even) {
+  background: #eef2ea;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table tbody tr:hover {
+  background: #e6ecdf !important;
+}
+
+body[data-active-page="admins"] .users-interface-table tbody tr:hover {
+  background: #e6ecdf !important;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table .action-cell {
+  white-space: nowrap;
+  text-align: center;
+}
+
+body[data-active-page="admins"] .users-interface-table .admin-actions-cell {
+  white-space: nowrap;
+  text-align: center;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table .action-btn {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  margin: 0 3px !important;
+  box-shadow: none !important;
+}
+
+body[data-active-page="admins"] .users-interface-table .btn {
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+body[data-active-page="admins"] .users-interface-table .edit-btn {
+  background: #e8f0ff;
+  color: #1f5fbf;
+}
+
+body[data-active-page="admins"] .users-interface-table .delete-btn {
+  background: #fde8ea;
+  color: #bb1f35;
+}
+
+body[data-active-page="admins"] .users-interface-table .admin-view-only-badge {
+  background: #eef2f7;
+  color: #6b7280;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table .edit-user-btn {
+  background: #e8f0ff !important;
+  color: #1f5fbf !important;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table .delete-user-btn {
+  background: #fde8ea !important;
+  color: #bb1f35 !important;
+}
+
+body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table .books-title-cell {
+  max-width: 320px;
+}
+
+@media (max-width: 1400px) {
+  body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table th,
+  body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table td {
+    font-size: 0.82rem;
+    padding: 10px 9px;
+  }
+
+  body[data-active-page="users"][data-admin-role="system_admin"] .users-interface-table .books-title-cell {
+    max-width: 240px;
+  }
+
+  body[data-active-page="admins"] .users-interface-table th,
+  body[data-active-page="admins"] .users-interface-table td {
+    font-size: 0.82rem;
+    padding: 10px 9px;
+  }
+}
+
+/* Shared users table style for both super-admin and system-admin pages */
+body[data-active-page="users"] .users-interface-card {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  background: rgba(245, 248, 245, 0.92);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+}
+
+body[data-active-page="users"] .users-interface-card .sa-filter-bar {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d8e2d4;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+body[data-active-page="users"] #usersResultCount {
+  color: #4b5563 !important;
+  font-weight: 600;
+}
+
+body[data-active-page="users"] .users-interface-card .sa-table-wrapper {
+  border: 1px solid #d4ddd0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f4f6f3;
+}
+
+body[data-active-page="users"] .users-interface-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+body[data-active-page="users"] .users-interface-table thead th {
+  background: #3a943f;
+  color: #ffffff;
+  border-bottom: none;
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 12px 12px;
+  white-space: nowrap;
+}
+
+body[data-active-page="users"] .users-interface-table tbody td {
+  font-size: 0.9rem;
+  color: #2f3440;
+  border-bottom: 1px solid #dde3db;
+  padding: 12px 12px;
+  vertical-align: middle;
+}
+
+body[data-active-page="users"] .users-interface-table tbody tr:nth-child(odd) {
+  background: #f8faf7;
+}
+
+body[data-active-page="users"] .users-interface-table tbody tr:nth-child(even) {
+  background: #eef2ea;
+}
+
+body[data-active-page="users"] .users-interface-table tbody tr:hover {
+  background: #e6ecdf !important;
+}
+
+body[data-active-page="users"] .users-interface-table .action-cell {
+  white-space: nowrap;
+  text-align: center;
+}
+
+body[data-active-page="users"] .users-interface-table .action-btn {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  margin: 0 3px !important;
+  box-shadow: none !important;
+}
+
+body[data-active-page="users"] .users-interface-table .edit-user-btn {
+  background: #e8f0ff !important;
+  color: #1f5fbf !important;
+}
+
+body[data-active-page="users"] .users-interface-table .delete-user-btn {
+  background: #fde8ea !important;
+  color: #bb1f35 !important;
+}
+
+body[data-active-page="users"] .users-interface-table .books-title-cell {
+  max-width: 320px;
+}
+
+@media (max-width: 1400px) {
+  body[data-active-page="users"] .users-interface-table th,
+  body[data-active-page="users"] .users-interface-table td {
+    font-size: 0.82rem;
+    padding: 10px 9px;
+  }
+
+  body[data-active-page="users"] .users-interface-table .books-title-cell {
+    max-width: 240px;
+  }
+}

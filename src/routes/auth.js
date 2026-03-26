@@ -9,6 +9,21 @@ const logger = require("../utils/logger");
 const passport = require("../config/passport");
 require("dotenv").config();
 
+const ensureGoogleOAuthConfigured = (req, res, next) => {
+  if (passport.isGoogleOAuthConfigured) return next();
+
+  logger.warn('Google OAuth attempted but not configured in environment');
+
+  if (req.accepts('html')) {
+    return res.redirect('/login?google=disabled');
+  }
+
+  return res.status(503).json({
+    success: false,
+    message: 'Google login is not configured on this server.'
+  });
+};
+
 function saveSession(req) {
   return new Promise((resolve, reject) => {
     req.session.save((err) => {
@@ -356,11 +371,13 @@ router.post("/reset-password", async (req, res) => {
 // Google OAuth Routes
 router.get(
   "/google",
+  ensureGoogleOAuthConfigured,
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
 router.get(
   "/google/callback",
+  ensureGoogleOAuthConfigured,
   passport.authenticate("google", { failureRedirect: "/login" }),
   async (req, res) => {
     // Successful authentication

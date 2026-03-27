@@ -174,6 +174,19 @@ EMAIL_PORT=587
 EMAIL_SECURE=false
 EMAIL_FROM=noreply@spistlibrary.edu.ph
 
+# Optional HTTP email API provider (recommended on Railway)
+# Uses HTTPS (port 443), avoiding SMTP connectivity issues.
+EMAIL_API_PROVIDER=
+RESEND_API_KEY=
+RESEND_API_BASE_URL=https://api.resend.com
+
+# Optional SMTP fallback provider (used if HTTP provider fails)
+EMAIL_FALLBACK_HOST=
+EMAIL_FALLBACK_PORT=587
+EMAIL_FALLBACK_SECURE=false
+EMAIL_FALLBACK_USER=
+EMAIL_FALLBACK_PASS=
+
 # Rate Limiting Configuration
 RATE_LIMIT_WINDOW=15
 RATE_LIMIT_MAX=100

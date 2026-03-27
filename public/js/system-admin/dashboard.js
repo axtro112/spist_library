@@ -114,6 +114,7 @@
       Core.utils.setText("activeBorrowings",    statsData.activeBorrowings   || 0);
       Core.utils.setText("registeredStudents",  statsData.registeredStudents || 0);
       Core.utils.setText("overdueBooks",        statsData.overdueBooks       || 0);
+      Core.utils.setText("pendingPickup",       statsData.pendingPickup      || 0);
 
       _updateCharts(statsData);
     } catch (err) {

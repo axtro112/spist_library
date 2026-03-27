@@ -145,8 +145,7 @@ router.get("/:id/dashboard-stats", requireAuth, async (req, res) => {
        FROM book_borrowings
        WHERE student_id = ?
          AND return_date IS NULL
-         AND status = 'borrowed'
-         AND picked_up_at IS NULL`,
+         AND status = 'pending_pickup'`,
       [student.student_id]
     );
 

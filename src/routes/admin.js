@@ -134,9 +134,9 @@ router.get("/books", requireAdmin, async (req, res) => {
       CASE
         WHEN bb.id IS NULL THEN 'available'
         WHEN bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.return_date IS NULL AND bb.due_date < NOW()) THEN 'overdue'
-        WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
-        WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
-        WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
+        WHEN bb.status = 'pending_pickup' AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
+        WHEN bb.status = 'pending_pickup' THEN 'pending_pickup'
+        WHEN bb.status = 'borrowed' THEN 'picked_up'
         ELSE bb.status
       END as display_status
     FROM books b
@@ -428,7 +428,7 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
         pendingPickup: `
           SELECT COUNT(*) as count
           FROM book_borrowings
-          WHERE status = 'borrowed' AND picked_up_at IS NULL
+          WHERE status = 'pending_pickup'
         `,
     totalBooks: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
     totalCopies: "SELECT COALESCE(SUM(quantity), 0) as count FROM books WHERE status IN ('available', 'borrowed', 'maintenance')",
@@ -1451,11 +1451,9 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
     // Status filter
     if (status && status.trim()) {
       if (status === 'pending_pickup') {
-        // Borrowed + not picked up (includes claim-expired so active records stay visible)
-        whereConditions.push("bb.status = 'borrowed' AND bb.picked_up_at IS NULL");
+        whereConditions.push("bb.status = 'pending_pickup'");
       } else if (status === 'picked_up') {
-        // Picked up (borrowed with pickup confirmation)
-        whereConditions.push("bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL");
+        whereConditions.push("bb.status = 'borrowed'");
       } else if (status === 'overdue') {
         // Overdue: either marked overdue in DB, or past due date and not yet returned
         whereConditions.push("(bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.return_date IS NULL AND bb.due_date < NOW()))");
@@ -1506,9 +1504,9 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
         CASE 
           WHEN bb.status = 'returned' THEN 'returned'
           WHEN bb.return_date IS NULL AND (bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.due_date < NOW())) THEN 'overdue'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
+          WHEN bb.status = 'pending_pickup' AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
+          WHEN bb.status = 'borrowed' THEN 'picked_up'
+          WHEN bb.status = 'pending_pickup' THEN 'pending_pickup'
           ELSE bb.status
         END AS display_status
       FROM book_borrowings bb
@@ -1578,9 +1576,9 @@ router.get("/borrowings/:id", requireAdmin, async (req, res) => {
         CASE 
           WHEN bb.status = 'returned' THEN 'returned'
           WHEN bb.return_date IS NULL AND (bb.status = 'overdue' OR (bb.status = 'borrowed' AND bb.due_date < NOW())) THEN 'overdue'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'picked_up'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
+          WHEN bb.status = 'pending_pickup' AND COALESCE(LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)), DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)) < NOW() THEN 'claim_expired'
+          WHEN bb.status = 'borrowed' THEN 'picked_up'
+          WHEN bb.status = 'pending_pickup' THEN 'pending_pickup'
           ELSE bb.status
         END AS display_status
       FROM book_borrowings bb

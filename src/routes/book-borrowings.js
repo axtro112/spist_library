@@ -93,9 +93,9 @@ router.get("/:studentId", async (req, res) => {
         bb.picked_up_at,
         bb.status as borrow_status,
         CASE
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NULL THEN 'pending_pickup'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL AND bb.due_date < CURRENT_DATE THEN 'overdue'
-          WHEN bb.status = 'borrowed' AND bb.picked_up_at IS NOT NULL THEN 'borrowed'
+          WHEN bb.status = 'pending_pickup' THEN 'pending_pickup'
+          WHEN bb.status = 'borrowed' AND bb.due_date < CURRENT_DATE THEN 'overdue'
+          WHEN bb.status = 'borrowed' THEN 'borrowed'
           WHEN bb.status = 'returned' THEN 'returned'
           WHEN bb.status = 'cancelled' THEN 'cancelled'
           ELSE bb.status
@@ -174,7 +174,7 @@ router.post("/:id/cancel", requireAuth, async (req, res) => {
       return response.forbidden(res, 'You can only cancel your own requests');
     }
 
-    if (record.status !== 'borrowed' || record.picked_up_at) {
+    if (record.status !== 'pending_pickup') {
       return response.validationError(res, 'Only pending pickup requests can be cancelled');
     }
 
@@ -183,7 +183,7 @@ router.post("/:id/cancel", requireAuth, async (req, res) => {
         `UPDATE book_borrowings
          SET status = 'cancelled',
              notes = CONCAT(COALESCE(notes, ''), CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END, 'Cancelled by student')
-         WHERE id = ? AND student_id = ? AND status = 'borrowed' AND picked_up_at IS NULL`,
+         WHERE id = ? AND student_id = ? AND status = 'pending_pickup'`,
         [borrowingId, userId]
       );
 

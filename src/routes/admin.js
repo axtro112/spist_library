@@ -1963,7 +1963,11 @@ router.post('/borrowings/:id/cancel', requireAdmin, async (req, res) => {
 
     const cancellableStatuses = new Set(['pending', 'approved', 'pending_pickup', 'borrowed']);
     if (!cancellableStatuses.has(record.status) || record.picked_up_at) {
-      return response.validationError(res, 'Only pending (not yet picked up) requests can be cancelled');
+      const pickedUpState = record.picked_up_at ? 'already picked up' : 'not picked up';
+      return response.validationError(
+        res,
+        `Only pending (not yet picked up) requests can be cancelled. Current status: ${record.status}, ${pickedUpState}.`
+      );
     }
 
     await db.withTransaction(async (conn) => {

@@ -38,6 +38,9 @@ const primaryPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || 
 const primarySecure = (process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true') ? true : false;
 const primaryUser = process.env.EMAIL_USER || process.env.SMTP_USER;
 const primaryPass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
+const emailApiProvider = (process.env.EMAIL_API_PROVIDER || '').toLowerCase();
+const resendApiKey = process.env.RESEND_API_KEY;
+const resendApiBaseUrl = process.env.RESEND_API_BASE_URL || 'https://api.resend.com';
 
 const fallbackHost = process.env.EMAIL_FALLBACK_HOST || process.env.SMTP_FALLBACK_HOST;
 const fallbackPort = parseInt(process.env.EMAIL_FALLBACK_PORT || process.env.SMTP_FALLBACK_PORT || 587, 10);
@@ -65,6 +68,38 @@ function createTransportConfig({ host, port, secure, user, pass }) {
       pass,
     },
   };
+}
+
+function hasResendConfig() {
+  return emailApiProvider === 'resend' && !!resendApiKey;
+}
+
+function normalizeRecipients(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return [value];
+}
+
+function normalizeApiAttachments(attachments = []) {
+  return attachments
+    .filter((attachment) => attachment && attachment.filename && attachment.content)
+    .map((attachment) => {
+      let contentBase64 = '';
+      if (Buffer.isBuffer(attachment.content)) {
+        contentBase64 = attachment.content.toString('base64');
+      } else if (typeof attachment.content === 'string') {
+        contentBase64 = Buffer.from(attachment.content).toString('base64');
+      }
+
+      return {
+        filename: attachment.filename,
+        content: contentBase64,
+        content_type: attachment.contentType || 'application/octet-stream',
+        disposition: attachment.contentDisposition || 'attachment',
+        content_id: attachment.cid || undefined,
+      };
+    })
+    .filter((attachment) => attachment.content);
 }
 
 const smtpCandidates = [];
@@ -199,6 +234,72 @@ async function sendMailWithFallback(mailOptions, contextLabel) {
   throw lastError || new Error('All SMTP routes failed');
 }
 
+async function sendMailWithResend(mailOptions, contextLabel) {
+  const payload = {
+    from: mailOptions.from,
+    to: normalizeRecipients(mailOptions.to),
+    subject: mailOptions.subject,
+    html: mailOptions.html,
+    text: mailOptions.text,
+    attachments: normalizeApiAttachments(mailOptions.attachments || []),
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    logger.info('[EMAIL API] Attempting provider send', {
+      context: contextLabel,
+      provider: 'resend',
+      toCount: payload.to.length,
+      hasAttachments: payload.attachments.length > 0,
+    });
+
+    const response = await fetch(`${resendApiBaseUrl}/emails`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const apiError = data && data.message ? data.message : `HTTP ${response.status}`;
+      throw new Error(`Resend API error: ${apiError}`);
+    }
+
+    logger.info('[EMAIL API] Provider send successful', {
+      context: contextLabel,
+      provider: 'resend',
+      messageId: data.id,
+    });
+
+    return { messageId: data.id };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function sendMailWithPreferredProvider(mailOptions, contextLabel) {
+  if (hasResendConfig()) {
+    try {
+      return await sendMailWithResend(mailOptions, contextLabel);
+    } catch (error) {
+      logger.warn('[EMAIL API] Provider send failed, falling back to SMTP', {
+        context: contextLabel,
+        provider: 'resend',
+        error: error.message,
+      });
+    }
+  }
+
+  return sendMailWithFallback(mailOptions, contextLabel);
+}
+
 // Test connection on startup (non-blocking)
 if (emailConfig.auth.user && emailConfig.auth.pass) {
   transporter.verify((error, success) => {
@@ -208,6 +309,10 @@ if (emailConfig.auth.user && emailConfig.auth.pass) {
       logger.info('Email transporter ready', { from: fromEmail });
     }
   });
+}
+
+if (emailApiProvider === 'resend' && !resendApiKey) {
+  logger.warn('EMAIL_API_PROVIDER is set to resend but RESEND_API_KEY is missing. SMTP fallback will be used.');
 }
 
 /**
@@ -429,7 +534,7 @@ This is an automated email. Please do not reply to this message.
       attachments,
     };
 
-    const info = await sendMailWithFallback(mailOptions, 'borrowing-claim');
+    const info = await sendMailWithPreferredProvider(mailOptions, 'borrowing-claim');
 
     console.log('[EMAIL SEND] SMTP send successful', { messageId: info.messageId });
     logger.info('Borrowing claim email sent', {
@@ -607,7 +712,7 @@ This is an automated email. Please do not reply to this message.
       html: htmlContent
     };
 
-    const info = await sendMailWithFallback(mailOptions, 'return-confirmation');
+    const info = await sendMailWithPreferredProvider(mailOptions, 'return-confirmation');
 
     logger.info('Return confirmation email sent', {
       studentEmail,
@@ -684,7 +789,7 @@ async function sendOverdueReminderEmail(studentEmail, studentName, studentId, bo
         </body>
       </html>`;
 
-    const info = await sendMailWithFallback({
+    const info = await sendMailWithPreferredProvider({
       from: `"SPIST Library" <${fromEmail}>`,
       to: studentEmail,
       subject: `Overdue Book Reminder — ${escapeHtml(bookTitle)} (${daysOverdue} day(s) overdue)`,

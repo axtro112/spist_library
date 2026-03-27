@@ -470,6 +470,10 @@
 
 #copiesModal .sa-modal-body {
   padding-top: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #copiesModal .sa-modal-summary {
@@ -608,9 +612,7 @@
   transform: translateZ(0);
 }
 
-#copiesModal .sa-modal-body {
-  overflow: hidden;
-}
+/* Keep modal body scrollable (especially Edit tab forms on shorter screens). */
 
 #copiesModal .bcm-copies-table .user-table {
   min-width: 960px;

@@ -641,13 +641,88 @@ function attachRowEventListeners(row) {
 
 // ── Actions Dropdown: Event Delegation ──────────────────────────────────────
 
+var activeActionsMenu = null;
+var activeActionsToggle = null;
+var activeActionsOrigin = null;
+
+function positionActionMenu(menu, toggleBtn) {
+  if (!menu || !toggleBtn) return;
+  var rect = toggleBtn.getBoundingClientRect();
+  var menuWidth = menu.offsetWidth || 170;
+  var menuHeight = menu.offsetHeight || 170;
+  var viewportPadding = 8;
+
+  var left = rect.right - menuWidth;
+  if (left < viewportPadding) left = viewportPadding;
+  if (left + menuWidth > window.innerWidth - viewportPadding) {
+    left = window.innerWidth - menuWidth - viewportPadding;
+  }
+
+  var top = rect.bottom + 6;
+  if (top + menuHeight > window.innerHeight - viewportPadding) {
+    top = Math.max(viewportPadding, rect.top - menuHeight - 6);
+  }
+
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+
+function openActionDropdown(toggleBtn) {
+  var dropdown = toggleBtn && toggleBtn.closest('.actions-dropdown');
+  if (!dropdown) return;
+  var menu = dropdown.querySelector('.actions-menu');
+  if (!menu) return;
+
+  // Toggle behavior for same button
+  if (activeActionsMenu && activeActionsToggle === toggleBtn) {
+    closeAllActionDropdowns();
+    return;
+  }
+
+  closeAllActionDropdowns();
+
+  activeActionsOrigin = {
+    parent: menu.parentNode,
+    nextSibling: menu.nextSibling
+  };
+  activeActionsMenu = menu;
+  activeActionsToggle = toggleBtn;
+
+  menu.classList.add('actions-menu-portal');
+  menu.style.display = 'block';
+  document.body.appendChild(menu);
+  positionActionMenu(menu, toggleBtn);
+
+  dropdown.classList.add('show');
+  toggleBtn.setAttribute('aria-expanded', 'true');
+}
+
 /** Close every open Actions dropdown on the page */
 function closeAllActionDropdowns() {
+  if (activeActionsMenu) {
+    activeActionsMenu.classList.remove('actions-menu-portal');
+    activeActionsMenu.style.display = '';
+    activeActionsMenu.style.left = '';
+    activeActionsMenu.style.top = '';
+
+    if (activeActionsOrigin && activeActionsOrigin.parent) {
+      if (activeActionsOrigin.nextSibling && activeActionsOrigin.nextSibling.parentNode === activeActionsOrigin.parent) {
+        activeActionsOrigin.parent.insertBefore(activeActionsMenu, activeActionsOrigin.nextSibling);
+      } else {
+        activeActionsOrigin.parent.appendChild(activeActionsMenu);
+      }
+    }
+  }
+
   document.querySelectorAll('.actions-dropdown.show').forEach(function (dd) {
     dd.classList.remove('show');
     var toggle = dd.querySelector('.dropdown-toggle');
     if (toggle) toggle.setAttribute('aria-expanded', 'false');
   });
+
+  activeActionsMenu = null;
+  activeActionsToggle = null;
+  activeActionsOrigin = null;
 }
 
 /**
@@ -665,13 +740,7 @@ document.addEventListener('click', function (e) {
   if (toggleBtn) {
     e.preventDefault();
     e.stopPropagation();
-    var dropdown = toggleBtn.closest('.actions-dropdown');
-    var isOpen = dropdown.classList.contains('show');
-    closeAllActionDropdowns();          // close any other open dropdown first
-    if (!isOpen) {
-      dropdown.classList.add('show');
-      toggleBtn.setAttribute('aria-expanded', 'true');
-    }
+    openActionDropdown(toggleBtn);
     return;
   }
 
@@ -733,10 +802,22 @@ document.addEventListener('click', function (e) {
   }
 
   /* ── 5. Click outside → close all ─────────────────────────────────── */
-  if (!e.target.closest('.actions-dropdown')) {
+  if (!e.target.closest('.actions-dropdown') && !e.target.closest('.actions-menu')) {
     closeAllActionDropdowns();
   }
 });
+
+window.addEventListener('resize', function () {
+  if (activeActionsMenu && activeActionsToggle) {
+    positionActionMenu(activeActionsMenu, activeActionsToggle);
+  }
+});
+
+window.addEventListener('scroll', function () {
+  if (activeActionsMenu && activeActionsToggle) {
+    positionActionMenu(activeActionsMenu, activeActionsToggle);
+  }
+}, true);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // BOOK EDITOR: Opens copiesModal (managed by book-copies.js)

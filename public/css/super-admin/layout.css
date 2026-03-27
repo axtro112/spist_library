@@ -332,6 +332,13 @@ body[data-active-page="books"] .actions-menu {
   z-index: 500;
 }
 
+body[data-active-page="books"] .actions-menu.actions-menu-portal {
+  position: fixed !important;
+  z-index: 999999 !important;
+  display: block !important;
+  margin-top: 0;
+}
+
 /* ── BORROW KANBAN BOARD ── */
 .borrow-kanban-board {
   display: flex;

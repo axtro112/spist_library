@@ -13,11 +13,11 @@ const rejectUnauthorized = parseBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, 
 // Database configuration from environment variables
 // Railway auto-injects MYSQL_* variables; fall back gracefully
 const dbConfig = {
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
-  user: process.env.DB_USER || process.env.MYSQL_USER || "root",
-  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "",
-  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || process.env.DB_DATABASE || "spist_library",
-  port: parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || 3306),
+  host: process.env.DB_HOST || process.env.MYSQL_HOST || process.env.MYSQLHOST || "localhost",
+  user: process.env.DB_USER || process.env.MYSQL_USER || process.env.MYSQLUSER || "root",
+  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || process.env.MYSQLPASSWORD || "",
+  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || process.env.MYSQLDATABASE || process.env.DB_DATABASE || "spist_library",
+  port: parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || process.env.MYSQLPORT || 3306),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

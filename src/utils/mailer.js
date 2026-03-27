@@ -33,26 +33,104 @@ function warmSmtpDnsCache(hostname) {
  */
 
 // Build config from environment - supports both generic and Gmail-specific vars
-const emailConfig = {
-  // Generic SMTP config (preferred for production)
-  host: process.env.EMAIL_HOST || process.env.SMTP_HOST,
-  port: parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587),
-  secure: (process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true') ? true : false,
-  // Force IPv4: Railway blocks outbound IPv6 on port 587 — without this,
-  // Node.js resolves smtp.gmail.com to an IPv6 address and the connection fails.
-  family: 4,
-  connectionTimeout: 60000,
-  greetingTimeout: 30000,
-  socketTimeout: 60000,
-  auth: {
-    user: process.env.EMAIL_USER || process.env.SMTP_USER,
-    pass: process.env.EMAIL_PASS || process.env.SMTP_PASSWORD,
-  },
-};
+const primaryHost = process.env.EMAIL_HOST || process.env.SMTP_HOST;
+const primaryPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587, 10);
+const primarySecure = (process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true') ? true : false;
+const primaryUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+const primaryPass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
+
+const fallbackHost = process.env.EMAIL_FALLBACK_HOST || process.env.SMTP_FALLBACK_HOST;
+const fallbackPort = parseInt(process.env.EMAIL_FALLBACK_PORT || process.env.SMTP_FALLBACK_PORT || 587, 10);
+const fallbackSecure = (process.env.EMAIL_FALLBACK_SECURE === 'true' || process.env.SMTP_FALLBACK_SECURE === 'true') ? true : false;
+const fallbackUser = process.env.EMAIL_FALLBACK_USER || process.env.SMTP_FALLBACK_USER;
+const fallbackPass = process.env.EMAIL_FALLBACK_PASS || process.env.SMTP_FALLBACK_PASSWORD;
+
+function isGmailHost(host) {
+  return typeof host === 'string' && host.toLowerCase().includes('gmail.com');
+}
+
+function createTransportConfig({ host, port, secure, user, pass }) {
+  return {
+    host,
+    port,
+    secure,
+    // Force IPv4: Railway blocks outbound IPv6 on port 587 — without this,
+    // Node.js resolves smtp.gmail.com to an IPv6 address and the connection fails.
+    family: 4,
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+    auth: {
+      user,
+      pass,
+    },
+  };
+}
+
+const smtpCandidates = [];
+
+if (primaryHost && primaryUser && primaryPass) {
+  smtpCandidates.push({
+    label: 'primary',
+    host: primaryHost,
+    port: primaryPort,
+    secure: primarySecure,
+    user: primaryUser,
+    pass: primaryPass,
+  });
+
+  // Gmail often works on one port while the other is blocked by network policy.
+  if (isGmailHost(primaryHost)) {
+    if (primaryPort !== 465) {
+      smtpCandidates.push({
+        label: 'gmail-465-fallback',
+        host: primaryHost,
+        port: 465,
+        secure: true,
+        user: primaryUser,
+        pass: primaryPass,
+      });
+    }
+    if (primaryPort !== 587) {
+      smtpCandidates.push({
+        label: 'gmail-587-fallback',
+        host: primaryHost,
+        port: 587,
+        secure: false,
+        user: primaryUser,
+        pass: primaryPass,
+      });
+    }
+  }
+}
+
+if (fallbackHost && fallbackUser && fallbackPass) {
+  smtpCandidates.push({
+    label: 'secondary-provider',
+    host: fallbackHost,
+    port: fallbackPort,
+    secure: fallbackSecure,
+    user: fallbackUser,
+    pass: fallbackPass,
+  });
+}
+
+const emailConfig = smtpCandidates[0]
+  ? createTransportConfig(smtpCandidates[0])
+  : createTransportConfig({
+      host: primaryHost,
+      port: primaryPort,
+      secure: primarySecure,
+      user: primaryUser,
+      pass: primaryPass,
+    });
 
 // EMAIL_FROM must match the authenticated Gmail account when using Gmail SMTP.
 // Fall back to EMAIL_USER to avoid Gmail rejecting mismatched sender domains.
-const fromEmail = process.env.EMAIL_USER || process.env.EMAIL_FROM || 'noreply@spistlibrary.edu.ph';
+const configuredFrom = process.env.EMAIL_FROM || process.env.SMTP_FROM;
+const fromEmail = isGmailHost(primaryHost)
+  ? (primaryUser || configuredFrom || 'noreply@spistlibrary.edu.ph')
+  : (configuredFrom || primaryUser || 'noreply@spistlibrary.edu.ph');
 
 // Validate email config
 if (!emailConfig.auth.user || !emailConfig.auth.pass) {
@@ -64,6 +142,62 @@ if (!emailConfig.auth.user || !emailConfig.auth.pass) {
 
 // Create transporter
 const transporter = nodemailer.createTransport(emailConfig);
+
+async function sendMailWithFallback(mailOptions, contextLabel) {
+  const candidates = smtpCandidates.length > 0
+    ? smtpCandidates
+    : [{
+        label: 'primary',
+        host: primaryHost,
+        port: primaryPort,
+        secure: primarySecure,
+        user: primaryUser,
+        pass: primaryPass,
+      }];
+
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    const candidateConfig = createTransportConfig(candidate);
+    const candidateTransporter = nodemailer.createTransport(candidateConfig);
+
+    try {
+      await warmSmtpDnsCache(candidate.host);
+      logger.info('[EMAIL SEND] Attempting SMTP route', {
+        context: contextLabel,
+        route: candidate.label,
+        host: candidate.host,
+        port: candidate.port,
+        secure: candidate.secure,
+      });
+
+      const info = await candidateTransporter.sendMail(mailOptions);
+      logger.info('[EMAIL SEND] SMTP route successful', {
+        context: contextLabel,
+        route: candidate.label,
+        host: candidate.host,
+        port: candidate.port,
+      });
+
+      return info;
+    } catch (error) {
+      lastError = error;
+      logger.warn('[EMAIL SEND] SMTP route failed', {
+        context: contextLabel,
+        route: candidate.label,
+        host: candidate.host,
+        port: candidate.port,
+        error: error.message,
+      });
+    } finally {
+      if (typeof candidateTransporter.close === 'function') {
+        candidateTransporter.close();
+      }
+    }
+  }
+
+  throw lastError || new Error('All SMTP routes failed');
+}
 
 // Test connection on startup (non-blocking)
 if (emailConfig.auth.user && emailConfig.auth.pass) {
@@ -295,8 +429,7 @@ This is an automated email. Please do not reply to this message.
       attachments,
     };
 
-    await warmSmtpDnsCache(emailConfig.host);
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailWithFallback(mailOptions, 'borrowing-claim');
 
     console.log('[EMAIL SEND] SMTP send successful', { messageId: info.messageId });
     logger.info('Borrowing claim email sent', {
@@ -474,8 +607,7 @@ This is an automated email. Please do not reply to this message.
       html: htmlContent
     };
 
-    await warmSmtpDnsCache(emailConfig.host);
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailWithFallback(mailOptions, 'return-confirmation');
 
     logger.info('Return confirmation email sent', {
       studentEmail,
@@ -552,14 +684,13 @@ async function sendOverdueReminderEmail(studentEmail, studentName, studentId, bo
         </body>
       </html>`;
 
-    await warmSmtpDnsCache(emailConfig.host);
-    const info = await transporter.sendMail({
+    const info = await sendMailWithFallback({
       from: `"SPIST Library" <${fromEmail}>`,
       to: studentEmail,
       subject: `Overdue Book Reminder — ${escapeHtml(bookTitle)} (${daysOverdue} day(s) overdue)`,
       html: htmlContent,
       text: `Good day ${studentName},\n\nYour borrowed book "${bookTitle}" is overdue by ${daysOverdue} day(s). Due date was ${dueDateFormatted}.\n\nPlease return it to the SPIST Library immediately.\n\nThank you.`
-    });
+    }, 'overdue-reminder');
 
     logger.info('Overdue reminder email sent', { studentId, studentEmail, messageId: info.messageId, daysOverdue });
     return { success: true, messageId: info.messageId };

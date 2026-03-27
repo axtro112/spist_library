@@ -11,21 +11,20 @@ const logger = require('./logger');
 
 /**
  * Generate QR code as PNG buffer
- * QR contains the pickup URL with embedded token
- * @param {string} qrToken - Secure QR token from qrToken utility
+ * QR contains the accession number for SMTP-independent in-app pickup
+ * @param {string} accessionNumber - Book copy accession number
  * @param {number} borrowingId - Borrowing record ID (for reference)
  * @param {Object} options - Optional QR code options
  * @returns {Promise<Buffer>} PNG image buffer
  */
-async function generateQRCodeImage(qrToken, borrowingId, options = {}) {
+async function generateQRCodeImage(accessionNumber, borrowingId, options = {}) {
   try {
-    if (!qrToken) {
-      throw new Error('QR token is required');
+    if (!accessionNumber) {
+      throw new Error('Accession number is required');
     }
 
-    // Construct the pickup URL that will be embedded in QR code
-    // Format: /pickup?token=<JWT>
-    const pickupUrl = `/pickup?token=${encodeURIComponent(qrToken)}`;
+    // QR content: plain accession number — scanned directly by the admin terminal
+    const pickupUrl = accessionNumber;
 
     // QR code options
     const qrOptions = {
@@ -69,9 +68,9 @@ async function generateQRCodeImage(qrToken, borrowingId, options = {}) {
  * @param {number} borrowingId - Borrowing record ID
  * @returns {Promise<string>} Data URL: data:image/png;base64,...
  */
-async function generateQRCodeDataUrl(qrToken, borrowingId, options = {}) {
+async function generateQRCodeDataUrl(accessionNumber, borrowingId, options = {}) {
   try {
-    const pickupUrl = `/pickup?token=${encodeURIComponent(qrToken)}`;
+    const pickupUrl = accessionNumber;
 
     const qrOptions = {
       errorCorrectionLevel: 'H',
@@ -99,9 +98,9 @@ async function generateQRCodeDataUrl(qrToken, borrowingId, options = {}) {
  * @param {number} borrowingId - Borrowing record ID
  * @returns {Promise<string>} SVG XML string
  */
-async function generateQRCodeSVG(qrToken, borrowingId, options = {}) {
+async function generateQRCodeSVG(accessionNumber, borrowingId, options = {}) {
   try {
-    const pickupUrl = `/pickup?token=${encodeURIComponent(qrToken)}`;
+    const pickupUrl = accessionNumber;
 
     const qrOptions = {
       errorCorrectionLevel: 'H',

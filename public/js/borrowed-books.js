@@ -1463,32 +1463,6 @@ async function lookupBorrowingByIdFromApi(borrowingId) {
 function parseBorrowingIdFromScan(scannedValue) {
   const normalized = String(scannedValue || '').trim();
 
-  // Support QR payloads that contain pickup URLs with JWT tokens.
-  // We only decode payload data client-side to identify the borrowing record;
-  // the backend still performs full signature validation during confirmation.
-  if (normalized.includes('token=')) {
-    try {
-      const url = new URL(normalized, window.location.origin);
-      const token = url.searchParams.get('token');
-      if (token) {
-        const parts = token.split('.');
-        if (parts.length >= 2) {
-          const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-          const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
-          const decodedPayload = JSON.parse(atob(padded));
-          const borrowingId = Number(
-            decodedPayload?.borrowing_id || decodedPayload?.borrowingId || decodedPayload?.id
-          );
-          if (!Number.isNaN(borrowingId) && borrowingId > 0) {
-            return borrowingId;
-          }
-        }
-      }
-    } catch (_) {
-      // Fall through to legacy QR formats below.
-    }
-  }
-
   const prefixMatch = normalized.match(/^SPIST-BORROW:(\d+)$/i);
   if (prefixMatch) {
     return Number(prefixMatch[1]);

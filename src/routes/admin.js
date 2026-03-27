@@ -1749,10 +1749,11 @@ router.post("/borrowings/:id/confirm-pickup", requireAdmin, async (req, res) => 
       logger.warn('Pickup already confirmed', { borrowingId, picked_up_at: record.picked_up_at });
       return response.validationError(res, 'Pickup has already been confirmed');
     }
-    
-    if (record.status !== 'borrowed') {
+
+    const allowedStatuses = new Set(['pending_pickup', 'borrowed']);
+    if (!allowedStatuses.has(record.status)) {
       logger.warn('Invalid status for pickup', { borrowingId, status: record.status });
-      return response.validationError(res, 'Can only confirm pickup for borrowed items');
+      return response.validationError(res, `Can only confirm pickup for pending_pickup or borrowed items. Current status: ${record.status}`);
     }
 
     // Enforce strict pickup window (max 24 hours from borrow_date).
@@ -1773,10 +1774,11 @@ router.post("/borrowings/:id/confirm-pickup", requireAdmin, async (req, res) => 
       return response.validationError(res, 'Pickup window has expired (24-hour limit reached).');
     }
     
-    // Update borrowing record
+    // Update borrowing record — set status to 'borrowed' and record pickup time
     await db.query(
       `UPDATE book_borrowings 
-       SET picked_up_at = NOW(), 
+       SET status = 'borrowed',
+           picked_up_at = NOW(), 
            picked_up_by_admin_id = ?
        WHERE id = ?`,
       [adminId, borrowingId]

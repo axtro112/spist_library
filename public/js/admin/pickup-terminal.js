@@ -91,15 +91,18 @@
 
   async function processToken(tokenOrUrl) {
     try {
-      let token = tokenOrUrl;
+      // QR now contains plain accession_number (e.g. "ACC-2026-00322").
+      // Legacy: also handle old /pickup?token=... URLs by extracting the raw text.
+      let accessionNumber = tokenOrUrl;
 
-      // Extract token from URL if it's in format /pickup?token=...
       if (tokenOrUrl.includes('/pickup?token=')) {
-        const url = new URL(tokenOrUrl, window.location.origin);
-        token = url.searchParams.get('token');
+        // Old format — extract anything post-equals as accession fallback (should not occur)
+        setStatus('Unrecognised QR format. Please use the updated pickup QR.', 'error');
+        return;
       }
 
-      if (!token || token.length < 10) {
+      accessionNumber = accessionNumber.trim();
+      if (!accessionNumber || accessionNumber.length < 3) {
         setStatus('Invalid QR code data', 'error');
         return;
       }
@@ -108,7 +111,7 @@
       const response = await doFetch('/api/pickup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token })
+        body: JSON.stringify({ accession_number: accessionNumber })
       });
 
       const result = await response.json();
@@ -116,7 +119,7 @@
       if (!response.ok) {
         showPickupResult({
           success: false,
-          message: result.message || 'Pickup failed',
+          message: result.message || result.data?.message || 'Pickup failed',
           error: result.error
         });
         return;
@@ -147,7 +150,7 @@
       setStatus('Error: ' + err.message, 'error');
       showPickupResult({
         success: false,
-        message: 'Failed to process token: ' + err.message
+        message: 'Failed to process QR: ' + err.message
       });
     }
   }

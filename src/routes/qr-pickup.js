@@ -14,9 +14,7 @@ const db = require('../utils/db');
 const logger = require('../utils/logger');
 const response = require('../utils/response');
 const { requireAuth } = require('../middleware/auth');
-const { generateQRToken } = require('../utils/qrToken');
-const { generateQRCodeImage, generateQRCodeDataUrl } = require('../utils/qrCodeGenerator');
-const { validateQRToken, checkPickupEligibility } = require('../utils/qrToken');
+const { generateQRCodeImage } = require('../utils/qrCodeGenerator');
 
 /**
  * GET /api/borrowings/:id/qr
@@ -67,19 +65,8 @@ router.get('/borrowings/:id/qr', requireAuth, async (req, res) => {
       return response.validationError(res, 'Pickup claim has expired. Please request a new borrow.');
     }
 
-    // Generate QR token (create if doesn't exist, or regenerate)
-    let qrToken = borrowing.qr_token;
-    if (!qrToken) {
-      qrToken = generateQRToken(borrowing);
-      // Store token in database for future reference
-      await db.query(
-        'UPDATE book_borrowings SET qr_token = ?, qr_generated_at = NOW() WHERE id = ?',
-        [qrToken, id]
-      );
-    }
-
-    // Generate QR code image
-    const qrImage = await generateQRCodeImage(qrToken, id);
+    // Generate QR code image containing just the accession_number
+    const qrImage = await generateQRCodeImage(borrowing.accession_number, id);
 
     // Return as PNG image
     res.set('Content-Type', 'image/png');
@@ -91,6 +78,7 @@ router.get('/borrowings/:id/qr', requireAuth, async (req, res) => {
     logger.info('QR code served', {
       borrowing_id: id,
       student_id: borrowing.student_id,
+      accession_number: borrowing.accession_number,
       accessed_by: userType === 'student' ? userId : `admin-${adminId}`
     });
   } catch (error) {
@@ -141,18 +129,8 @@ router.get('/borrowings/:id/qr/download', requireAuth, async (req, res) => {
       return response.validationError(res, 'Pickup claim has expired');
     }
 
-    // Generate or use existing token
-    let qrToken = borrowing.qr_token;
-    if (!qrToken) {
-      qrToken = generateQRToken(borrowing);
-      await db.query(
-        'UPDATE book_borrowings SET qr_token = ?, qr_generated_at = NOW() WHERE id = ?',
-        [qrToken, id]
-      );
-    }
-
-    // Generate QR code image
-    const qrImage = await generateQRCodeImage(qrToken, id);
+    // Generate QR code image containing the accession_number
+    const qrImage = await generateQRCodeImage(borrowing.accession_number, id);
 
     // Return as downloadable file
     const filename = `Pickup-QR-${borrowing.id}-${Date.now()}.png`;
@@ -164,6 +142,7 @@ router.get('/borrowings/:id/qr/download', requireAuth, async (req, res) => {
     logger.info('QR code downloaded', {
       borrowing_id: id,
       student_id: borrowing.student_id,
+      accession_number: borrowing.accession_number,
       filename
     });
   } catch (error) {
@@ -174,97 +153,102 @@ router.get('/borrowings/:id/qr/download', requireAuth, async (req, res) => {
 
 /**
  * POST /api/pickup
- * Validate QR token and complete pickup process
- * 
- * Request body:
- * {
- *   token: "jwt_token_from_qr_scan"
- * }
- * 
- * Response:
- * - 200 OK: Pickup successful, borrowing status updated to 'borrowed', book copy marked 'borrowed'
- * - 400 Bad Request: Invalid/expired token or validation failed
- * - 409 Conflict: Borrowing already picked up or expired
+ * Validate scanned accession number and complete pickup
+ *
+ * Request body: { accession_number: "ACC-2026-00322" }
+ *
+ * Flow:
+ * 1. Find latest pending_pickup record for accession_number
+ * 2. Validate claim_expires_at > NOW
+ * 3. Update status = 'borrowed', picked_up_at = NOW
+ * 4. Update book_copy status = 'borrowed'
  */
 router.post('/pickup', async (req, res) => {
   try {
-    const { token } = req.body;
+    const { accession_number } = req.body;
 
-    if (!token) {
-      return response.validationError(res, 'QR token is required');
+    if (!accession_number) {
+      return response.validationError(res, 'accession_number is required');
     }
 
-    // Decode and validate token
-    let decoded;
-    try {
-      decoded = validateQRToken(token);
-    } catch (error) {
-      return response.validationError(res, error.message);
-    }
-
-    const borrowingId = decoded.borrowing_id;
-
-    // Fetch borrowing record
+    // Find the latest pending_pickup borrowing for this copy
     const borrowings = await db.query(
-      'SELECT * FROM book_borrowings WHERE id = ?',
-      [borrowingId]
+      `SELECT bb.*,
+              s.fullname AS student_name,
+              b.title AS book_title,
+              b.author AS book_author,
+              b.category AS book_category
+       FROM book_borrowings bb
+       LEFT JOIN students s
+         ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
+       LEFT JOIN books b ON bb.book_id = b.id
+       WHERE bb.accession_number = ?
+         AND bb.status = 'pending_pickup'
+       ORDER BY bb.borrow_date DESC
+       LIMIT 1`,
+      [accession_number]
     );
 
-    if (borrowings.length === 0) {
-      return response.notFound(res, 'Borrowing record not found');
+    if (!borrowings || borrowings.length === 0) {
+      return response.validationError(res, 'No pending pickup request found for this book copy. It may have already been picked up, cancelled, or expired.');
     }
 
     const borrowing = borrowings[0];
 
-    // Check pickup eligibility
-    const eligibility = checkPickupEligibility(decoded, borrowing);
-    if (!eligibility.valid) {
-      return response.validationError(res, eligibility.reason);
+    // Validate: not expired
+    if (borrowing.claim_expires_at && new Date() > new Date(borrowing.claim_expires_at)) {
+      return response.validationError(res, 'Pickup claim has expired. The book copy has been released back to inventory.');
     }
 
-    // Use transaction for atomic pickup
-    const result = await db.withTransaction(async (conn) => {
-      // Update borrowing status to 'borrowed' and record pickup
-      const updateBorrowing = await conn.queryAsync(
-        `UPDATE book_borrowings 
-         SET status = 'borrowed', 
+    // Atomic pickup confirmation
+    await db.withTransaction(async (conn) => {
+      const updateResult = await conn.queryAsync(
+        `UPDATE book_borrowings
+         SET status = 'borrowed',
              picked_up_at = NOW(),
              qr_scanned_at = NOW()
          WHERE id = ? AND status = 'pending_pickup'`,
-        [borrowingId]
+        [borrowing.id]
       );
 
-      if (!updateBorrowing || updateBorrowing.affectedRows === 0) {
-        throw new Error('Pickup failed: Borrowing already processed or status changed');
+      if (!updateResult || updateResult.affectedRows === 0) {
+        throw new Error('Pickup already processed or status changed');
       }
 
-      // Update book copy status to 'borrowed'
-      if (borrowing.accession_number) {
-        const updateCopy = await conn.queryAsync(
-          "UPDATE book_copies SET status = 'borrowed' WHERE accession_number = ?",
-          [borrowing.accession_number]
-        );
-      }
-
-      return { success: true, borrowingId };
+      await conn.queryAsync(
+        "UPDATE book_copies SET status = 'borrowed' WHERE accession_number = ?",
+        [accession_number]
+      );
     });
 
-    logger.info('Book pickup completed', {
-      borrowing_id: borrowingId,
+    const pickedUpAt = new Date().toISOString();
+
+    logger.info('Book pickup completed via QR scan', {
+      borrowing_id: borrowing.id,
       student_id: borrowing.student_id,
-      accession_number: borrowing.accession_number,
-      timestamp: new Date().toISOString()
+      accession_number,
+      timestamp: pickedUpAt
     });
 
     response.success(res, {
-      message: 'Pickup successful! Book is now available in your borrowed items.',
-      borrowing_id: borrowingId,
-      status: 'borrowed',
-      picked_up_at: new Date().toISOString()
-    });
+      borrowing: {
+        id: borrowing.id,
+        student_name: borrowing.student_name || borrowing.student_id,
+        picked_up_at: pickedUpAt,
+        accession_number,
+        due_date: borrowing.due_date,
+        status: 'borrowed'
+      },
+      book: {
+        title: borrowing.book_title || 'N/A',
+        author: borrowing.book_author || 'N/A',
+        accession_number,
+        category: borrowing.book_category || 'N/A'
+      }
+    }, 'Pickup successful! Book is now checked out.');
   } catch (error) {
     logger.error('Pickup validation error', { error: error.message });
-    response.error(res, { message: 'Pickup failed', error: error.message }, 500);
+    response.error(res, { message: error.message || 'Pickup failed' }, 500);
   }
 });
 

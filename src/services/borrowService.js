@@ -1,7 +1,7 @@
 const db = require("../utils/db");
 const logger = require("../utils/logger");
 const { sendBorrowingClaimEmail } = require("../utils/mailer");
-const { generateQRToken } = require("../utils/qrToken");
+const { generateQRToken } = require("../utils/qrToken"); // kept for legacy compatibility
 const {
   buildBorrowingPickupQrValue,
   generateQrCodePngBuffer,
@@ -144,36 +144,6 @@ async function createBorrowTransactionAndEmail(
             copyCondition,
             dueDate: returnDate
           });
-
-          // Generate QR token for in-app pickup (done here to have latest borrowing ID)
-          // This will be stored in DB and used to generate dynamic QR codes later
-          try {
-            const borrowingForQR = {
-              id: borrowResult.insertId,
-              student_id: studentId,
-              book_id: bookId,
-              accession_number: accessionNumber,
-              claim_expires_at: claimExpiresAt
-            };
-            const qrToken = generateQRToken(borrowingForQR);
-            
-            // Store the QR token in the borrowing record
-            await conn.queryAsync(
-              'UPDATE book_borrowings SET qr_token = ?, qr_generated_at = NOW() WHERE id = ?',
-              [qrToken, borrowResult.insertId]
-            );
-
-            logger.debug('QR token generated and stored', {
-              borrowing_id: borrowResult.insertId,
-              student_id: studentId
-            });
-          } catch (qrError) {
-            logger.warn('Failed to generate QR token for borrowing', {
-              borrowing_id: borrowResult.insertId,
-              error: qrError.message
-            });
-            // Don't fail the entire borrowing if QR token generation fails
-          }
         }
       }
 

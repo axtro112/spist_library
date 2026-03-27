@@ -201,14 +201,14 @@ router.post("/books", requireAdmin, async (req, res) => {
     const parsedQty = Number.parseInt(quantity, 10);
     const bookQuantity = Number.isFinite(parsedQty) && parsedQty >= 0 ? parsedQty : 1;
 
-    // UI sends available|maintenance|retired, while DB uses active|maintenance|retired.
+    // Keep book status aligned with the production books.status enum.
     const requestedStatus = String(status || 'available').toLowerCase();
     const dbStatus = requestedStatus === 'maintenance'
       ? 'maintenance'
-      : (requestedStatus === 'retired' ? 'retired' : 'active');
+      : (requestedStatus === 'borrowed' ? 'borrowed' : 'available');
 
     // Non-available statuses should not increase available_quantity.
-    const initialAvailableQuantity = dbStatus === 'active' ? bookQuantity : 0;
+    const initialAvailableQuantity = dbStatus === 'available' ? bookQuantity : 0;
     const createdCopies = [];
     let newBookId = null;
 
@@ -232,7 +232,7 @@ router.post("/books", requireAdmin, async (req, res) => {
       newBookId = bookResult.insertId;
 
       if (bookQuantity > 0) {
-        const copyStatus = dbStatus === 'active' ? 'available' : dbStatus;
+        const copyStatus = dbStatus;
 
         for (let i = 1; i <= bookQuantity; i++) {
           const accessionNumber = await getNextAccessionNumber(conn);
@@ -329,26 +329,7 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
         throw new Error("VALIDATION:Cannot mark book as available while it has active borrowings. Confirm return first.");
       }
 
-      const newAvailableQty = Math.max(0, bookQuantity - activeBorrowings);
-
-      let dbStatus = 'active';
-      if (status === 'maintenance') dbStatus = 'maintenance';
-      else if (status === 'retired') dbStatus = 'retired';
-
-      await conn.queryAsync(
-        `UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ?, available_quantity = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
-        [title, author, category, isbn, dbStatus, bookQuantity, newAvailableQty, bookId]
-      );
-
-      await ensureBookCopyCoverage(conn, {
-        bookId,
-        quantity: bookQuantity,
-        bookStatus: dbStatus,
-        performedBy: adminId,
-        source: 'admin_update_book',
-      });
-
-      logger.info('Book updated', { bookId, dbStatus, bookQuantity, newAvailableQty });
+      let effectiveActiveBorrowings = activeBorrowings;
 
       if (status === "borrowed") {
         if (!student_id) throw new Error("Student ID is required when status is borrowed");
@@ -376,8 +357,34 @@ router.put("/books/:id", requireAdmin, async (req, res) => {
             `INSERT INTO book_borrowings (book_id, student_id, borrow_date, due_date, status) VALUES (?, ?, CURRENT_TIMESTAMP, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY), 'borrowed')`,
             [bookId, student_id]
           );
+          effectiveActiveBorrowings += 1;
         }
       }
+
+      const normalizedStatus = String(status || 'available').toLowerCase();
+      let dbStatus = 'available';
+      if (normalizedStatus === 'maintenance') {
+        dbStatus = 'maintenance';
+      } else if (normalizedStatus === 'borrowed' || effectiveActiveBorrowings > 0) {
+        dbStatus = 'borrowed';
+      }
+
+      const newAvailableQty = Math.max(0, bookQuantity - effectiveActiveBorrowings);
+
+      await conn.queryAsync(
+        `UPDATE books SET title = ?, author = ?, category = ?, isbn = ?, status = ?, quantity = ?, available_quantity = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
+        [title, author, category, isbn, dbStatus, bookQuantity, newAvailableQty, bookId]
+      );
+
+      await ensureBookCopyCoverage(conn, {
+        bookId,
+        quantity: bookQuantity,
+        bookStatus: dbStatus,
+        performedBy: adminId,
+        source: 'admin_update_book',
+      });
+
+      logger.info('Book updated', { bookId, dbStatus, bookQuantity, newAvailableQty, effectiveActiveBorrowings });
     });
 
     response.success(res, null, 'Book updated successfully');

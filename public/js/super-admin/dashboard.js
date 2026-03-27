@@ -18,6 +18,30 @@
       if (_categoryChart)  { _categoryChart.destroy();  _categoryChart  = null; }
     }
 
+    function _clearChartEmptyState(canvasEl) {
+      if (!canvasEl || !canvasEl.parentElement) return;
+      canvasEl.style.display = '';
+      var emptyState = canvasEl.parentElement.querySelector('.dashboard-chart-empty');
+      if (emptyState) emptyState.remove();
+    }
+
+    function _showChartEmptyState(canvasEl, title, message) {
+      if (!canvasEl || !canvasEl.parentElement) return;
+      _clearChartEmptyState(canvasEl);
+      canvasEl.style.display = 'none';
+
+      var emptyState = document.createElement('div');
+      emptyState.className = 'dashboard-chart-empty';
+      emptyState.innerHTML =
+        '<div class="dashboard-chart-empty-card">' +
+          '<div class="dashboard-chart-empty-icon">📊</div>' +
+          '<div class="dashboard-chart-empty-title">' + title + '</div>' +
+          '<div class="dashboard-chart-empty-message">' + message + '</div>' +
+        '</div>';
+
+      canvasEl.parentElement.appendChild(emptyState);
+    }
+
     function _formatActivityType(type) {
       switch (type) {
         case 'book_borrowed': return 'Borrowed';
@@ -91,6 +115,7 @@
       // Borrowing trends (line chart)
       var trendEl = document.getElementById('borrowingTrends');
       if (trendEl && hasBorrowingTrendData) {
+        _clearChartEmptyState(trendEl);
         var trendLabels = data.borrowingTrends.map(function (item) {
           var parts = item.month.split('-');
           return new Date(parts[0], parts[1] - 1)
@@ -119,13 +144,13 @@
           },
         });
       } else if (trendEl) {
-        trendEl.parentElement.innerHTML =
-          '<div class="empty-state-message">No borrowing data available</div>';
+        _showChartEmptyState(trendEl, 'Monthly Borrowing Trends', 'No borrowing data available');
       }
 
       // Popular categories (doughnut chart)
       var catEl = document.getElementById('popularCategories');
       if (catEl && hasPopularCategoryData) {
+        _clearChartEmptyState(catEl);
         _categoryChart = new Chart(catEl.getContext('2d'), {
           type: 'doughnut',
           data: {
@@ -145,8 +170,7 @@
           },
         });
       } else if (catEl) {
-        catEl.parentElement.innerHTML =
-          '<div class="empty-state-message">No category data available</div>';
+        _showChartEmptyState(catEl, 'Most Popular Book Categories', 'No category data available');
       }
     }
 

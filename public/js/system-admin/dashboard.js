@@ -129,6 +129,30 @@
     if (_categoryChart)  { _categoryChart.destroy();  _categoryChart  = null; }
   }
 
+  function _clearChartEmptyState(canvasEl) {
+    if (!canvasEl || !canvasEl.parentElement) return;
+    canvasEl.style.display = "";
+    const emptyState = canvasEl.parentElement.querySelector(".dashboard-chart-empty");
+    if (emptyState) emptyState.remove();
+  }
+
+  function _showChartEmptyState(canvasEl, title, message) {
+    if (!canvasEl || !canvasEl.parentElement) return;
+    _clearChartEmptyState(canvasEl);
+    canvasEl.style.display = "none";
+
+    const emptyState = document.createElement("div");
+    emptyState.className = "dashboard-chart-empty";
+    emptyState.innerHTML =
+      '<div class="dashboard-chart-empty-card">' +
+        '<div class="dashboard-chart-empty-icon">📊</div>' +
+        '<div class="dashboard-chart-empty-title">' + title + '</div>' +
+        '<div class="dashboard-chart-empty-message">' + message + '</div>' +
+      '</div>';
+
+    canvasEl.parentElement.appendChild(emptyState);
+  }
+
   function _updateCharts(statsData) {
     _destroyCharts();
 
@@ -140,6 +164,7 @@
 
     const borrowingEl = document.getElementById("borrowingTrends");
     if (borrowingEl && hasBorrowingTrendData) {
+      _clearChartEmptyState(borrowingEl);
       const labels = statsData.borrowingTrends.map(function (item) {
         const parts = item.month.split("-");
         return new Date(parts[0], parts[1] - 1).toLocaleString("default", {
@@ -177,12 +202,12 @@
         },
       });
     } else if (borrowingEl) {
-      borrowingEl.parentElement.innerHTML =
-        '<div class="empty-state-message">No borrowing data available</div>';
+      _showChartEmptyState(borrowingEl, "Monthly Borrowing Trends", "No borrowing data available");
     }
 
     const categoryEl = document.getElementById("popularCategories");
     if (categoryEl && hasPopularCategoryData) {
+      _clearChartEmptyState(categoryEl);
       const catLabels = statsData.popularCategories.map(function (i) { return i.category; });
       const catData   = statsData.popularCategories.map(function (i) { return i.count; });
 
@@ -205,8 +230,7 @@
         },
       });
     } else if (categoryEl) {
-      categoryEl.parentElement.innerHTML =
-        '<div class="empty-state-message">No category data available</div>';
+      _showChartEmptyState(categoryEl, "Most Popular Book Categories", "No category data available");
     }
   }
 

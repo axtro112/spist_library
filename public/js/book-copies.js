@@ -243,6 +243,43 @@ class BookCopyManager {
         </div>
         </div>
       </div>
+
+      <!-- ═══════════════ Audit History Modal ═══════════════ -->
+      <div id="auditModal" class="modal sa-modal">
+        <div class="sa-modal-dialog sa-modal-sm" style="width:min(100%,520px)">
+        <div class="sa-modal-content">
+          <div class="sa-modal-header">
+            <h2>
+              <span class="material-symbols-outlined">history</span>
+              <span id="auditModalTitle">Audit History</span>
+            </h2>
+            <button class="sa-modal-close sa-modal-close-btn" type="button"
+                    onclick="bookCopyManager.closeAuditModal()">&#x2715;</button>
+          </div>
+          <div class="sa-modal-body" style="padding:0;">
+            <div id="auditModalAccession" style="
+              padding: 10px 20px 10px;
+              font-size: 13px;
+              font-weight: 600;
+              color: #2e7d32;
+              background: #f0faf0;
+              border-bottom: 1px solid #c8e6c9;
+              letter-spacing: 0.3px;
+            "></div>
+            <div id="auditModalBody" style="
+              max-height: 400px;
+              overflow-y: auto;
+              padding: 12px 20px;
+            ">
+              <div class="notif-loading">Loading&#8230;</div>
+            </div>
+          </div>
+          <div class="sa-modal-footer">
+            <button type="button" class="sa-btn sa-btn-outline" onclick="bookCopyManager.closeAuditModal()">Close</button>
+          </div>
+        </div>
+        </div>
+      </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
@@ -255,6 +292,7 @@ class BookCopyManager {
     this.qrModalError = document.getElementById('qrModalError');
     this.qrPrintBtn = document.getElementById('qrPrintBtn');
     this.qrDownloadBtn = document.getElementById('qrDownloadBtn');
+    this.auditModal = document.getElementById('auditModal');
   }
 
   bindEvents() {
@@ -998,25 +1036,77 @@ class BookCopyManager {
     }
   }
 
+  closeAuditModal() {
+    if (this.auditModal) this.auditModal.style.display = 'none';
+  }
+
   async viewAudit(accessionNumber) {
+    // Show modal immediately with loading state
+    const modal = document.getElementById('auditModal');
+    const titleEl = document.getElementById('auditModalTitle');
+    const accessionEl = document.getElementById('auditModalAccession');
+    const bodyEl = document.getElementById('auditModalBody');
+
+    accessionEl.textContent = accessionNumber;
+    titleEl.textContent = 'Audit History';
+    bodyEl.innerHTML = '<div class="notif-loading">Loading&#8230;</div>';
+    modal.style.display = 'flex';
+
     try {
       const response = await fetchWithCsrf(`/api/book-copies/audit/${accessionNumber}`);
       const result = await response.json();
       const audit = result.data || [];
-      
+
       if (audit.length === 0) {
-        alert('No audit history found for this copy.');
+        bodyEl.innerHTML = `
+          <div style="text-align:center;padding:32px 20px;color:#6b7280;">
+            <span class="material-symbols-outlined" style="font-size:40px;color:#d1d5db;display:block;margin-bottom:8px;">history_toggle_off</span>
+            No audit history found for this copy.
+          </div>`;
         return;
       }
-      
-      const auditText = audit.map(entry => 
-        `[${new Date(entry.performed_at).toLocaleString()}] ${entry.action} by ${entry.performed_by_name || 'System'}\n${entry.notes || ''}`
-      ).join('\n\n');
-      
-      alert(`Audit History for ${accessionNumber}\n\n${auditText}`);
-      
+
+      const actionIcons = {
+        created: 'add_circle', updated: 'edit', borrowed: 'menu_book',
+        returned: 'assignment_return', condition_changed: 'swap_horiz',
+        status_changed: 'published_with_changes', deleted: 'delete'
+      };
+      const actionColors = {
+        created: '#2e7d32', updated: '#1565c0', borrowed: '#e65100',
+        returned: '#6a1b9a', condition_changed: '#f57f17',
+        status_changed: '#00838f', deleted: '#c62828'
+      };
+
+      bodyEl.innerHTML = audit.map((entry, i) => {
+        const date = new Date(entry.performed_at);
+        const dateStr = date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeStr = date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+        const action = (entry.action || 'updated').toLowerCase().replace(/ /g, '_');
+        const icon = actionIcons[action] || 'info';
+        const color = actionColors[action] || '#374151';
+        const isLast = i === audit.length - 1;
+        return `
+          <div style="display:flex;gap:12px;padding:10px 0;${isLast ? '' : 'border-bottom:1px solid #f3f4f6;'}">
+            <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:${color}1a;display:flex;align-items:center;justify-content:center;margin-top:2px;">
+              <span class="material-symbols-outlined" style="font-size:17px;color:${color};">${icon}</span>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:600;color:${color};text-transform:capitalize;">${entry.action || 'Updated'}</span>
+                <span style="font-size:12px;color:#9ca3af;">by ${entry.performed_by_name || 'System'}</span>
+              </div>
+              ${entry.notes ? `<div style="font-size:12px;color:#6b7280;margin-top:3px;word-break:break-word;">${entry.notes}</div>` : ''}
+              <div style="font-size:11px;color:#d1d5db;margin-top:4px;">${dateStr} &middot; ${timeStr}</div>
+            </div>
+          </div>`;
+      }).join('');
+
     } catch (error) {
-      alert('Failed to load audit history');
+      bodyEl.innerHTML = `
+        <div style="text-align:center;padding:32px 20px;color:#c62828;">
+          <span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;">error</span>
+          Failed to load audit history.
+        </div>`;
     }
   }
 

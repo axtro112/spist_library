@@ -211,8 +211,7 @@ body::before {
   padding: 24px;
   height: calc(100vh - var(--sa-header-h));
   overflow-y: auto;
-  overflow-x: hidden;
-  
+  overflow-x: clip; /* clip instead of hidden — avoids secondary scroll context jank */
 }
 
 /* ── SECTION HEADER ── */
@@ -244,7 +243,7 @@ body::before {
   box-shadow: 0 4px 16px rgba(0,0,0,0.1);
   margin-bottom: 20px;
   height: auto;
-  overflow-y: auto;
+  overflow: visible; /* let .sa-content be the only scroll container */
 }
 
 /* ── STAT CARDS ── */
@@ -278,10 +277,9 @@ body::before {
 .sa-table-wrapper {
   background: #fff;
   border-radius: 10px;
-  overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-y: visible; /* let .sa-content scroll — prevents dropdown clipping */
+  overflow-x: auto;   /* horizontal scrollbar if table is wider than viewport */
 }
 .sa-table-wrapper table,
 .user-table {

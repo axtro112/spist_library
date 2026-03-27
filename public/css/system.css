@@ -50,7 +50,7 @@ body {
 .sa-content {
   height: calc(100vh - var(--sa-header-h));
   overflow-y: auto !important;
-  overflow-x: hidden;
+  overflow-x: clip; /* clip avoids secondary scroll context jank from hidden+auto combo */
 }
 
 /* Dashboard activity card scrolling */

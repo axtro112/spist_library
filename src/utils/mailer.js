@@ -7,6 +7,26 @@ require("dotenv").config();
 // Force all DNS resolutions in this module to prefer IPv4 addresses.
 dns.setDefaultResultOrder("ipv4first");
 
+// nodemailer v8 resolves BOTH IPv4 and IPv6 addresses and picks randomly,
+// ignoring the transport-level `family: 4` option. To guarantee IPv4, we
+// pre-warm nodemailer's internal DNS cache with an IPv4-only entry before
+// every send so the random-pick always lands on an IPv4 address.
+const nodemailerShared = require("nodemailer/lib/shared");
+function warmSmtpDnsCache(hostname) {
+  return new Promise((resolve) => {
+    if (!hostname) return resolve();
+    dns.lookup(hostname, { family: 4 }, (err, address) => {
+      if (!err && address && nodemailerShared.dnsCache) {
+        nodemailerShared.dnsCache.set(hostname, {
+          value: { addresses: [address], servername: hostname },
+          expires: Date.now() + 5 * 60 * 1000, // 5-minute cache
+        });
+      }
+      resolve();
+    });
+  });
+}
+
 /**
  * Email Transporter Configuration
  * Supports multiple SMTP providers via environment variables
@@ -275,6 +295,7 @@ This is an automated email. Please do not reply to this message.
       attachments,
     };
 
+    await warmSmtpDnsCache(emailConfig.host);
     const info = await transporter.sendMail(mailOptions);
 
     console.log('[EMAIL SEND] SMTP send successful', { messageId: info.messageId });
@@ -453,6 +474,7 @@ This is an automated email. Please do not reply to this message.
       html: htmlContent
     };
 
+    await warmSmtpDnsCache(emailConfig.host);
     const info = await transporter.sendMail(mailOptions);
 
     logger.info('Return confirmation email sent', {
@@ -530,6 +552,7 @@ async function sendOverdueReminderEmail(studentEmail, studentName, studentId, bo
         </body>
       </html>`;
 
+    await warmSmtpDnsCache(emailConfig.host);
     const info = await transporter.sendMail({
       from: `"SPIST Library" <${fromEmail}>`,
       to: studentEmail,

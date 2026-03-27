@@ -131,6 +131,9 @@ DB_USER=root
 DB_PASSWORD=
 DB_NAME=spist_library
 DB_PORT=3306
+# Optional DB SSL settings (enable only if your provider requires TLS)
+DB_SSL=false
+DB_SSL_REJECT_UNAUTHORIZED=false
 
 # Server Configuration
 PORT=3000
@@ -178,6 +181,10 @@ RATE_LIMIT_MAX=100
 # Session Configuration
 SESSION_MAX_AGE=1800000
 SESSION_SECURE_COOKIE=false
+
+# Railway note:
+# If your DB host is mysql.railway.internal, keep DB_SSL=false unless you explicitly
+# configure TLS certificates. This prevents "self-signed certificate in certificate chain" errors.
 
 
 > ✅ The only field you **must** change is `DB_PASSWORD` — set it to your MySQL root password.

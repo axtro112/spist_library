@@ -4,7 +4,7 @@ const db = require("../utils/db");
 const response = require("../utils/response");
 const logger = require("../utils/logger");
 const { requireAuth, requireAdmin, requireSuperAdmin } = require("../middleware/auth");
-const { createBorrowTransactionAndEmail } = require("../services/borrowService");
+const { createBorrowTransactionAndEmail, sendBorrowingClaimEmailForBorrowings } = require("../services/borrowService");
 
 function isAdminSession(req) {
   return req.session && req.session.user && req.session.user.userRole === "admin";
@@ -303,6 +303,30 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
       return response.validationError(res, "Book is not currently available");
     }
 
+    // Keep coarse counter and copy-level inventory in sync to avoid server errors.
+    const copyAvailabilityRows = await db.query(
+      `SELECT COUNT(*) AS availableCopies
+       FROM book_copies
+       WHERE book_id = ? AND status = 'available'`,
+      [book.id]
+    );
+    const availableCopies = Number(copyAvailabilityRows[0]?.availableCopies || 0);
+    if (availableCopies <= 0) {
+      await db.query(
+        `UPDATE books
+         SET available_quantity = 0,
+             status = CASE WHEN status = 'available' THEN 'borrowed' ELSE status END,
+             updated_at = NOW()
+         WHERE id = ? AND available_quantity > 0`,
+        [book.id]
+      );
+
+      return response.validationError(
+        res,
+        "Book is no longer available. Please refresh the list and try another title."
+      );
+    }
+
     // Check if admin approval is required (controlled via environment variable)
     const requireAdminApproval = process.env.REQUIRE_BORROW_APPROVAL === 'true';
     const dueDate = returnDate ? new Date(returnDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -314,10 +338,11 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
         student.student_id,
         [{ bookId: book.id, quantity: 1 }],
         dueDateSql,
-        { sendEmail: true }
+        { sendEmail: false }
       );
 
-      return response.success(
+      // Respond immediately — email is sent in the background
+      response.success(
         res,
         {
           bookId: book.id,
@@ -325,11 +350,21 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
           status: 'borrowed',
           borrowingId: result.borrowings[0]?.borrowingId || null,
           claimExpiresAt: result.claimExpiresAt,
-          emailStatus: result.emailStatus,
         },
         'Book borrowed successfully',
         201
       );
+
+      // Fire-and-forget email (QR generation + SMTP — does not block the response)
+      sendBorrowingClaimEmailForBorrowings(
+        student.student_id,
+        result.borrowings.map((b) => b.borrowingId),
+        result.claimExpiresAt
+      ).catch((emailErr) =>
+        logger.error('Background borrow email failed', { studentId: student.student_id, error: emailErr.message })
+      );
+
+      return;
     }
 
     await db.withTransaction(async (conn) => {
@@ -389,15 +424,26 @@ router.post("/borrow-multiple", requireAuth, async (req, res) => {
         student.student_id,
         normalizedItems,
         effectiveReturnDate,
-        { sendEmail: true }
+        { sendEmail: false }
       );
 
-      return response.success(res, {
+      // Respond immediately — email is sent in the background
+      response.success(res, {
         successCount: result.borrowings.length,
         dueDate: new Date(effectiveReturnDate).toLocaleDateString(),
         claimExpiresAt: result.claimExpiresAt,
-        emailStatus: result.emailStatus,
       });
+
+      // Fire-and-forget email (QR generation + SMTP — does not block the response)
+      sendBorrowingClaimEmailForBorrowings(
+        student.student_id,
+        result.borrowings.map((b) => b.borrowingId),
+        result.claimExpiresAt
+      ).catch((emailErr) =>
+        logger.error('Background borrow-multiple email failed', { studentId: student.student_id, error: emailErr.message })
+      );
+
+      return;
     }
 
     let successCount = 0;

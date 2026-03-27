@@ -204,8 +204,12 @@
     const result = await TrashServices.bulkRestore(entity, ids);
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Restore'; }
     if (result.ok) {
-      const cnt = result.restoredCount || n;
-      toast(`${cnt} item${cnt > 1 ? 's' : ''} restored!`, 'success');
+      const cnt = Number.isFinite(result.restoredCount) ? result.restoredCount : 0;
+      if (cnt > 0) {
+        toast(result.message || `${cnt} item${cnt > 1 ? 's' : ''} restored!`, 'success');
+      } else {
+        toast(result.message || 'No selected items were restored.', 'warning');
+      }
       TrashTable.clearSelection();
       if (_reload) _reload();
     } else {
@@ -226,8 +230,12 @@
     const result = await TrashServices.bulkPermanentDelete(entity, ids);
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash3-fill me-1"></i>Delete Forever'; }
     if (result.ok) {
-      const cnt = result.deletedCount || n;
-      toast(`${cnt} item${cnt > 1 ? 's' : ''} permanently deleted.`, 'success');
+      const cnt = Number.isFinite(result.deletedCount) ? result.deletedCount : 0;
+      if (cnt > 0) {
+        toast(result.message || `${cnt} item${cnt > 1 ? 's' : ''} permanently deleted.`, 'success');
+      } else {
+        toast(result.message || 'No selected items were permanently deleted.', 'warning');
+      }
       TrashTable.clearSelection();
       if (_reload) _reload();
     } else {

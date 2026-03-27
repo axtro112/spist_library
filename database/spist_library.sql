@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS `book_borrowings` (
   `borrow_date` datetime DEFAULT current_timestamp() COMMENT 'Date book was borrowed',
   `due_date` datetime NOT NULL COMMENT 'Date book should be returned',
   `return_date` datetime DEFAULT NULL COMMENT 'Actual return date (NULL if not returned)',
+  `email_sent_at` DATETIME NULL DEFAULT NULL COMMENT 'Timestamp when pickup claim email was successfully sent',
   `status` ENUM('pending', 'approved', 'borrowed', 'returned', 'overdue', 'cancelled') DEFAULT 'borrowed' COMMENT 'Borrowing status',
   `notes` TEXT DEFAULT NULL COMMENT 'Additional notes or remarks',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
@@ -458,6 +459,15 @@ SET @sql := IF(@col_exists = 0,
   'SELECT ''pickup/return tracking columns already exist in book_borrowings'' AS message');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- Add email_sent_at for pickup claim notification tracking (if not exist)
+SET @col_exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'book_borrowings' AND COLUMN_NAME = 'email_sent_at');
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `book_borrowings`
+   ADD COLUMN `email_sent_at` DATETIME NULL DEFAULT NULL COMMENT ''Timestamp when pickup claim email was successfully sent'' AFTER `claim_expires_at`',
+  'SELECT ''Column email_sent_at already exists in book_borrowings'' AS message');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- ============================================
 -- 06 FOREIGN KEY CONSTRAINTS & INDEXES
 -- ============================================
@@ -589,12 +599,12 @@ ON DUPLICATE KEY UPDATE
 
 -- Insert sample student accounts (password: student123)
 INSERT IGNORE INTO `students` (`student_id`, `fullname`, `email`, `password`, `department`, `year_level`, `student_type`, `contact_number`, `status`) VALUES
-('STD-2024-001', 'Juan dela Cruz', 'juan.delacruz@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Computer Science', '3', 'undergraduate', '09123456789', 'active'),
-('STD-2024-002', 'Maria Santos', 'maria.santos@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Information Technology', '2', 'undergraduate', '09234567890', 'active'),
-('STD-2024-003', 'Pedro Garcia', 'pedro.garcia@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Computer Science', '4', 'undergraduate', '09345678901', 'active'),
-('STD-2024-004', 'Ana Reyes', 'ana.reyes@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Information Technology', '1', 'undergraduate', '09456789012', 'active'),
-('STD-2024-005', 'Jose Rizal', 'jose.rizal@spist.edu', '$2b$10$JkDx/nLnBg9r8cA/zlOXjuz0mfRO05W.p6Z1Q5wlWAgyMv04PrSve', 'BS Computer Science', '3', 'transferee', '09567890123', 'active'),
-('C22-4587-01', 'Jowel Carreon Galang Jr.', 'c22-4587-01@spist.edu.ph', '$2b$10$ey6hFg.6R7bk.Y9t.VlMkuceiU36DBWD.ZA/divfrF3vgx/.1fd9S', 'BS Computer Science', '4th', 'undergraduate', '09771683520', 'active')
+('STD-2024-001', 'Juan dela Cruz', 'juan.delacruz@spist.edu', '$2b$10$u7Wofs4AEY4qa8bFbEacXud6M6SZ2sIJ01w0sRuw97ztWsbzQI0IO', 'BS Computer Science', '3', 'undergraduate', '09123456789', 'active'),
+('STD-2024-002', 'Maria Santos', 'maria.santos@spist.edu', '$2b$10$u7Wofs4AEY4qa8bFbEacXud6M6SZ2sIJ01w0sRuw97ztWsbzQI0IO', 'BS Information Technology', '2', 'undergraduate', '09234567890', 'active'),
+('STD-2024-003', 'Pedro Garcia', 'pedro.garcia@spist.edu', '$2b$10$u7Wofs4AEY4qa8bFbEacXud6M6SZ2sIJ01w0sRuw97ztWsbzQI0IO', 'BS Computer Science', '4', 'undergraduate', '09345678901', 'active'),
+('STD-2024-004', 'Ana Reyes', 'ana.reyes@spist.edu', '$2b$10$u7Wofs4AEY4qa8bFbEacXud6M6SZ2sIJ01w0sRuw97ztWsbzQI0IO', 'BS Information Technology', '1', 'undergraduate', '09456789012', 'active'),
+('STD-2024-005', 'Jose Rizal', 'jose.rizal@spist.edu', '$2b$10$u7Wofs4AEY4qa8bFbEacXud6M6SZ2sIJ01w0sRuw97ztWsbzQI0IO', 'BS Computer Science', '3', 'transferee', '09567890123', 'active'),
+('C22-4587-01', 'Jowel Carreon Galang Jr.', 'c22-4587-01@spist.edu.ph', '$2b$10$u7Wofs4AEY4qa8bFbEacXud6M6SZ2sIJ01w0sRuw97ztWsbzQI0IO', 'BS Computer Science', '4th', 'undergraduate', '09771683520', 'active')
 ON DUPLICATE KEY UPDATE `student_id` = `student_id`;
 
 -- Insert sample books (ISBN must be unique)

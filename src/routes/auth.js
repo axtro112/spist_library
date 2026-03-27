@@ -193,8 +193,13 @@ router.post("/signup", async (req, res) => {
       status,
     } = req.body;
 
+    // Auto-generate school email from student_id if not provided
+    const studentEmailDomain = process.env.STUDENT_EMAIL_DOMAIN || 'spist.edu.ph';
+    const resolvedEmail = String(email || '').trim() ||
+      `${String(student_id || '').trim().toLowerCase()}@${studentEmailDomain}`;
+
     // Validate required fields
-    if (!student_id || !fullname || !email || !password || !education_stage || !year_level || !contact_number) {
+    if (!student_id || !fullname || !password || !education_stage || !year_level || !contact_number) {
       logger.warn('Signup attempt with missing fields');
       return response.validationError(res, 'All fields are required');
     }
@@ -202,9 +207,9 @@ router.post("/signup", async (req, res) => {
       return response.validationError(res, 'Program / course is required for college students');
     }
 
-    const existingCheck = await checkExistingStudent(email, student_id);
+    const existingCheck = await checkExistingStudent(resolvedEmail, student_id);
     if (existingCheck.exists) {
-      logger.warn('Signup attempt with existing user', { email, student_id });
+      logger.warn('Signup attempt with existing user', { email: resolvedEmail, student_id });
       return response.validationError(res, existingCheck.message);
     }
 
@@ -217,12 +222,12 @@ router.post("/signup", async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    logger.debug('Creating new student account', { student_id, email, department, education_stage });
+    logger.debug('Creating new student account', { student_id, email: resolvedEmail, department, education_stage });
 
     await db.query(insertQuery, [
       student_id,
       fullname,
-      email,
+      resolvedEmail,
       hashedPassword,
       department || '',
       education_stage,
@@ -232,7 +237,7 @@ router.post("/signup", async (req, res) => {
       status || 'active',
     ]);
 
-    logger.info('Student account created successfully', { student_id, email });
+    logger.info('Student account created successfully', { student_id, email: resolvedEmail });
     response.success(res, null, 'Account created successfully', 201);
   } catch (err) {
     logger.error('Signup error', { error: err.message });

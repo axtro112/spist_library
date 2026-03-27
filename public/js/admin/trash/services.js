@@ -36,13 +36,21 @@
     /** Bulk restore by ids[]. Returns { ok, restoredCount, message }. */
     async bulkRestore(entity, ids) {
       const r = await SafeFetch.post(`${BASE}/${entity}/bulk-restore`, { ids });
-      return { ok: r.ok && r.data?.success === true, restoredCount: r.data?.restoredCount || 0, message: r.data?.message || '' };
+      return {
+        ok: r.ok && r.data?.success === true,
+        restoredCount: Number((r.data && r.data.data && r.data.data.restoredCount) || 0),
+        message: (r.data && r.data.message) || '',
+      };
     },
 
     /** Bulk permanent delete by ids[]. Returns { ok, deletedCount, message }. */
     async bulkPermanentDelete(entity, ids) {
       const r = await SafeFetch.delete(`${BASE}/${entity}/bulk-permanent`, { ids });
-      return { ok: r.ok && r.data?.success === true, deletedCount: r.data?.deletedCount || 0, message: r.data?.message || '' };
+      return {
+        ok: r.ok && r.data?.success === true,
+        deletedCount: Number((r.data && r.data.data && r.data.data.deletedCount) || 0),
+        message: (r.data && r.data.message) || '',
+      };
     },
 
   };

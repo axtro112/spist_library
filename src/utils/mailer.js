@@ -13,13 +13,18 @@ const emailConfig = {
   host: process.env.EMAIL_HOST || process.env.SMTP_HOST,
   port: parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587),
   secure: (process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true') ? true : false,
+  // Force IPv4: Railway blocks outbound IPv6 on port 587 — without this,
+  // Node.js resolves smtp.gmail.com to an IPv6 address and the connection fails.
+  family: 4,
   auth: {
     user: process.env.EMAIL_USER || process.env.SMTP_USER,
     pass: process.env.EMAIL_PASS || process.env.SMTP_PASSWORD,
   },
 };
 
-const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@spistlibrary.edu.ph';
+// EMAIL_FROM must match the authenticated Gmail account when using Gmail SMTP.
+// Fall back to EMAIL_USER to avoid Gmail rejecting mismatched sender domains.
+const fromEmail = process.env.EMAIL_USER || process.env.EMAIL_FROM || 'noreply@spistlibrary.edu.ph';
 
 // Validate email config
 if (!emailConfig.auth.user || !emailConfig.auth.pass) {

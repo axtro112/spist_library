@@ -73,6 +73,40 @@ const app = express();
 // Trust Railway's reverse proxy - required for secure cookies and correct IP detection
 app.set('trust proxy', 1);
 
+const STATIC_EXTENSIONS = new Set([
+  '.css', '.js', '.mjs', '.map', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
+  '.woff', '.woff2', '.ttf', '.eot', '.webp', '.avif', '.json', '.txt', '.xml'
+]);
+
+function getClientIp(req) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function buildRateLimitKey(req) {
+  const sessionUserId = req.session?.user?.id || req.session?.user?.studentId || req.session?.studentId;
+  if (sessionUserId) {
+    const role = req.session?.user?.userRole || 'session';
+    return `${role}:${sessionUserId}`;
+  }
+  return `ip:${getClientIp(req)}`;
+}
+
+function isSkippableForGeneralLimiter(req) {
+  const reqPath = String(req.path || '').toLowerCase();
+  if (reqPath.includes('/stream') || reqPath.includes('/notifications/')) {
+    return true;
+  }
+  if (reqPath === '/auth/csrf-token' || reqPath.startsWith('/public/')) {
+    return true;
+  }
+  const ext = path.extname(reqPath);
+  return STATIC_EXTENSIONS.has(ext);
+}
+
 // ============================================
 // EJS VIEW ENGINE
 // ============================================
@@ -122,36 +156,30 @@ app.use(cors(corsOptions));
 // 3. Rate Limiting - DDoS Protection
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 500 : 5000, // Increased limits
+  max: process.env.NODE_ENV === "production" ? 1200 : 5000,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    // Skip rate limiting for static files and SSE streams
-    if (req.url.includes('/stream') || req.url.includes('/notifications/')) {
-      return true; // Don't rate limit notification endpoints
-    }
-    if (process.env.NODE_ENV !== "production") {
-      return req.url.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
-    }
-    return false;
-  }
+  keyGenerator: buildRateLimitKey,
+  skip: isSkippableForGeneralLimiter,
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === "production" ? 10 : 100, // More attempts in dev
   message: 'Too many login attempts, please try again after 15 minutes.',
+  keyGenerator: (req) => `login:${getClientIp(req)}`,
   skipSuccessfulRequests: true
 });
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: process.env.NODE_ENV === "production" ? 300 : 1000, // Much higher limits
+  max: process.env.NODE_ENV === "production" ? 600 : 1000,
   message: 'API rate limit exceeded, please slow down.',
+  keyGenerator: buildRateLimitKey,
   skip: (req) => {
     // Skip rate limiting for notification endpoints and SSE
-    return req.url.includes('/notifications/') || req.url.includes('/stream');
+    return isSkippableForGeneralLimiter(req);
   }
 });
 
@@ -159,6 +187,9 @@ const apiLimiter = rateLimit({
 app.use(generalLimiter);
 
 // Apply stricter rate limiting to auth routes
+app.use('/auth/login', authLimiter);
+app.use('/auth/signup', authLimiter);
+app.use('/auth/forgot-password', authLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);

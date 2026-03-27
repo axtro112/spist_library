@@ -384,6 +384,7 @@ async function handleBorrow() {
 
     let successCount  = 0;
     const failedBooks = [];
+    const emailWarnings = [];
 
     for (const item of smartBorrowState.cartItems) {
       for (let i = 0; i < item.qty; i++) {
@@ -396,6 +397,12 @@ async function handleBorrow() {
           if (response.status === 401) throw new Error('Session expired. Please log in again.');
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || result.message || 'Failed to borrow book');
+
+          const emailStatus = result?.data?.emailStatus || result?.emailStatus;
+          if (emailStatus && emailStatus.success === false) {
+            emailWarnings.push({ title: item.title, error: emailStatus.error || 'Pickup QR email not sent' });
+          }
+
           successCount++;
         } catch (err) {
           failedBooks.push({ title: item.title, error: err.message });
@@ -409,11 +416,13 @@ async function handleBorrow() {
           `<div style="background:#d4edda;border:2px solid #28a745;padding:15px;border-radius:8px;margin:10px 0;">
              <p style="margin:0;color:#155724;font-weight:bold;font-size:1.1em;">${successCount} book(s) borrowed successfully!</p>
              <p style="margin:8px 0 0 0;color:#155724;">Due date: ${new Date(returnDate).toLocaleDateString()}</p>
+             ${emailWarnings.length ? `<p style="margin:8px 0 0 0;color:#856404;">Borrowing succeeded, but ${emailWarnings.length} pickup QR email(s) failed to send.</p>` : ''}
            </div>`;
       } else if (successCount > 0) {
         msgContainer.innerHTML =
           `<div style="background:#fff3cd;border:2px solid #ffc107;padding:15px;border-radius:8px;margin:10px 0;">
              <p style="margin:0;color:#856404;font-weight:bold;">Partially successful: ${successCount} borrowed, ${failedBooks.length} failed</p>
+             ${emailWarnings.length ? `<p style="margin:8px 0 0 0;color:#856404;">Also, ${emailWarnings.length} pickup QR email(s) failed to send.</p>` : ''}
            </div>`;
       } else {
         throw new Error('Failed to borrow books: ' + (failedBooks[0]?.error || 'Unknown error'));

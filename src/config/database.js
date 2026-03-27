@@ -2,6 +2,14 @@ const mysql = require("mysql2");
 const util = require('util');
 require("dotenv").config();
 
+function parseBoolean(value, defaultValue = false) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
+const useSsl = parseBoolean(process.env.DB_SSL || process.env.MYSQL_SSL, false);
+const rejectUnauthorized = parseBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false);
+
 // Database configuration from environment variables
 // Railway auto-injects MYSQL_* variables; fall back gracefully
 const dbConfig = {
@@ -13,11 +21,8 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  // Enable SSL for cloud databases (TiDB, PlanetScale, etc.)
-  // Disabled automatically when DB_HOST is localhost/127.0.0.1
-  ...(process.env.DB_HOST && !process.env.DB_HOST.includes('localhost') && !process.env.DB_HOST.includes('127.0.0.1')
-    ? { ssl: { rejectUnauthorized: true } }
-    : {}),
+  // SSL is opt-in. Enable with DB_SSL=true when your provider requires TLS.
+  ...(useSsl ? { ssl: { rejectUnauthorized } } : {}),
 };
 
 console.log("Database config:", {

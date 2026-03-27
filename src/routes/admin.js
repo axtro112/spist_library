@@ -153,7 +153,8 @@ router.get("/books", requireAdmin, async (req, res) => {
         AND bb1.return_date IS NULL
         AND bb1.status IN ('borrowed', 'overdue')
     ) bb ON b.id = bb.book_id
-    LEFT JOIN students s ON bb.student_id = s.student_id
+    LEFT JOIN students s
+      ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
     ${whereClause}
     ORDER BY b.id DESC
   `;
@@ -472,7 +473,8 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
         bb.borrow_date as timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
-      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       WHERE bb.status = 'borrowed'
       AND bb.borrow_date IS NOT NULL
       ORDER BY bb.borrow_date DESC
@@ -486,7 +488,8 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
         bb.return_date as timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
-      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       WHERE bb.status = 'returned'
       AND bb.return_date IS NOT NULL
       ORDER BY bb.return_date DESC
@@ -500,7 +503,8 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
         bb.due_date as timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
-      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       WHERE bb.status = 'overdue'
       AND bb.due_date IS NOT NULL
       ORDER BY bb.due_date DESC
@@ -1508,7 +1512,8 @@ router.get("/borrowings", requireAdmin, async (req, res) => {
           ELSE bb.status
         END AS display_status
       FROM book_borrowings bb
-      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       -- [ORPHAN FIX] LEFT JOIN so records survive even when book was hard-deleted
       LEFT JOIN books b ON bb.book_id = b.id
       LEFT JOIN admins a_approved ON bb.approved_by = a_approved.id
@@ -1579,7 +1584,8 @@ router.get("/borrowings/:id", requireAdmin, async (req, res) => {
           ELSE bb.status
         END AS display_status
       FROM book_borrowings bb
-      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       LEFT JOIN books b ON bb.book_id = b.id
       LEFT JOIN admins a_approved ON bb.approved_by = a_approved.id
       LEFT JOIN admins a_picked ON bb.picked_up_by_admin_id = a_picked.id
@@ -1782,7 +1788,8 @@ router.post("/borrowings/:id/confirm-pickup", requireAdmin, async (req, res) => 
         b.title AS book_title,
         a.fullname AS picked_up_by_name
        FROM book_borrowings bb
-       LEFT JOIN students s ON bb.student_id = s.student_id
+      LEFT JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
        LEFT JOIN books b ON bb.book_id = b.id
        LEFT JOIN admins a ON bb.picked_up_by_admin_id = a.id
        WHERE bb.id = ?`,
@@ -1898,7 +1905,8 @@ router.post("/borrowings/:id/confirm-return", requireAdmin, async (req, res) => 
           b.title AS book_title,
           a.fullname AS returned_by_name
          FROM book_borrowings bb
-         LEFT JOIN students s ON bb.student_id = s.student_id
+         LEFT JOIN students s
+           ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
          LEFT JOIN books b ON bb.book_id = b.id
          LEFT JOIN admins a ON bb.returned_by_admin_id = a.id
          WHERE bb.id = ?`,
@@ -1939,7 +1947,8 @@ router.post('/borrowings/:id/cancel', requireAdmin, async (req, res) => {
               b.title AS book_title, s.email AS student_email
        FROM book_borrowings bb
        LEFT JOIN books b ON bb.book_id = b.id
-       LEFT JOIN students s ON bb.student_id = s.student_id
+       LEFT JOIN students s
+         ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
        WHERE bb.id = ?`,
       [borrowingId]
     );
@@ -2054,8 +2063,10 @@ router.get('/books/:id/details', requireAdmin, async (req, res) => {
         bb.accession_number,
         bc.copy_number
       FROM book_borrowings bb
-      LEFT JOIN students s ON bb.student_id = s.student_id
-      LEFT JOIN book_copies bc ON bb.accession_number = bc.accession_number
+      LEFT JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
+      LEFT JOIN book_copies bc
+        ON bb.accession_number COLLATE utf8mb4_unicode_ci = bc.accession_number COLLATE utf8mb4_unicode_ci
       WHERE bb.book_id = ?
       ORDER BY bb.borrow_date DESC
       LIMIT 10
@@ -2185,8 +2196,11 @@ router.get('/books/:bookId/borrowings', requireAdmin, async (req, res) => {
         bb.accession_number,
         bc.copy_number
       FROM book_borrowings bb
-      LEFT JOIN students s ON bb.student_id = s.student_id AND s.deleted_at IS NULL
-      LEFT JOIN book_copies bc ON bb.accession_number = bc.accession_number
+      LEFT JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
+       AND s.deleted_at IS NULL
+      LEFT JOIN book_copies bc
+        ON bb.accession_number COLLATE utf8mb4_unicode_ci = bc.accession_number COLLATE utf8mb4_unicode_ci
       WHERE bb.book_id = ?
     `;
     
@@ -2426,20 +2440,24 @@ router.delete('/books/:id/permanent-delete', requireSuperAdmin, async (req, res)
 router.post('/users', requireSuperAdmin, async (req, res) => {
   try {
     const { student_id, fullname, email, password, department, education_stage, year_level, student_type, contact_number, status } = req.body;
-    if (!student_id || !fullname || !email || !password || !education_stage || !year_level) {
-      return response.validationError(res, 'Student ID, Full Name, Email, Password, Education Stage, and Year Level are required');
+    if (!student_id || !fullname || !password || !education_stage || !year_level) {
+      return response.validationError(res, 'Student ID, Full Name, Password, Education Stage, and Year Level are required');
     }
     if (education_stage === 'College' && !String(department || '').trim()) {
       return response.validationError(res, 'Program / course is required for college students');
     }
-    const existing = await db.query('SELECT id FROM students WHERE student_id = ? OR email = ?', [student_id, email]);
+    // Auto-generate school email from student_id if admin left it blank
+    const studentEmailDomain = process.env.STUDENT_EMAIL_DOMAIN || 'spist.edu.ph';
+    const resolvedEmail = String(email || '').trim() ||
+      `${String(student_id).trim().toLowerCase()}@${studentEmailDomain}`;
+    const existing = await db.query('SELECT id FROM students WHERE student_id = ? OR email = ?', [student_id, resolvedEmail]);
     if (existing.length > 0) {
       return response.validationError(res, 'Student ID or email already exists');
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
       'INSERT INTO students (student_id, fullname, email, password, department, education_stage, year_level, student_type, contact_number, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [student_id, fullname, email, hashedPassword, department || '', education_stage, year_level, student_type || 'undergraduate', contact_number || '', status || 'active']
+      [student_id, fullname, resolvedEmail, hashedPassword, department || '', education_stage, year_level, student_type || 'undergraduate', contact_number || '', status || 'active']
     );
     logger.info('Student created', { id: result.insertId, student_id });
     response.success(res, { id: result.insertId }, 'Student created successfully', 201);
@@ -3307,15 +3325,15 @@ router.get('/trash/:entity', requireAdmin, async (req, res) => {
   const { search = '', category, year_level, department, role: filterRole } = req.query;
   try {
     if (entity === 'books') {
-      let q = `SELECT b.*, b.trash_id, a.fullname AS added_by_name, COUNT(DISTINCT bc.id) AS total_copies
+      let q = `SELECT b.*, a.fullname AS added_by_name,
+                      (SELECT COUNT(*) FROM book_copies bc WHERE bc.book_id = b.id) AS total_copies
                FROM books b
                LEFT JOIN admins a ON b.added_by = a.id
-               LEFT JOIN book_copies bc ON b.id = bc.book_id
                WHERE b.deleted_at IS NOT NULL`;
       const p = [];
       if (search)   { q += ' AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ?)'; const s = `%${search}%`; p.push(s, s, s); }
       if (category) { q += ' AND b.category = ?'; p.push(category); }
-      q += ' GROUP BY b.id ORDER BY b.deleted_at DESC';
+      q += ' ORDER BY b.deleted_at DESC';
       const rows = await db.query(q, p);
       return response.success(res, rows, `Found ${rows.length} trashed books`);
     }
@@ -3354,8 +3372,8 @@ router.post('/trash/:entity/restore', requireAdmin, async (req, res) => {
   if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
   const idStr = id == null ? '' : String(id).trim();
   const trashIdStr = trashId == null ? '' : String(trashId).trim();
-  const itemId = parseInt(idStr, 10);
-  const hasNumericId = !isNaN(itemId) && itemId > 0;
+  const hasNumericId = /^\d+$/.test(idStr);
+  const itemId = hasNumericId ? parseInt(idStr, 10) : NaN;
   const hasTrashId = !!trashIdStr || (!!idStr && !hasNumericId);
   if (!hasNumericId && !hasTrashId) return response.validationError(res, 'Invalid id');
   if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') return response.forbidden(res, 'Super Admin access required');
@@ -3407,8 +3425,8 @@ router.delete('/trash/:entity/permanent', requireSuperAdmin, async (req, res) =>
   if (!['books', 'users', 'admins'].includes(entity)) return response.validationError(res, 'Invalid entity');
   const idStr = id == null ? '' : String(id).trim();
   const trashIdStr = trashId == null ? '' : String(trashId).trim();
-  const itemId = parseInt(idStr, 10);
-  const hasNumericId = !isNaN(itemId) && itemId > 0;
+  const hasNumericId = /^\d+$/.test(idStr);
+  const itemId = hasNumericId ? parseInt(idStr, 10) : NaN;
   const hasTrashId = !!trashIdStr || (!!idStr && !hasNumericId);
   if (!hasNumericId && !hasTrashId) return response.validationError(res, 'Invalid id');
   try {
@@ -3457,8 +3475,8 @@ router.post('/trash/:entity/bulk-restore', requireAdmin, async (req, res) => {
   if (ids.length > 100) return response.validationError(res, 'Cannot bulk restore more than 100 items at once');
   if ((entity === 'users' || entity === 'admins') && role !== 'super_admin') return response.forbidden(res, 'Super Admin access required');
   const rawIds = ids.map(id => String(id).trim()).filter(Boolean);
-  const safeIds = rawIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-  const safeTrashIds = rawIds.filter(id => isNaN(parseInt(id, 10)));
+  const safeIds = rawIds.filter(id => /^\d+$/.test(id)).map(id => parseInt(id, 10));
+  const safeTrashIds = rawIds.filter(id => !/^\d+$/.test(id));
   if (entity !== 'books' && safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
   if (entity === 'books' && safeIds.length === 0 && safeTrashIds.length === 0) return response.validationError(res, 'No valid IDs provided');
   const ph = safeIds.map(() => '?').join(',');
@@ -3472,15 +3490,14 @@ router.post('/trash/:entity/bulk-restore', requireAdmin, async (req, res) => {
       if (safeTrashIds.length > 0) { where.push(`trash_id IN (${phTrash})`); params.push(...safeTrashIds); }
       result = await db.query(
         `UPDATE books b
+         LEFT JOIN books a
+           ON a.isbn = b.isbn
+          AND a.deleted_at IS NULL
+          AND a.id <> b.id
          SET b.deleted_at = NULL, b.trash_id = NULL
-         WHERE (${where.join(' OR ')})
+         WHERE (${where.map(clause => `b.${clause}`).join(' OR ')})
            AND b.deleted_at IS NOT NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM books a
-             WHERE a.isbn = b.isbn
-               AND a.deleted_at IS NULL
-               AND a.id <> b.id
-           )`,
+           AND a.id IS NULL`,
         params
       );
     }
@@ -3503,8 +3520,8 @@ router.delete('/trash/:entity/bulk-permanent', requireSuperAdmin, async (req, re
   if (!Array.isArray(ids) || ids.length === 0) return response.validationError(res, 'ids must be a non-empty array');
   if (ids.length > 50) return response.validationError(res, 'Cannot bulk delete more than 50 items at once');
   const rawIds = ids.map(id => String(id).trim()).filter(Boolean);
-  const safeIds = rawIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-  const safeTrashIds = rawIds.filter(id => isNaN(parseInt(id, 10)));
+  const safeIds = rawIds.filter(id => /^\d+$/.test(id)).map(id => parseInt(id, 10));
+  const safeTrashIds = rawIds.filter(id => !/^\d+$/.test(id));
   if (entity !== 'books' && safeIds.length === 0) return response.validationError(res, 'No valid IDs provided');
   if (entity === 'books' && safeIds.length === 0 && safeTrashIds.length === 0) return response.validationError(res, 'No valid IDs provided');
   const ph = safeIds.map(() => '?').join(',');

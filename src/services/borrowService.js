@@ -6,6 +6,22 @@ const {
   generateQrCodePngBuffer,
 } = require("../utils/accession");
 
+const DEFAULT_STUDENT_EMAIL_DOMAIN = process.env.STUDENT_EMAIL_DOMAIN || "spist.edu.ph";
+
+function resolveStudentEmail(studentId, rawEmail) {
+  const candidate = String(rawEmail || "").trim().toLowerCase();
+  if (candidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) {
+    return candidate;
+  }
+
+  const normalizedStudentId = String(studentId || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedStudentId) return null;
+  return `${normalizedStudentId}@${DEFAULT_STUDENT_EMAIL_DOMAIN}`;
+}
+
 /**
  * Create a borrowing transaction and send claim notification email
  * 
@@ -225,8 +241,22 @@ async function sendBorrowingClaimEmailForBorrowings(studentId, borrowingIds, cla
     );
 
     const { fullname, email } = studentRows[0];
+    const targetEmail = resolveStudentEmail(studentId, email);
+
+    if (!targetEmail) {
+      throw new Error('Unable to resolve student recipient email');
+    }
+
+    if (!email || String(email).trim().toLowerCase() !== targetEmail) {
+      logger.info('Using dynamic student email fallback', {
+        studentId,
+        sourceEmail: email || null,
+        resolvedEmail: targetEmail,
+      });
+    }
+
     const emailStatus = await sendBorrowingClaimEmail(
-      email,
+      targetEmail,
       fullname,
       studentId,
       borrowedItemsWithQr,

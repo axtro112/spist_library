@@ -6,7 +6,6 @@
 // Global variables
 let allBorrowings = [];
 let filteredBorrowings = [];
-let selectedBorrowingIds = new Set();
 let currentLifecycleFilter = 'pending_pickup';
 let borrowedCategoryLastRefreshAt = 0;
 let borrowedCategoryRefreshing = false;
@@ -442,145 +441,6 @@ function matchesBaseFilters(b) {
 }
 
 // ===========================
-// BULK SELECTION
-// ===========================
-
-function initBulkSelection() {
-  const selectAll = document.getElementById('selectAllBorrowings');
-  const rowCheckboxes = document.querySelectorAll('.borrowing-row-cb');
-  const bulkPickupBtn = document.getElementById('bulkConfirmPickupBtn');
-  const bulkReturnBtn = document.getElementById('bulkConfirmReturnBtn');
-
-  if (!selectAll) return;
-
-  // Reset selectAll state
-  selectAll.checked = false;
-  selectAll.indeterminate = false;
-
-  selectAll.onclick = () => {
-    const checked = selectAll.checked;
-    rowCheckboxes.forEach(cb => {
-      cb.checked = checked;
-      const id = Number(cb.dataset.borrowingId);
-      if (checked) selectedBorrowingIds.add(id);
-      else selectedBorrowingIds.delete(id);
-    });
-    updateBorrowingsBulkBar();
-  };
-
-  rowCheckboxes.forEach(cb => {
-    cb.onclick = () => {
-      const id = Number(cb.dataset.borrowingId);
-      if (cb.checked) selectedBorrowingIds.add(id);
-      else selectedBorrowingIds.delete(id);
-
-      const total = rowCheckboxes.length;
-      const checked = [...rowCheckboxes].filter(c => c.checked).length;
-      selectAll.checked = checked === total;
-      selectAll.indeterminate = checked > 0 && checked < total;
-
-      updateBorrowingsBulkBar();
-    };
-  });
-
-  if (bulkPickupBtn) bulkPickupBtn.onclick = handleBulkConfirmPickup;
-  if (bulkReturnBtn) bulkReturnBtn.onclick = handleBulkConfirmReturn;
-
-  updateBorrowingsBulkBar();
-}
-
-function updateBorrowingsBulkBar() {
-  const count = selectedBorrowingIds.size;
-  const countSpan = document.getElementById('borrowingsSelectedCount');
-  const bulkPickupBtn = document.getElementById('bulkConfirmPickupBtn');
-  const bulkReturnBtn = document.getElementById('bulkConfirmReturnBtn');
-
-  if (countSpan) {
-    countSpan.textContent = count > 0 ? `${count} selected` : '';
-  }
-
-  // Enable both buttons whenever any rows are selected (same as users page pattern)
-  if (bulkPickupBtn) bulkPickupBtn.disabled = count === 0;
-  if (bulkReturnBtn) bulkReturnBtn.disabled = count === 0;
-}
-
-async function handleBulkConfirmPickup() {
-  const ids = allBorrowings
-    .filter(b => selectedBorrowingIds.has(Number(b.id)) && b.display_status === 'pending_pickup')
-    .map(b => b.id);
-
-  if (ids.length === 0) {
-    showToast('None of the selected records are pending pickup', 'warning');
-    return;
-  }
-
-  if (!confirm(`Confirm pickup for ${ids.length} record(s)?`)) return;
-
-  let success = 0, failed = 0;
-  for (const id of ids) {
-    try {
-      const res = await fetchWithCsrf(`/api/admin/borrowings/${id}/confirm-pickup`, { method: 'POST' });
-      if (res.ok) {
-        success++;
-      } else if (res.status === 401 || res.status === 403) {
-        const err = await res.json().catch(() => ({}));
-        handleAdminAccessDenied(err.message || 'Access denied. Admin privileges required.');
-        return;
-      } else {
-        failed++;
-      }
-    } catch {
-      failed++;
-    }
-  }
-
-  showToast(`Pickup confirmed for ${success} record(s)${failed ? ` (${failed} failed)` : ''}.`, failed ? 'warning' : 'success');
-  selectedBorrowingIds.clear();
-  await loadBorrowings();
-  updateTabCounters();
-}
-
-async function handleBulkConfirmReturn() {
-  const ids = allBorrowings
-    .filter(b => selectedBorrowingIds.has(Number(b.id)) && ['picked_up', 'overdue'].includes(b.display_status))
-    .map(b => b.id);
-
-  if (ids.length === 0) {
-    showToast('None of the selected records are ready to return (must be Picked Up or Overdue)', 'warning');
-    return;
-  }
-
-  if (!confirm(`Confirm return for ${ids.length} record(s)?`)) return;
-
-  let success = 0, failed = 0;
-  for (const id of ids) {
-    try {
-      const res = await fetchWithCsrf(`/api/admin/borrowings/${id}/confirm-return`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ condition: 'good' })
-      });
-      if (res.ok) {
-        success++;
-      } else if (res.status === 401 || res.status === 403) {
-        const err = await res.json().catch(() => ({}));
-        handleAdminAccessDenied(err.message || 'Access denied. Admin privileges required.');
-        return;
-      } else {
-        failed++;
-      }
-    } catch {
-      failed++;
-    }
-  }
-
-  showToast(`Return confirmed for ${success} record(s)${failed ? ` (${failed} failed)` : ''}.`, failed ? 'warning' : 'success');
-  selectedBorrowingIds.clear();
-  await loadBorrowings();
-  updateTabCounters();
-}
-
-// ===========================
 // DISPLAY
 // ===========================
 
@@ -599,7 +459,7 @@ function displayBorrowings(borrowings) {
   if (borrowings.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="12" style="text-align: center; padding: 40px;">
+        <td colspan="11" style="text-align: center; padding: 40px;">
           <span class="material-symbols-outlined" style="font-size: 48px; color: #9ca3af;">inbox</span>
           <p style="margin-top: 10px; color: #6b7280;">No borrowing records found</p>
         </td>
@@ -608,12 +468,10 @@ function displayBorrowings(borrowings) {
     return;
   }
   
-  selectedBorrowingIds.clear();
   borrowings.forEach(record => {
     const row = createBorrowingRow(record);
     tbody.appendChild(row);
   });
-  initBulkSelection();
 }
 
 function mapBorrowingToKanbanStage(record) {
@@ -742,9 +600,6 @@ function createBorrowingRow(record) {
        <div style="font-size:12px;color:#6b7280;">${escapeHtml(record.book_author)}</div>`;
 
   tr.innerHTML = `
-    <td style="text-align:center;">
-      <input type="checkbox" class="borrowing-row-cb" data-borrowing-id="${record.id}" style="width:16px;height:16px;cursor:pointer;">
-    </td>
     <td>${record.id}</td>
     <td>
       <div style="font-weight: 500;">${escapeHtml(record.student_name)}</div>
@@ -1166,7 +1021,6 @@ async function ensureBorrowScannerJsQrLibrary() {
   if (typeof window !== 'undefined' && typeof window.jsQR === 'function') return true;
 
   const sources = [
-    '/js/vendor/jsQR.min.js',
     'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
   ];
 
@@ -1591,6 +1445,11 @@ async function lookupBorrowingByAccession(accessionNumber) {
 }
 
 async function lookupBorrowingByIdFromApi(borrowingId) {
+  const cachedBorrowing = getBorrowingRecordById(borrowingId);
+  if (cachedBorrowing) {
+    return cachedBorrowing;
+  }
+
   const res = await fetchWithCsrf(`/api/admin/borrowings/${encodeURIComponent(borrowingId)}`);
   const payload = await res.json().catch(() => ({}));
 
@@ -1601,7 +1460,7 @@ async function lookupBorrowingByIdFromApi(borrowingId) {
   return payload.data;
 }
 
-function parsePickupBorrowingId(scannedValue) {
+function parseBorrowingIdFromScan(scannedValue) {
   const normalized = String(scannedValue || '').trim();
   const prefixMatch = normalized.match(/^SPIST-BORROW:(\d+)$/i);
   if (prefixMatch) {
@@ -1647,7 +1506,7 @@ async function handleBorrowScannerLookup(accessionNumber) {
     const mode = borrowScannerMode;
 
     if (mode === 'pickup') {
-      const scannedBorrowingId = parsePickupBorrowingId(normalized);
+      const scannedBorrowingId = parseBorrowingIdFromScan(normalized);
       let borrowing = null;
 
       if (scannedBorrowingId) {
@@ -1713,15 +1572,32 @@ async function handleBorrowScannerLookup(accessionNumber) {
       return;
     }
 
-    const { copy, borrowing } = await lookupBorrowingByAccession(normalized);
+    const scannedBorrowingId = parseBorrowingIdFromScan(normalized);
+    let copy = null;
+    let borrowing = null;
+
+    if (scannedBorrowingId) {
+      if (scannerCurrentBorrowingId && Number(scannedBorrowingId) !== Number(scannerCurrentBorrowingId)) {
+        setBorrowScannerMessage('Scanned QR does not match the selected return record.', 'warning');
+        setBorrowScannerStatus('Scan the matching book copy QR or the matching borrowing QR for this return.', 'error');
+        return;
+      }
+
+      borrowing = await lookupBorrowingByIdFromApi(scannedBorrowingId);
+    } else {
+      const lookup = await lookupBorrowingByAccession(normalized);
+      copy = lookup.copy;
+      borrowing = lookup.borrowing;
+    }
+
     const displayStatus = normalizeBorrowStatus((borrowing && borrowing.display_status) || (copy && copy.status));
     const dueState = getDueStateText((borrowing && borrowing.due_date) || (copy && copy.due_date), displayStatus);
-    const rowTitle = (borrowing && borrowing.book_title) || copy.title || 'N/A';
-    const rowAuthor = (borrowing && borrowing.book_author) || copy.author || 'N/A';
-    const rowStudent = (borrowing && borrowing.student_name) || copy.borrowed_by || 'N/A';
+    const rowTitle = (borrowing && borrowing.book_title) || (copy && copy.title) || 'N/A';
+    const rowAuthor = (borrowing && borrowing.book_author) || (copy && copy.author) || 'N/A';
+    const rowStudent = (borrowing && borrowing.student_name) || (copy && copy.borrowed_by) || 'N/A';
 
     setBorrowScannerResult({
-      accession: normalized,
+      accession: (borrowing && borrowing.accession_number) || normalized,
       bookTitle: rowTitle,
       author: rowAuthor,
       studentName: rowStudent,

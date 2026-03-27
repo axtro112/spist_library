@@ -4,7 +4,6 @@ class UserViolationsModal {
     this.overlay = null;
     this.currentStudentId = null;
     this.init();
-    this.checkDeepLink();
   }
 
   init() {

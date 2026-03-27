@@ -58,10 +58,12 @@ router.get('/:bookId', requireAuth, async (req, res) => {
         s.fullname as borrowed_by
       FROM book_copies bc
       LEFT JOIN books b ON bc.book_id = b.id
-      LEFT JOIN book_borrowings bb ON bc.accession_number = bb.accession_number 
+      LEFT JOIN book_borrowings bb
+        ON bc.accession_number COLLATE utf8mb4_unicode_ci = bb.accession_number COLLATE utf8mb4_unicode_ci
         AND bb.status IN ('borrowed', 'overdue') 
         AND bb.return_date IS NULL
-      LEFT JOIN students s ON bb.student_id = s.student_id
+      LEFT JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       WHERE bc.book_id = ?
       ORDER BY bc.copy_number ASC
     `;
@@ -101,10 +103,12 @@ router.get('/accession/:accessionNumber', requireAuth, async (req, res) => {
         s.email as borrower_email
       FROM book_copies bc
       INNER JOIN books b ON bc.book_id = b.id
-      LEFT JOIN book_borrowings bb ON bc.accession_number = bb.accession_number 
+      LEFT JOIN book_borrowings bb
+        ON bc.accession_number COLLATE utf8mb4_unicode_ci = bb.accession_number COLLATE utf8mb4_unicode_ci
         AND bb.status IN ('borrowed', 'overdue') 
         AND bb.return_date IS NULL
-      LEFT JOIN students s ON bb.student_id = s.student_id
+      LEFT JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       WHERE bc.accession_number = ?
     `;
     

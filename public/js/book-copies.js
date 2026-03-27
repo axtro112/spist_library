@@ -141,7 +141,7 @@ class BookCopyManager {
                 </div>
                 <div class="sa-form-group">
                   <label for="No#BooksEdit">No. of Books</label>
-                  <input type="number" id="No#BooksEdit" name="No#Books" value="0" min="0" max="10" required />
+                  <input type="number" id="No#BooksEdit" name="No#Books" value="0" min="0" required />
                 </div>
                 <div class="sa-form-group">
                   <label for="categoryEdit">Category</label>

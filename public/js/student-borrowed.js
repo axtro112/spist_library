@@ -643,6 +643,16 @@ views/student/borrowed-books.ejs
     }
   }
 
+  function initTabs() {
+    var pendingBtn = document.getElementById('pendingTabBtn');
+    var activeBtn = document.getElementById('activeTabBtn');
+    var historyBtn = document.getElementById('historyTabBtn');
+
+    if (pendingBtn) pendingBtn.addEventListener('click', function () { setTabState('pending'); });
+    if (activeBtn) activeBtn.addEventListener('click', function () { setTabState('active'); });
+    if (historyBtn) historyBtn.addEventListener('click', function () { setTabState('history'); });
+  }
+
   async function init() {
     if (typeof window.ensureStudentSessionFromServer === 'function') {
       window.ensureStudentSessionFromServer();

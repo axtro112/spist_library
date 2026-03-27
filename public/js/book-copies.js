@@ -13,6 +13,7 @@ class BookCopyManager {
     this.modal = null;
     this.currentBookId = null;
     this.currentCopies = [];
+    this._studentOptionsLoaded = false;
     this.qrModal = null;
     this.qrModalImage = null;
     this.qrModalHint = null;
@@ -367,20 +368,12 @@ class BookCopyManager {
     const statusEdit = document.getElementById('statusEdit');
 
     if (editBookForm && !editBookForm.dataset.boundSubmit) {
-      editBookForm.addEventListener('submit', (event) => {
-        if (typeof handleEditBook === 'function') {
-          handleEditBook(event);
-        }
-      });
+      editBookForm.addEventListener('submit', (event) => this.submitEditBook(event));
       editBookForm.dataset.boundSubmit = 'true';
     }
 
     if (statusEdit && !statusEdit.dataset.boundChange) {
-      statusEdit.addEventListener('change', (event) => {
-        if (typeof handleStatusChange === 'function') {
-          handleStatusChange(event);
-        }
-      });
+      statusEdit.addEventListener('change', (event) => this.handleEditStatusChange(event));
       statusEdit.dataset.boundChange = 'true';
     }
 
@@ -545,6 +538,107 @@ class BookCopyManager {
     const isBorrowed = f.status && f.status.value === 'borrowed';
     if (studentGroup) studentGroup.style.display = isBorrowed ? 'block' : 'none';
     if (studentEl) studentEl.required = isBorrowed;
+    if (isBorrowed) this._ensureStudentOptions();
+  }
+
+  async _ensureStudentOptions() {
+    const studentSelect = document.getElementById('studentEdit');
+    if (!studentSelect) return;
+    if (this._studentOptionsLoaded || studentSelect.options.length > 1) return;
+
+    try {
+      const response = await fetchWithCsrf('/api/admin/students');
+      if (!response.ok) throw new Error('Failed to fetch students');
+
+      const result = await response.json();
+      const studentRows = result.data || [];
+      studentRows.forEach((student) => {
+        const option = document.createElement('option');
+        option.value = student.student_id;
+        option.textContent = `${student.fullname} (${student.email})`;
+        studentSelect.appendChild(option);
+      });
+      this._studentOptionsLoaded = true;
+    } catch (error) {
+      console.error('Error loading student options:', error);
+      showToast('Failed to load students for assignment.', 'error');
+    }
+  }
+
+  async handleEditStatusChange(event) {
+    const studentGroup = document.getElementById('studentSelectGroup');
+    const studentSelect = document.getElementById('studentEdit');
+    const isBorrowed = event && event.target && event.target.value === 'borrowed';
+
+    if (studentGroup) studentGroup.style.display = isBorrowed ? 'block' : 'none';
+    if (studentSelect) {
+      studentSelect.required = isBorrowed;
+      if (!isBorrowed) studentSelect.value = '';
+    }
+
+    if (isBorrowed) {
+      await this._ensureStudentOptions();
+    }
+  }
+
+  async submitEditBook(event) {
+    event.preventDefault();
+
+    const bookId = this.currentBookId;
+    if (!bookId) {
+      showToast('No book selected for editing.', 'error');
+      return;
+    }
+
+    const quantityEl = document.getElementById('No#BooksEdit');
+    const formData = {
+      title: document.getElementById('titleEdit').value.trim(),
+      author: document.getElementById('authorEdit').value.trim(),
+      quantity: quantityEl && quantityEl.value !== '' ? parseInt(quantityEl.value, 10) : null,
+      category: document.getElementById('categoryEdit').value.trim(),
+      isbn: document.getElementById('isbnEdit').value.trim(),
+      status: document.getElementById('statusEdit').value,
+    };
+
+    if (!formData.title || !formData.author || formData.quantity === null || !formData.category || !formData.isbn) {
+      showToast('Please fill in all required fields.', 'error');
+      return;
+    }
+
+    if (formData.status === 'borrowed') {
+      const studentId = document.getElementById('studentEdit').value;
+      if (!studentId) {
+        showToast('Please select a student when status is borrowed.', 'error');
+        return;
+      }
+      formData.student_id = studentId;
+    }
+
+    if (typeof validateISBN === 'function' && !validateISBN(formData.isbn)) {
+      showToast('Please enter a valid ISBN/barcode.', 'error');
+      return;
+    }
+
+    try {
+      const response = await fetchWithCsrf(`/api/admin/books/${bookId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Failed to update book');
+
+      showToast('Book updated successfully!', 'success');
+      this.closeModal();
+
+      if (typeof reloadBooksAndStats === 'function') {
+        await reloadBooksAndStats();
+      }
+    } catch (error) {
+      console.error('Error updating book:', error);
+      showToast(error.message || 'Failed to update book. Please try again.', 'error');
+    }
   }
 
   /**

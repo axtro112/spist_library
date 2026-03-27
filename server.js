@@ -543,6 +543,11 @@ app.get("/.well-known/*", (req, res) => {
   res.status(204).end();
 });
 
+// Handle favicon.ico requests cleanly (no favicon file exists)
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end();
+});
+
 app.get("*", (req, res) => {
   if (req.path.startsWith("/api/")) {
     return res.status(404).json({

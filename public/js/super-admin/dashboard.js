@@ -82,9 +82,15 @@
     function loadCharts(data) {
       _destroyCharts();
 
+      var hasBorrowingTrendData = !!(data.borrowingTrends && data.borrowingTrends.length > 0) &&
+        data.borrowingTrends.some(function (item) { return Number(item.count || 0) > 0; });
+
+      var hasPopularCategoryData = !!(data.popularCategories && data.popularCategories.length > 0) &&
+        data.popularCategories.some(function (item) { return Number(item.count || 0) > 0; });
+
       // Borrowing trends (line chart)
       var trendEl = document.getElementById('borrowingTrends');
-      if (trendEl && data.borrowingTrends && data.borrowingTrends.length > 0) {
+      if (trendEl && hasBorrowingTrendData) {
         var trendLabels = data.borrowingTrends.map(function (item) {
           var parts = item.month.split('-');
           return new Date(parts[0], parts[1] - 1)
@@ -119,7 +125,7 @@
 
       // Popular categories (doughnut chart)
       var catEl = document.getElementById('popularCategories');
-      if (catEl && data.popularCategories && data.popularCategories.length > 0) {
+      if (catEl && hasPopularCategoryData) {
         _categoryChart = new Chart(catEl.getContext('2d'), {
           type: 'doughnut',
           data: {

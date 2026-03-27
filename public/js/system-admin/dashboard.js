@@ -132,8 +132,14 @@
   function _updateCharts(statsData) {
     _destroyCharts();
 
+    const hasBorrowingTrendData = !!(statsData.borrowingTrends && statsData.borrowingTrends.length > 0) &&
+      statsData.borrowingTrends.some(function (item) { return Number(item.count || 0) > 0; });
+
+    const hasPopularCategoryData = !!(statsData.popularCategories && statsData.popularCategories.length > 0) &&
+      statsData.popularCategories.some(function (item) { return Number(item.count || 0) > 0; });
+
     const borrowingEl = document.getElementById("borrowingTrends");
-    if (borrowingEl && statsData.borrowingTrends && statsData.borrowingTrends.length > 0) {
+    if (borrowingEl && hasBorrowingTrendData) {
       const labels = statsData.borrowingTrends.map(function (item) {
         const parts = item.month.split("-");
         return new Date(parts[0], parts[1] - 1).toLocaleString("default", {
@@ -176,7 +182,7 @@
     }
 
     const categoryEl = document.getElementById("popularCategories");
-    if (categoryEl && statsData.popularCategories && statsData.popularCategories.length > 0) {
+    if (categoryEl && hasPopularCategoryData) {
       const catLabels = statsData.popularCategories.map(function (i) { return i.category; });
       const catData   = statsData.popularCategories.map(function (i) { return i.count; });
 

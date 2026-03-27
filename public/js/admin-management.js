@@ -767,7 +767,10 @@ class AdminManagement {
     const closeBtn = document.getElementById('processConfirmCloseBtn');
 
     if (!modal || !okBtn || !cancelBtn) {
-      return Promise.resolve(confirm(message));
+      if (window.ui && typeof window.ui.showAppConfirm === 'function') {
+        return window.ui.showAppConfirm(message, title, confirmLabel, 'Cancel');
+      }
+      return Promise.resolve(false);
     }
 
     if (titleEl) titleEl.textContent = title;

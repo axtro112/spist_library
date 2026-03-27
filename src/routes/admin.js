@@ -1680,12 +1680,14 @@ router.post("/borrowings/:id/approve", requireAdmin, async (req, res) => {
       );
     });
 
+    console.log('[ADMIN BORROW] Attempting to send email', { studentId: borrowing.student_id, borrowingId });
     const emailStatus = await sendBorrowingClaimEmailForBorrowings(
       borrowing.student_id,
       [Number(borrowingId)],
       claimExpiresAt
     );
-    
+    console.log('[ADMIN BORROW] Email send completed', { borrowingId, success: emailStatus.success });
+
     logger.info('Borrow request approved', {
       borrowingId,
       adminId,

@@ -3,6 +3,8 @@ const logger = require("./logger");
 const { createNotification, isDuplicateNotification } = require("../routes/notifications");
 const { sendOverdueReminderEmail } = require("./mailer");
 
+const COLLATION = 'utf8mb4_unicode_ci';
+
 /**
  * Notification Scheduler
  * Runs every 5 minutes to check for due date reminders and overdue books
@@ -30,8 +32,11 @@ async function checkDueDateReminders() {
         DATEDIFF(bb.due_date, NOW()) as days_until_due
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
-      INNER JOIN students s ON bb.student_id = s.student_id
-      LEFT JOIN notification_preferences np ON np.user_type = 'student' AND np.user_id = bb.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
+      LEFT JOIN notification_preferences np
+        ON np.user_type COLLATE utf8mb4_unicode_ci = 'student' COLLATE utf8mb4_unicode_ci
+       AND np.user_id COLLATE utf8mb4_unicode_ci = bb.student_id COLLATE utf8mb4_unicode_ci
       WHERE bb.status = 'borrowed'
         AND bb.due_date >= NOW()
         AND bb.due_date <= DATE_ADD(NOW(), INTERVAL COALESCE(np.reminder_days_before, 2) DAY)
@@ -105,9 +110,11 @@ async function checkOverdueBooks() {
         DATEDIFF(NOW(), bb.due_date) AS days_overdue
       FROM book_borrowings bb
       INNER JOIN books b  ON bb.book_id  = b.id
-      INNER JOIN students s ON bb.student_id = s.student_id
+      INNER JOIN students s
+        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
       LEFT JOIN notification_preferences np
-             ON np.user_type = 'student' AND np.user_id = bb.student_id
+             ON np.user_type COLLATE utf8mb4_unicode_ci = 'student' COLLATE utf8mb4_unicode_ci
+            AND np.user_id COLLATE utf8mb4_unicode_ci = bb.student_id COLLATE utf8mb4_unicode_ci
       WHERE bb.return_date IS NULL
         AND (bb.status = 'borrowed' OR bb.status = 'overdue')
         AND bb.due_date < NOW()
@@ -185,7 +192,8 @@ async function checkOverdueBooks() {
           SELECT a.id, np.enable_overdue_alerts
           FROM admins a
           LEFT JOIN notification_preferences np
-                 ON np.user_type = 'admin' AND np.user_id = CAST(a.id AS CHAR)
+                 ON np.user_type COLLATE utf8mb4_unicode_ci = 'admin' COLLATE utf8mb4_unicode_ci
+                AND np.user_id COLLATE utf8mb4_unicode_ci = CAST(a.id AS CHAR) COLLATE utf8mb4_unicode_ci
           WHERE a.is_active = 1
             AND (np.enable_overdue_alerts IS NULL OR np.enable_overdue_alerts = 1)
         `;
@@ -229,94 +237,73 @@ async function checkOverdueBooks() {
 
 async function checkExpiredPickupClaims() {
   try {
-    logger.debug('Running expired pickup claim check...');
+    logger.debug('Running expired QR pickup claims check...');
 
+    // Find all pending pickup claims that have expired
     const query = `
       SELECT
         bb.id as borrowing_id,
-        bb.book_id,
         bb.student_id,
+        bb.book_id,
         bb.accession_number,
-        bb.borrow_date,
         bb.claim_expires_at,
         b.title as book_title
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
-      WHERE bb.status = 'borrowed'
-        AND bb.return_date IS NULL
-        AND bb.picked_up_at IS NULL
-        AND COALESCE(
-          LEAST(bb.claim_expires_at, DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)),
-          DATE_ADD(bb.borrow_date, INTERVAL 24 HOUR)
-        ) < NOW()
+      WHERE bb.status = 'pending_pickup'
+        AND bb.claim_expires_at < NOW()
     `;
 
     const expiredClaims = await db.query(query);
-    logger.debug(`Found ${expiredClaims.length} expired pickup claim(s)`);
+    logger.debug(`Found ${expiredClaims.length} expired QR pickup claim(s)`);
 
     for (const claim of expiredClaims) {
-      const cancelled = await db.withTransaction(async (conn) => {
-        const updateBorrowing = await conn.queryAsync(
-          `UPDATE book_borrowings
-           SET status = 'cancelled',
-               notes = CONCAT(
-                 COALESCE(notes, ''),
-                 CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END,
-                 'Auto-cancelled: pickup window expired'
-               )
-           WHERE id = ?
-             AND status = 'borrowed'
-             AND picked_up_at IS NULL
-             AND return_date IS NULL`,
-          [claim.borrowing_id]
-        );
-
-        if (!updateBorrowing || updateBorrowing.affectedRows === 0) {
-          return false;
-        }
-
-        if (claim.accession_number) {
-          await conn.queryAsync(
-            "UPDATE book_copies SET status = 'available' WHERE accession_number = ?",
-            [claim.accession_number]
+      try {
+        const expired = await db.withTransaction(async (conn) => {
+          // Mark borrowing as expired
+          const updateBorrowing = await conn.queryAsync(
+            `UPDATE book_borrowings 
+             SET status = 'expired',
+                 notes = CONCAT(COALESCE(notes, ''), CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END, 'QR claim expired: pickup window closed')
+             WHERE id = ? AND status = 'pending_pickup'`,
+            [claim.borrowing_id]
           );
+
+          if (!updateBorrowing || updateBorrowing.affectedRows === 0) {
+            return false;
+          }
+
+          // Free up the book copy back to available
+          if (claim.accession_number) {
+            await conn.queryAsync(
+              "UPDATE book_copies SET status = 'available' WHERE accession_number = ?",
+              [claim.accession_number]
+            );
+          }
+
+          // Increment available quantity for book
+          await conn.queryAsync(
+            "UPDATE books SET available_quantity = available_quantity + 1 WHERE id = ?",
+            [claim.book_id]
+          );
+
+          return true;
+        });
+
+        if (expired) {
+          logger.info('QR pickup claim expired and freed', {
+            borrowing_id: claim.borrowing_id,
+            student_id: claim.student_id,
+            book_title: claim.book_title,
+            accession_number: claim.accession_number
+          });
         }
-
-        await conn.queryAsync(
-          `UPDATE books
-           SET available_quantity = LEAST(quantity, available_quantity + 1)
-           WHERE id = ?`,
-          [claim.book_id]
-        );
-
-        return true;
-      });
-
-      if (!cancelled) {
-        continue;
+      } catch (error) {
+        logger.error('Error expiring pickup claim', {
+          borrowing_id: claim.borrowing_id,
+          error: error.message
+        });
       }
-
-      await createNotification({
-        user_type: 'student',
-        user_id: claim.student_id,
-        title: 'Borrow Request Auto-Cancelled',
-        message: `Your claim window for "${claim.book_title}" expired after 24 hours and was automatically cancelled. You may submit a new borrow request.`,
-        type: 'SYSTEM',
-        related_table: 'book_borrowings',
-        related_id: claim.borrowing_id,
-        target_type: 'book',
-        target_id: claim.book_id,
-        book_id: claim.book_id,
-        book_title: claim.book_title,
-        borrowing_id: claim.borrowing_id,
-        status: 'cancelled'
-      });
-
-      logger.info('Expired pickup claim auto-cancelled', {
-        borrowingId: claim.borrowing_id,
-        studentId: claim.student_id,
-        bookId: claim.book_id,
-      });
     }
   } catch (error) {
     logger.error('Error checking expired pickup claims', { error: error.message });

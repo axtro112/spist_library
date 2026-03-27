@@ -254,15 +254,20 @@ views/student/borrowed-books.ejs
     tbody.innerHTML = rows.map(function (r) {
       var borrowingId = Number(r.borrow_id || r.id || 0);
       var status = normalizeStatus(r.status);
-      var statusLabel = status === 'claim_expired' ? 'Claim Expired' : 'Pending Pickup';
+      var statusLabel = status === 'expired' ? 'Claim Expired' : (status === 'pending_pickup' ? 'Pending Pickup' : formatStatusLabel(status));
+      var isExpired = status === 'expired';
+      var actionButtons = isExpired
+        ? '<span style="color:#999;font-size:12px;">Claim expired</span>'
+        : '<button type="button" class="sa-action-btn" onclick="window.StudentBorrowed.showQRModal(' + borrowingId + ')"><i class="bi bi-qr-code"></i> View QR</button>' +
+          '&nbsp;<button type="button" class="sa-action-btn cancel-style" onclick="window.StudentBorrowed.cancelBorrowRequest(' + borrowingId + ')"><i class="bi bi-x-circle"></i> Cancel</button>';
       return '<tr>' +
         '<td style="text-align:center;"><input type="checkbox" class="form-check-input borrowed-row-checkbox" data-tab="pending" data-borrow-id="' + borrowingId + '"></td>' +
         '<td>' + (r.title || 'N/A') + '</td>' +
         '<td>' + (r.author || 'N/A') + '</td>' +
         '<td>' + formatDate(r.borrow_date) + '</td>' +
         '<td>' + (r.claim_expires_at ? formatDate(r.claim_expires_at) : 'Pending') + '</td>' +
-        '<td><span class="status-pill borrowed">' + statusLabel + '</span></td>' +
-        '<td><button type="button" class="cancel-btn" onclick="window.StudentBorrowed.cancelBorrowRequest(' + borrowingId + ')">Cancel Request</button></td>' +
+        '<td><span class="status-pill ' + (isExpired ? 'expired' : 'borrowed') + '">' + statusLabel + '</span></td>' +
+        '<td style="white-space: nowrap;">' + actionButtons + '</td>' +
       '</tr>';
     }).join('');
   }
@@ -484,7 +489,27 @@ views/student/borrowed-books.ejs
 
   async function cancelBorrowRequest(borrowingId) {
     if (!borrowingId) return;
-    if (!window.confirm('Cancel this book request? The reserved copy will be returned to the available pool.')) return;
+    var record = (allRecords || []).find(function (row) {
+      return Number(row.borrow_id || row.id || 0) === Number(borrowingId);
+    });
+    var bookTitle = String((record && record.title) || 'this book').trim();
+
+    if (!window.ui || typeof window.ui.showAppConfirm !== 'function') {
+      console.error('[StudentBorrowed] showAppConfirm is unavailable');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Unable to open confirmation dialog. Please refresh the page.', 'error');
+      }
+      return;
+    }
+
+    var confirmed = await window.ui.showAppConfirm(
+      'Cancel your borrow request for "' + bookTitle + '"? The reserved copy will be returned to the available pool.',
+      'Cancel Borrow Request',
+      'Yes, Cancel',
+      'Keep Request'
+    );
+
+    if (!confirmed) return;
 
     try {
       var doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
@@ -499,8 +524,6 @@ views/student/borrowed-books.ejs
 
       if (typeof window.showToast === 'function') {
         window.showToast('Borrow request cancelled successfully.', 'success');
-      } else {
-        window.alert('Borrow request cancelled successfully.');
       }
 
       await loadBorrowedData();
@@ -508,20 +531,116 @@ views/student/borrowed-books.ejs
       console.error('[StudentBorrowed] cancelBorrowRequest:', err);
       if (typeof window.showToast === 'function') {
         window.showToast('Error: ' + err.message, 'error');
-      } else {
-        window.alert('Error: ' + err.message);
       }
     }
   }
 
-  function initTabs() {
-    const pendingBtn = document.getElementById('pendingTabBtn');
-    const activeBtn = document.getElementById('activeTabBtn');
-    const historyBtn = document.getElementById('historyTabBtn');
+  async function showQRModal(borrowingId) {
+    if (!borrowingId) return;
+    var record = (allRecords || []).find(function (row) {
+      return Number(row.borrow_id || row.id || 0) === Number(borrowingId);
+    });
 
-    if (pendingBtn) pendingBtn.addEventListener('click', function () { setTabState('pending'); });
-    if (activeBtn) activeBtn.addEventListener('click', function () { setTabState('active'); });
-    if (historyBtn) historyBtn.addEventListener('click', function () { setTabState('history'); });
+    if (!record) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Book record not found', 'error');
+      }
+      return;
+    }
+
+    // Show loading state
+    var modal = document.getElementById('qrCodeModal');
+    if (!modal) {
+      console.error('[StudentBorrowed] QR modal not found in DOM');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Modal error. Please refresh the page.', 'error');
+      }
+      return;
+    }
+
+    var qrImage = document.getElementById('qrCodeImage');
+    var bookTitle = document.getElementById('qrModalBookTitle');
+    if (bookTitle) bookTitle.textContent = record.title || 'Book';
+    if (qrImage) {
+      qrImage.src = '';
+      qrImage.style.fontSize = '14px';
+      qrImage.style.textAlign = 'center';
+      qrImage.textContent = 'Loading QR code...';
+      qrImage.style.display = 'block';
+      qrImage.style.minHeight = '200px';
+    }
+
+    modal.style.display = 'flex';
+
+    try {
+      var doFetch = typeof fetchWithCsrf === 'function' ? fetchWithCsrf : fetch;
+      var response = await doFetch('/api/borrowings/' + encodeURIComponent(borrowingId) + '/qr');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch QR code: ' + response.status);
+      }
+
+      var blob = await response.blob();
+      var url = URL.createObjectURL(blob);
+      
+      if (qrImage) {
+        qrImage.src = url;
+        qrImage.style.display = 'block';
+        qrImage.textContent = '';
+      }
+
+      // Set download link
+      var downloadBtn = document.getElementById('qrDownloadBtn');
+      if (downloadBtn) {
+        downloadBtn.onclick = function () {
+          fetchWithCsrf('/api/borrowings/' + encodeURIComponent(borrowingId) + '/qr/download')
+            .then(function (resp) {
+              if (!resp.ok) throw new Error('Download failed');
+              return resp.blob();
+            })
+            .then(function (blob) {
+              var downloadUrl = URL.createObjectURL(blob);
+              var link = document.createElement('a');
+              link.href = downloadUrl;
+              link.download = 'Pickup-QR-' + borrowingId + '.png';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(downloadUrl);
+              if (typeof window.showToast === 'function') {
+                window.showToast('QR code downloaded', 'success');
+              }
+            })
+            .catch(function (err) {
+              console.error('QR download error:', err);
+              if (typeof window.showToast === 'function') {
+                window.showToast('Download failed: ' + err.message, 'error');
+              }
+            });
+        };
+      }
+    } catch (err) {
+      console.error('[StudentBorrowed] showQRModal:', err);
+      if (qrImage) {
+        qrImage.textContent = 'Error loading QR code: ' + err.message;
+        qrImage.style.color = '#d32f2f';
+      }
+      if (typeof window.showToast === 'function') {
+        window.showToast('Error: ' + err.message, 'error');
+      }
+    }
+  }
+
+  function closeQRModal() {
+    var modal = document.getElementById('qrCodeModal');
+    if (modal) {
+      modal.style.display = 'none';
+      var qrImage = document.getElementById('qrCodeImage');
+      if (qrImage && qrImage.src) {
+        URL.revokeObjectURL(qrImage.src);
+        qrImage.src = '';
+      }
+    }
   }
 
   async function init() {
@@ -545,5 +664,7 @@ views/student/borrowed-books.ejs
 
   window.StudentBorrowed = window.StudentBorrowed || {};
   window.StudentBorrowed.cancelBorrowRequest = cancelBorrowRequest;
+  window.StudentBorrowed.showQRModal = showQRModal;
+  window.StudentBorrowed.closeQRModal = closeQRModal;
   document.addEventListener('DOMContentLoaded', init);
 })();

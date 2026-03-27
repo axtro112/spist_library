@@ -6,12 +6,19 @@ const logger = require("../utils/logger");
 const { requireAuth } = require("../middleware/auth");
 
 function getUserContext(req) {
-  const userRole = req.session.user?.userRole || req.session.userRole;
-  const userType = userRole === 'admin' ? 'admin' : userRole === 'student' ? 'student' : null;
+  const rawRole = req.session.user?.userRole || req.session.user?.role || req.session.userRole || req.session.role;
+  const userRole = String(rawRole || '').trim().toLowerCase();
+  const userType = (userRole === 'admin' || userRole === 'super_admin' || userRole === 'system_admin')
+    ? 'admin'
+    : userRole === 'student'
+      ? 'student'
+      : null;
 
   let userId = null;
   if (req.session.user) {
-    userId = userType === 'admin' ? String(req.session.user.id) : req.session.user.studentId;
+    userId = userType === 'admin'
+      ? String(req.session.user.id || req.session.adminId || '')
+      : req.session.user.studentId || req.session.studentId || req.session.user.id || null;
   } else {
     userId = userType === 'admin' ? String(req.session.adminId) : req.session.studentId;
   }

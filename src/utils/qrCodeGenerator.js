@@ -1,0 +1,129 @@
+/**
+ * QR Code Generation Utility
+ * Generates QR code images containing secure tokens for contactless pickup
+ * 
+ * QR codes are generated on-demand (not stored in DB)
+ * Token is embedded in the QR code itself
+ */
+
+const QRCode = require('qrcode');
+const logger = require('./logger');
+
+/**
+ * Generate QR code as PNG buffer
+ * QR contains the pickup URL with embedded token
+ * @param {string} qrToken - Secure QR token from qrToken utility
+ * @param {number} borrowingId - Borrowing record ID (for reference)
+ * @param {Object} options - Optional QR code options
+ * @returns {Promise<Buffer>} PNG image buffer
+ */
+async function generateQRCodeImage(qrToken, borrowingId, options = {}) {
+  try {
+    if (!qrToken) {
+      throw new Error('QR token is required');
+    }
+
+    // Construct the pickup URL that will be embedded in QR code
+    // Format: /pickup?token=<JWT>
+    const pickupUrl = `/pickup?token=${encodeURIComponent(qrToken)}`;
+
+    // QR code options
+    const qrOptions = {
+      errorCorrectionLevel: 'H', // High error correction
+      type: 'image/png',
+      width: options.width || 300, // Default 300x300 pixels
+      margin: options.margin || 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      },
+      ...options
+    };
+
+    logger.debug('Generating QR code', {
+      borrowing_id: borrowingId,
+      url_length: pickupUrl.length
+    });
+
+    const imageBuffer = await QRCode.toBuffer(pickupUrl, qrOptions);
+
+    logger.debug('QR code generated successfully', {
+      borrowing_id: borrowingId,
+      buffer_size: imageBuffer.length
+    });
+
+    return imageBuffer;
+  } catch (error) {
+    logger.error('QR code generation failed', {
+      borrowing_id: borrowingId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate QR code as data URL (base64 encoded)
+ * Useful for embedding in HTML without file download
+ * @param {string} qrToken - Secure QR token
+ * @param {number} borrowingId - Borrowing record ID
+ * @returns {Promise<string>} Data URL: data:image/png;base64,...
+ */
+async function generateQRCodeDataUrl(qrToken, borrowingId, options = {}) {
+  try {
+    const pickupUrl = `/pickup?token=${encodeURIComponent(qrToken)}`;
+
+    const qrOptions = {
+      errorCorrectionLevel: 'H',
+      type: 'image/png',
+      width: options.width || 300,
+      margin: options.margin || 2,
+      ...options
+    };
+
+    const dataUrl = await QRCode.toDataURL(pickupUrl, qrOptions);
+    return dataUrl;
+  } catch (error) {
+    logger.error('QR code data URL generation failed', {
+      borrowing_id: borrowingId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate QR code as SVG string
+ * Scalable, lightweight alternative to PNG
+ * @param {string} qrToken - Secure QR token
+ * @param {number} borrowingId - Borrowing record ID
+ * @returns {Promise<string>} SVG XML string
+ */
+async function generateQRCodeSVG(qrToken, borrowingId, options = {}) {
+  try {
+    const pickupUrl = `/pickup?token=${encodeURIComponent(qrToken)}`;
+
+    const qrOptions = {
+      errorCorrectionLevel: 'H',
+      type: 'image/svg+xml',
+      width: options.width || 300,
+      margin: options.margin || 2,
+      ...options
+    };
+
+    const svgString = await QRCode.toString(pickupUrl, qrOptions);
+    return svgString;
+  } catch (error) {
+    logger.error('QR code SVG generation failed', {
+      borrowing_id: borrowingId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+module.exports = {
+  generateQRCodeImage,
+  generateQRCodeDataUrl,
+  generateQRCodeSVG
+};

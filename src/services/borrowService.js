@@ -1,6 +1,7 @@
 const db = require("../utils/db");
 const logger = require("../utils/logger");
 const { sendBorrowingClaimEmail } = require("../utils/mailer");
+const { generateQRToken } = require("../utils/qrToken");
 const {
   buildBorrowingPickupQrValue,
   generateQrCodePngBuffer,
@@ -96,7 +97,7 @@ async function createBorrowTransactionAndEmail(
           const accessionNumber = copy.accession_number;
           const copyCondition = copy.condition_status;
 
-          // Insert borrowing record
+          // Insert borrowing record with PENDING_PICKUP status (student must scan QR to activate)
           const insertBorrowQuery = `
             INSERT INTO book_borrowings (
               book_id,
@@ -107,7 +108,7 @@ async function createBorrowTransactionAndEmail(
               due_date,
               claim_expires_at,
               status
-            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, 'borrowed')
+            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, 'pending_pickup')
           `;
           const borrowResult = await conn.queryAsync(insertBorrowQuery, [
             bookId,
@@ -118,7 +119,7 @@ async function createBorrowTransactionAndEmail(
             claimExpiresAt
           ]);
 
-          // Mark copy as borrowed
+          // Mark copy as borrowed (reserved for student until they pick it up)
           await conn.queryAsync(
             "UPDATE book_copies SET status = 'borrowed' WHERE accession_number = ?",
             [accessionNumber]
@@ -143,6 +144,36 @@ async function createBorrowTransactionAndEmail(
             copyCondition,
             dueDate: returnDate
           });
+
+          // Generate QR token for in-app pickup (done here to have latest borrowing ID)
+          // This will be stored in DB and used to generate dynamic QR codes later
+          try {
+            const borrowingForQR = {
+              id: borrowResult.insertId,
+              student_id: studentId,
+              book_id: bookId,
+              accession_number: accessionNumber,
+              claim_expires_at: claimExpiresAt
+            };
+            const qrToken = generateQRToken(borrowingForQR);
+            
+            // Store the QR token in the borrowing record
+            await conn.queryAsync(
+              'UPDATE book_borrowings SET qr_token = ?, qr_generated_at = NOW() WHERE id = ?',
+              [qrToken, borrowResult.insertId]
+            );
+
+            logger.debug('QR token generated and stored', {
+              borrowing_id: borrowResult.insertId,
+              student_id: studentId
+            });
+          } catch (qrError) {
+            logger.warn('Failed to generate QR token for borrowing', {
+              borrowing_id: borrowResult.insertId,
+              error: qrError.message
+            });
+            // Don't fail the entire borrowing if QR token generation fails
+          }
         }
       }
 
@@ -187,6 +218,9 @@ async function createBorrowTransactionAndEmail(
 }
 
 async function sendBorrowingClaimEmailForBorrowings(studentId, borrowingIds, claimExpiresAt) {
+  console.log('[BORROW EMAIL DEBUG] sendBorrowingClaimEmailForBorrowings called', { studentId, borrowingIds, claimExpiresAt });
+  logger.info('[BORROW EMAIL START] Attempting to send claim emails', { studentId, borrowingCount: borrowingIds.length });
+  
   try {
     if (!studentId || !Array.isArray(borrowingIds) || borrowingIds.length === 0 || !claimExpiresAt) {
       throw new Error('Missing required parameters for borrowing claim email');
@@ -283,10 +317,12 @@ async function sendBorrowingClaimEmailForBorrowings(studentId, borrowingIds, cla
 
     return emailStatus;
   } catch (emailError) {
+    console.error('[BORROW EMAIL ERROR] Caught error in sendBorrowingClaimEmailForBorrowings', emailError);
     logger.error('Email preparation failed', {
       studentId,
       borrowingIds,
       error: emailError.message,
+      stack: emailError.stack,
     });
 
     return { success: false, error: emailError.message };

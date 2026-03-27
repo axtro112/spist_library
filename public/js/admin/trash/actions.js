@@ -48,7 +48,10 @@
     const closeBtn = document.getElementById('trashRestoreClose');
 
     if (!modal || !messageEl || !confirmBtn || !cancelBtn) {
-      return Promise.resolve(confirm(message));
+      if (global.ui && typeof global.ui.showAppConfirm === 'function') {
+        return global.ui.showAppConfirm(message, 'Confirm Restore', 'Restore', 'Cancel');
+      }
+      return Promise.resolve(false);
     }
 
     bindRestoreModalEvents(modal, confirmBtn, cancelBtn, closeBtn);
@@ -95,7 +98,10 @@
     const closeBtn = document.getElementById('trashDeleteClose');
 
     if (!modal || !messageEl || !confirmBtn || !cancelBtn) {
-      return Promise.resolve(confirm(message));
+      if (global.ui && typeof global.ui.showAppConfirm === 'function') {
+        return global.ui.showAppConfirm(message, 'Confirm Permanent Delete', 'Delete', 'Cancel');
+      }
+      return Promise.resolve(false);
     }
 
     bindDeleteConfirmModalEvents(modal, confirmBtn, cancelBtn, closeBtn);
@@ -152,7 +158,10 @@
     const closeBtn = document.getElementById('trashDeleteTypeClose');
 
     if (!modal || !input || !confirmBtn || !cancelBtn) {
-      return Promise.resolve(prompt('Type DELETE to confirm:'));
+      if (global.ui && typeof global.ui.showAppPrompt === 'function') {
+        return global.ui.showAppPrompt('Type DELETE to confirm:', 'Confirm Permanent Delete', '', 'DELETE', 'Submit', 'Cancel');
+      }
+      return Promise.resolve(null);
     }
 
     bindDeleteTypeModalEvents(modal, confirmBtn, cancelBtn, closeBtn, input);

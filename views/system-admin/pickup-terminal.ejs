@@ -1,0 +1,103 @@
+<%
+  var extraHead = [
+    '<link rel="stylesheet" href="/css/admin/pickup-terminal.css?v=2026-03-28">',
+    '<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"><\/script>',
+    '<script src="/js/admin/pickup-terminal.js?v=2026-03-28" defer><\/script>'
+  ].join('');
+%>
+<%- include('../partials/system-admin-layout', {
+  title: 'Book Pickup Terminal - Southern Philippines Institute of Science & Technology',
+  adminEmail: adminEmail,
+  adminId: adminId,
+  adminRole: adminRole,
+  activePage: 'pickup-terminal',
+  extraHead: extraHead,
+  body: `
+    <div class="pt-header">
+      <div>
+        <h1>Book Pickup Terminal</h1>
+        <p class="pt-subtitle">Scan QR codes to complete student book pickups</p>
+      </div>
+    </div>
+
+    <div class="pt-container">
+      <!-- Scanner Section -->
+      <div class="pt-card pt-scanner-card">
+        <h2 class="pt-card-title">QR Code Scanner</h2>
+        
+        <div class="pt-scanner-area">
+          <div id="pt-reader" class="pt-scanner-box"></div>
+          <p id="pt-status" class="pt-status-text">Ready to scan. Click "Start Scanner" to begin.</p>
+        </div>
+
+        <div class="pt-button-group">
+          <button id="pt-start-btn" class="pt-btn pt-btn-primary" type="button">
+            <i class="bi bi-camera-video"></i> Start Scanner
+          </button>
+          <button id="pt-stop-btn" class="pt-btn pt-btn-secondary" style="display:none;" type="button">
+            <i class="bi bi-camera-video-off"></i> Stop Scanner
+          </button>
+          <button id="pt-manual-btn" class="pt-btn pt-btn-outline" type="button">
+            <i class="bi bi-keyboard"></i> Manual Entry
+          </button>
+        </div>
+
+        <div class="pt-info-box">
+          <i class="bi bi-info-circle"></i>
+          <span>Ensure proper lighting for faster QR code scanning. Keep the code steady for 1-2 seconds.</span>
+        </div>
+      </div>
+
+      <!-- Pickup Result Section -->
+      <div class="pt-card pt-result-card" id="pt-result-section" style="display:none;">
+        <h2 class="pt-card-title">Pickup Confirmation</h2>
+        
+        <div id="pt-result-content">
+          <!-- Result will be rendered here -->
+        </div>
+
+        <div class="pt-button-group" style="margin-top: 20px;">
+          <button id="pt-new-scan-btn" class="pt-btn pt-btn-primary" type="button">
+            <i class="bi bi-arrow-clockwise"></i> Next Pickup
+          </button>
+          <button id="pt-close-result-btn" class="pt-btn pt-btn-outline" type="button">
+            <i class="bi bi-x-circle"></i> Close
+          </button>
+        </div>
+      </div>
+
+      <!-- Recent Pickups -->
+      <div class="pt-card pt-recent-card">
+        <h2 class="pt-card-title">Recent Pickups</h2>
+        <div id="pt-recent-list" class="pt-recent-list">
+          <p class="pt-empty-state">No pickups yet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Entry Modal -->
+    <div id="pt-manual-modal" class="pt-modal" style="display:none;">
+      <div class="pt-modal-content">
+        <div class="pt-modal-header">
+          <h3>Manual Token Entry</h3>
+          <button type="button" class="pt-modal-close" onclick="window.PickupTerminal.closeManualModal()">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="pt-modal-body">
+          <label for="pt-manual-token" class="pt-label">Paste QR Token:</label>
+          <textarea id="pt-manual-token" class="pt-textarea" placeholder="Paste the token from the QR code here..." rows="4"></textarea>
+          <p class="pt-help-text">You can also copy the token directly from the QR code image.</p>
+        </div>
+        <div class="pt-modal-footer">
+          <button type="button" class="pt-btn pt-btn-primary" onclick="window.PickupTerminal.submitManualToken()">
+            <i class="bi bi-check-circle"></i> Process Token
+          </button>
+          <button type="button" class="pt-btn pt-btn-outline" onclick="window.PickupTerminal.closeManualModal()">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  `
+}) %>

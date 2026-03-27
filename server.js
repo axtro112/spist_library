@@ -16,7 +16,9 @@ const bookReturnRoutes = require("./src/routes/book-return");
 const booksRoutes = require("./src/routes/books");
 const bookCopiesRoutes = require("./src/routes/book-copies");
 const notificationRoutes = require("./src/routes/notifications");
+const qrPickupRoutes = require("./src/routes/qr-pickup");
 const { startNotificationScheduler } = require("./src/utils/notificationScheduler");
+const { runPendingMigrations } = require("./src/utils/migrationRunner");
 const { auditLogMiddleware } = require("./src/middleware/audit");
 require("dotenv").config();
 
@@ -26,7 +28,7 @@ const studentRoutes = fs.existsSync(studentsRoutePath)
   : null;
 
 // Validate critical environment variables on startup
-const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME', 'SESSION_SECRET', 'JWT_SECRET'];
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME', 'SESSION_SECRET', 'JWT_SECRET', 'QR_TOKEN_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
@@ -56,6 +58,7 @@ function validateStrongSecret(secretName, secretValue) {
 
 validateStrongSecret('SESSION_SECRET', process.env.SESSION_SECRET);
 validateStrongSecret('JWT_SECRET', process.env.JWT_SECRET);
+validateStrongSecret('QR_TOKEN_SECRET', process.env.QR_TOKEN_SECRET);
 
 // Optional warnings for feature-specific variables
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -330,6 +333,7 @@ app.use("/api/book-borrowings", bookReturnRoutes);
 app.use("/api/books", booksRoutes);
 app.use("/api/book-copies", bookCopiesRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api", qrPickupRoutes); // QR pickup routes (includes /api/borrowings/:id/qr, /api/pickup)
 
 // CSRF Error Handler - must come AFTER routes but BEFORE general error handler
 // Applies to both /auth and /api routes
@@ -418,6 +422,7 @@ const systemAdminPageRoutes = {
   "admin-books": "system-admin/books",
   "admin-borrowed-books": "system-admin/borrowed-books",
   "admin-qr-scanner": "system-admin/qr-scanner",
+  "admin-pickup-terminal": "system-admin/pickup-terminal",
   "admin-users": "system-admin/users",
   "admin-admins": "system-admin/admins",
   "admin-trash-bin": "system-admin/trash-bin",
@@ -550,9 +555,12 @@ app.get("*", (req, res) => {
   res.status(404).render('404', { pageContent: null });
 });
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open http://localhost:${PORT} in your browser`);
+  
+  // Run pending database migrations (runs in production only)
+  await runPendingMigrations();
   
   // Start notification scheduler
   startNotificationScheduler();

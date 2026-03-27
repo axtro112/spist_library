@@ -530,3 +530,236 @@
   .borrow-tab span:not(.tab-badge) { display: none; }
   .borrow-tab i { font-size: 16px; opacity: 1; }
 }
+
+/* ── QR CODE MODAL ── */
+.qr-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.qr-modal.hidden {
+  display: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.qr-modal-content {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+  max-width: 450px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.qr-modal-header {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qr-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+}
+
+.qr-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.qr-modal-close:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.qr-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+.qr-code-container {
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 20px;
+  background: #f9fafb;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+}
+
+.qr-code-container img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.qr-instructions {
+  background: #ecf0f6;
+  border-left: 4px solid #2c5aa0;
+  padding: 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.qr-instructions p {
+  margin: 0 0 10px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.qr-instructions ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.qr-instructions li {
+  margin-bottom: 6px;
+}
+
+.qr-modal-footer {
+  padding: 16px 28px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.sa-action-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.sa-action-btn.primary {
+  background: #2c5aa0;
+  color: #fff;
+}
+
+.sa-action-btn.primary:hover {
+  background: #1f4073;
+  box-shadow: 0 4px 12px rgba(44, 90, 160, 0.3);
+}
+
+.sa-action-btn.secondary {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.sa-action-btn.secondary:hover {
+  background: #d1d5db;
+}
+
+.sa-action-btn.cancel-style {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.sa-action-btn.cancel-style:hover {
+  background: #fecaca;
+}
+
+/* ── PENDING PICKUP TABLE STYLES ── */
+.status-pill.expired {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.status-pill.borrowed {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #7dd3fc;
+}
+
+/* ── RESPONSIVE QR MODAL ── */
+@media (max-width: 480px) {
+  .qr-modal-content {
+    max-width: 95%;
+    max-height: 90vh;
+  }
+  
+  .qr-modal-header {
+    padding: 18px 20px 12px;
+  }
+  
+  .qr-modal-header h3 {
+    font-size: 16px;
+  }
+  
+  .qr-modal-body {
+    padding: 18px 20px;
+  }
+  
+  .qr-code-container {
+    min-height: 240px;
+    padding: 12px;
+  }
+  
+  .qr-modal-footer {
+    flex-direction: column;
+  }
+  
+  .sa-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

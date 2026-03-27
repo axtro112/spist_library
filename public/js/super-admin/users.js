@@ -567,8 +567,10 @@
     var closeBtn = document.getElementById('processConfirmCloseBtn');
 
     if (!modal || !titleEl || !messageEl || !okBtn || !cancelBtn) {
-      // Fallback to native confirm if modal not found
-      return Promise.resolve(confirm(message));
+      if (window.ui && typeof window.ui.showAppConfirm === 'function') {
+        return window.ui.showAppConfirm(message, title || 'Confirm Action', 'Confirm', 'Cancel');
+      }
+      return Promise.resolve(false);
     }
 
     titleEl.textContent = title || 'Confirm Action';

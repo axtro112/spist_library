@@ -182,6 +182,126 @@ function disableButton(button, loadingText = 'Processing...') {
   };
 }
 
+function getDialogRoot() {
+  let root = document.getElementById('ui-dialog-root');
+  if (root) return root;
+
+  root = document.createElement('div');
+  root.id = 'ui-dialog-root';
+  root.style.cssText = `
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 10050;
+  `;
+
+  root.innerHTML = `
+    <div id="ui-dialog-card" role="dialog" aria-modal="true" style="
+      width: min(520px, 100%);
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.22);
+      overflow: hidden;
+    ">
+      <div style="padding: 18px 20px 10px; border-bottom: 1px solid #e2e8f0;">
+        <h3 id="ui-dialog-title" style="margin: 0; font-size: 20px; color: #0f172a;">Notice</h3>
+      </div>
+      <div style="padding: 16px 20px 10px;">
+        <p id="ui-dialog-message" style="margin: 0; color: #334155; line-height: 1.55;"></p>
+        <input id="ui-dialog-input" type="text" style="display:none; width:100%; margin-top:12px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px;" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px 20px;">
+        <button id="ui-dialog-cancel" type="button" class="cancel-btn" style="display:none;">Cancel</button>
+        <button id="ui-dialog-confirm" type="button" class="submit-btn">OK</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(root);
+  return root;
+}
+
+function showDialog(options = {}) {
+  return new Promise((resolve) => {
+    const root = getDialogRoot();
+    const titleEl = document.getElementById('ui-dialog-title');
+    const messageEl = document.getElementById('ui-dialog-message');
+    const inputEl = document.getElementById('ui-dialog-input');
+    const cancelBtn = document.getElementById('ui-dialog-cancel');
+    const confirmBtn = document.getElementById('ui-dialog-confirm');
+
+    const mode = options.mode === 'prompt' ? 'prompt' : options.mode === 'confirm' ? 'confirm' : 'alert';
+    const title = options.title || (mode === 'confirm' ? 'Confirm Action' : 'Notice');
+    const message = options.message || '';
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    confirmBtn.textContent = options.confirmText || 'OK';
+    cancelBtn.textContent = options.cancelText || 'Cancel';
+    cancelBtn.style.display = (mode === 'confirm' || mode === 'prompt') ? '' : 'none';
+    inputEl.style.display = mode === 'prompt' ? '' : 'none';
+    inputEl.value = options.defaultValue || '';
+    inputEl.placeholder = options.placeholder || '';
+
+    function cleanup(result) {
+      root.style.display = 'none';
+      document.body.style.overflow = 'auto';
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      root.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKeyDown);
+      resolve(result);
+    }
+
+    function onConfirm() {
+      if (mode === 'prompt') {
+        cleanup(String(inputEl.value || ''));
+        return;
+      }
+      cleanup(true);
+    }
+    function onCancel() {
+      cleanup(mode === 'prompt' ? null : false);
+    }
+    function onBackdrop(event) {
+      if (event.target === root) cleanup(false);
+    }
+    function onKeyDown(event) {
+      if (event.key === 'Escape') cleanup(mode === 'prompt' ? null : false);
+      if (event.key === 'Enter') onConfirm();
+    }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    root.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKeyDown);
+
+    root.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    if (mode === 'prompt') {
+      setTimeout(() => inputEl.focus(), 0);
+    } else {
+      setTimeout(() => confirmBtn.focus(), 0);
+    }
+  });
+}
+
+function showAppAlert(message, title = 'Notice') {
+  return showDialog({ mode: 'alert', title, message, confirmText: 'OK' });
+}
+
+function showAppConfirm(message, title = 'Confirm Action', confirmText = 'Confirm', cancelText = 'Cancel') {
+  return showDialog({ mode: 'confirm', title, message, confirmText, cancelText });
+}
+
+function showAppPrompt(message, title = 'Input Required', defaultValue = '', placeholder = '', confirmText = 'Submit', cancelText = 'Cancel') {
+  return showDialog({ mode: 'prompt', title, message, defaultValue, placeholder, confirmText, cancelText });
+}
+
 // Export UI utilities
 window.ui = {
   showModal,
@@ -191,8 +311,18 @@ window.ui = {
   hideLoading,
   formatDate,
   debounce,
-  disableButton
+  disableButton,
+  showAppAlert,
+  showAppConfirm,
+  showAppPrompt
 };
+
+if (!window.__customAlertInstalled) {
+  window.__customAlertInstalled = true;
+  window.alert = function customAppAlert(message) {
+    showAppAlert(String(message || ''));
+  };
+}
 
 // Add CSS for animations
 const style = document.createElement('style');

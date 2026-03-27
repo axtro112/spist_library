@@ -356,13 +356,23 @@ router.post("/borrow-book", requireAuth, async (req, res) => {
       );
 
       // Fire-and-forget email (QR generation + SMTP — does not block the response)
+      console.log('[BORROW FLOW] Starting background email send from single borrow');
       sendBorrowingClaimEmailForBorrowings(
         student.student_id,
         result.borrowings.map((b) => b.borrowingId),
         result.claimExpiresAt
-      ).catch((emailErr) =>
-        logger.error('Background borrow email failed', { studentId: student.student_id, error: emailErr.message })
-      );
+      ).then((emailStatus) => {
+        console.log('[BORROW FLOW] Background email promise resolved', { success: emailStatus.success });
+        logger.info('Background borrow email completed', {
+          studentId: student.student_id,
+          borrowingIds: result.borrowings.map((b) => b.borrowingId),
+          success: emailStatus.success === true,
+          result: emailStatus
+        });
+      }).catch((emailErr) => {
+        console.error('[BORROW FLOW] Background email promise rejected', emailErr);
+        logger.error('Background borrow email failed', { studentId: student.student_id, error: emailErr.message, stack: emailErr.stack });
+      });
 
       return;
     }
@@ -435,13 +445,23 @@ router.post("/borrow-multiple", requireAuth, async (req, res) => {
       });
 
       // Fire-and-forget email (QR generation + SMTP — does not block the response)
+      console.log('[BORROW FLOW] Starting background email send from multi-borrow');
       sendBorrowingClaimEmailForBorrowings(
         student.student_id,
         result.borrowings.map((b) => b.borrowingId),
         result.claimExpiresAt
-      ).catch((emailErr) =>
-        logger.error('Background borrow-multiple email failed', { studentId: student.student_id, error: emailErr.message })
-      );
+      ).then((emailStatus) => {
+        console.log('[BORROW FLOW] Background multi-borrow email promise resolved', { success: emailStatus.success });
+        logger.info('Background borrow-multiple email completed', {
+          studentId: student.student_id,
+          borrowingCount: result.borrowings.length,
+          success: emailStatus.success === true,
+          result: emailStatus
+        });
+      }).catch((emailErr) => {
+        console.error('[BORROW FLOW] Background multi-borrow email promise rejected', emailErr);
+        logger.error('Background borrow-multiple email failed', { studentId: student.student_id, error: emailErr.message, stack: emailErr.stack });
+      });
 
       return;
     }

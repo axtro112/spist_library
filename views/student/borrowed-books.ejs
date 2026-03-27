@@ -3,7 +3,7 @@
   studentId: studentId,
   userRole: userRole,
   activePage: 'borrowed-books',
-  extraHead: '<script src="/js/student/borrowed.js" defer><\/script><script src="/js/student-borrowed.js" defer><\/script><script src="/js/student/overview.js?v=2026-03-18" defer><\/script>'
+  extraHead: '<script src="/js/student/borrowed.js?v=2026-03-28" defer><\/script><script src="/js/student-borrowed.js?v=2026-03-28" defer><\/script><script src="/js/student/overview.js?v=2026-03-18" defer><\/script>'
 }) %>
 
 <%- include('../partials/student-overview-cards') %>
@@ -177,5 +177,38 @@
   </div>
 </div>
 
-<%- include('../partials/user-sidebar-bottom') %>
+<!-- QR Code Modal -->
+<div id="qrCodeModal" class="qr-modal" style="display: none;">
+  <div class="qr-modal-content">
+    <div class="qr-modal-header">
+      <h3>Pickup QR Code - <span id="qrModalBookTitle">Book Title</span></h3>
+      <button type="button" class="qr-modal-close" onclick="window.StudentBorrowed.closeQRModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="qr-modal-body">
+      <div class="qr-code-container">
+        <img id="qrCodeImage" src="" alt="QR Code" style="max-width: 300px; height: auto;" />
+      </div>
+      <div class="qr-instructions">
+        <p><strong>Instructions:</strong></p>
+        <ul>
+          <li>Show this QR code to the library staff at the pickup counter</li>
+          <li>Or download and print it if you prefer</li>
+          <li>Staff will scan the code to confirm your pickup</li>
+          <li>Book must be picked up before the claim expires</li>
+        </ul>
+      </div>
+    </div>
+    <div class="qr-modal-footer">
+      <button id="qrDownloadBtn" type="button" class="sa-action-btn primary" title="Download QR code as PNG">
+        <i class="bi bi-download"></i> Download QR Code
+      </button>
+      <button type="button" class="sa-action-btn secondary" onclick="window.StudentBorrowed.closeQRModal()">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
 
+<%- include('../partials/user-sidebar-bottom') %>

@@ -182,11 +182,11 @@ async function isDuplicateNotification(user_type, user_id, type, related_table, 
   const query = `
     SELECT COUNT(*) as count
     FROM notifications
-    WHERE user_type = ?
-      AND user_id = ?
-      AND type = ?
-      AND related_table = ?
-      AND related_id = ?
+    WHERE user_type COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+      AND user_id COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+      AND type COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+      AND related_table COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+      AND related_id COLLATE utf8mb4_unicode_ci = CAST(? AS CHAR) COLLATE utf8mb4_unicode_ci
       AND DATE(created_at) = CURDATE()
   `;
   

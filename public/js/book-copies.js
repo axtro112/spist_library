@@ -166,7 +166,7 @@ class BookCopyManager {
                   </select>
                 </div>
                 <div class="sa-modal-footer">
-                  <button type="submit" class="sa-btn sa-btn-success">Update Book</button>
+                  <button type="button" class="sa-btn sa-btn-success" onclick="bookCopyManager.submitEditBook(event)">Update Book</button>
                   <button type="button" class="sa-btn sa-btn-outline"
                           onclick="bookCopyManager.switchTab('copies')">&#x2190; Back</button>
                   <button type="button" class="sa-btn sa-btn-outline"

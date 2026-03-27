@@ -1,6 +1,11 @@
+const dns = require("dns");
 const nodemailer = require("nodemailer");
 const logger = require("./logger");
 require("dotenv").config();
+
+// Railway (and many cloud platforms) block outbound IPv6 on port 587.
+// Force all DNS resolutions in this module to prefer IPv4 addresses.
+dns.setDefaultResultOrder("ipv4first");
 
 /**
  * Email Transporter Configuration

@@ -41,9 +41,9 @@ const emailConfig = {
   // Force IPv4: Railway blocks outbound IPv6 on port 587 — without this,
   // Node.js resolves smtp.gmail.com to an IPv6 address and the connection fails.
   family: 4,
-  connectionTimeout: 15000,
-  greetingTimeout: 10000,
-  socketTimeout: 20000,
+  connectionTimeout: 60000,
+  greetingTimeout: 30000,
+  socketTimeout: 60000,
   auth: {
     user: process.env.EMAIL_USER || process.env.SMTP_USER,
     pass: process.env.EMAIL_PASS || process.env.SMTP_PASSWORD,

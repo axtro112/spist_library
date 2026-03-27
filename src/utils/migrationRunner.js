@@ -12,7 +12,8 @@ const migrationsDir = path.join(__dirname, '../../database/migrations');
 
 // Track which migrations should run on startup
 const AUTO_RUN_MIGRATIONS = [
-  'add_qr_token_system.sql' // QR code pickup system
+  'add_qr_token_system.sql',      // QR code pickup system (original)
+  'fix_borrowings_status_enum.sql' // Direct fix for pending_pickup ENUM + QR columns
 ];
 
 /**
@@ -54,7 +55,7 @@ async function executeMigration(migrationFile) {
             return (
               s.length > 0 &&
               !/^\s*--/.test(s) &&
-              /\b(ALTER|CREATE|UPDATE|INSERT|DELETE|DROP|SELECT)\b/i.test(s)
+              /\b(ALTER|CREATE|UPDATE|INSERT|DELETE|DROP|SELECT|SET|PREPARE|EXECUTE|DEALLOCATE)\b/i.test(s)
             );
           });
 

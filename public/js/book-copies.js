@@ -489,6 +489,41 @@ class BookCopyManager {
       if (pane) pane.classList.toggle('bcm-tab-pane--active', k === name);
       if (btn)  btn.classList.toggle('bcm-tab--active',   k === name);
     });
+
+    // Ensure Edit tab always has current data when users switch from Copies -> Edit.
+    if (name === 'edit') this._populateEditForm(this._currentBookMeta || null);
+  }
+
+  _populateEditForm(meta) {
+    if (!meta) return;
+
+    const f = {
+      title:    document.getElementById('titleEdit'),
+      author:   document.getElementById('authorEdit'),
+      quantity: document.getElementById('No#BooksEdit'),
+      category: document.getElementById('categoryEdit'),
+      isbn:     document.getElementById('isbnEdit'),
+      status:   document.getElementById('statusEdit'),
+    };
+
+    if (f.title)    f.title.value    = meta.title || '';
+    if (f.author)   f.author.value   = meta.author || '';
+    if (f.quantity) f.quantity.value = (meta.quantity != null ? meta.quantity : '');
+    if (f.category) f.category.value = meta.category || '';
+    if (f.isbn)     f.isbn.value     = meta.isbn || '';
+
+    const normalizedStatus = String(meta.current_status || meta.status || '').toLowerCase();
+    if (f.status) {
+      f.status.value = (normalizedStatus === 'borrowed' || normalizedStatus === 'all_borrowed')
+        ? 'borrowed'
+        : 'available';
+    }
+
+    const studentGroup = document.getElementById('studentSelectGroup');
+    const studentEl = document.getElementById('studentEdit');
+    const isBorrowed = f.status && f.status.value === 'borrowed';
+    if (studentGroup) studentGroup.style.display = isBorrowed ? 'block' : 'none';
+    if (studentEl) studentEl.required = isBorrowed;
   }
 
   /**
@@ -497,6 +532,15 @@ class BookCopyManager {
    */
   openEditTab(book) {
     this.currentBookId = book.id;
+    this._currentBookMeta = {
+      title: book.title,
+      author: book.author,
+      isbn: book.isbn,
+      category: book.category,
+      quantity: book.quantity,
+      available_quantity: book.available_quantity,
+      current_status: book.current_status || book.status
+    };
 
     // Populate book meta card
     this._setText('copyBookTitle',    book.title);
@@ -509,27 +553,7 @@ class BookCopyManager {
     const statusEl = document.getElementById('copyBookStatus');
     if (statusEl) { statusEl.textContent = label; statusEl.className = `bcm-status-pill ${cls}`.trim(); }
 
-    // Populate edit form
-    const f = {
-      title:    document.getElementById('titleEdit'),
-      author:   document.getElementById('authorEdit'),
-      quantity: document.getElementById('No#BooksEdit'),
-      category: document.getElementById('categoryEdit'),
-      isbn:     document.getElementById('isbnEdit'),
-      status:   document.getElementById('statusEdit'),
-    };
-    if (f.title)    f.title.value    = book.title    || '';
-    if (f.author)   f.author.value   = book.author   || '';
-    if (f.quantity) f.quantity.value = book.quantity  || '';
-    if (f.category) f.category.value = book.category || '';
-    if (f.isbn)     f.isbn.value     = book.isbn      || '';
-    if (f.status)   f.status.value   = (book.current_status || '').toLowerCase() === 'borrowed' ? 'borrowed' : 'available';
-
-    const studentGroup = document.getElementById('studentSelectGroup');
-    const studentEl    = document.getElementById('studentEdit');
-    const isBorrowed   = f.status && f.status.value === 'borrowed';
-    if (studentGroup) studentGroup.style.display = isBorrowed ? 'block' : 'none';
-    if (studentEl)    studentEl.required = isBorrowed;
+    this._populateEditForm(this._currentBookMeta);
 
     this.switchTab('edit');
     this.modal.classList.add('show');
@@ -578,6 +602,18 @@ class BookCopyManager {
       const available = (meta.available_quantity != null) ? meta.available_quantity : this.currentCopies.filter(c => c.status === 'available').length;
       this._setText('copyBookTotal',     total);
       this._setText('copyBookAvailable', available);
+
+      // Keep latest metadata for Edit tab population when switching tabs.
+      this._currentBookMeta = {
+        title: meta.title || (this.currentCopies[0] && this.currentCopies[0].title) || '',
+        author: meta.author || (this.currentCopies[0] && this.currentCopies[0].author) || '',
+        isbn: meta.isbn || (this.currentCopies[0] && this.currentCopies[0].isbn) || '',
+        category: meta.category || '',
+        quantity: total,
+        available_quantity: available,
+        current_status: meta.current_status
+      };
+      this._populateEditForm(this._currentBookMeta);
 
       // Status pill
       const rawStatus = meta.current_status ||

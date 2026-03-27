@@ -16,6 +16,9 @@ const emailConfig = {
   // Force IPv4: Railway blocks outbound IPv6 on port 587 — without this,
   // Node.js resolves smtp.gmail.com to an IPv6 address and the connection fails.
   family: 4,
+  connectionTimeout: 15000,
+  greetingTimeout: 10000,
+  socketTimeout: 20000,
   auth: {
     user: process.env.EMAIL_USER || process.env.SMTP_USER,
     pass: process.env.EMAIL_PASS || process.env.SMTP_PASSWORD,
@@ -257,18 +260,19 @@ This is an automated email. Please do not reply to this message.
     `;
 
     // Send email
+    console.log('[EMAIL SEND] Starting SMTP send', { studentEmail, itemCount: borrowedItems.length });
     const mailOptions = {
       from: `"SPIST Library" <${fromEmail}>`,
       to: studentEmail,
       subject: `SPIST Library Borrowing Request - Claim Within 24 Hours`,
       text: textContent,
       html: htmlContent,
-      replyTo: 'library-support@spist.edu.ph',
       attachments,
     };
 
     const info = await transporter.sendMail(mailOptions);
 
+    console.log('[EMAIL SEND] SMTP send successful', { messageId: info.messageId });
     logger.info('Borrowing claim email sent', {
       studentId,
       studentEmail,
@@ -284,6 +288,7 @@ This is an automated email. Please do not reply to this message.
     };
 
   } catch (error) {
+    console.error('[EMAIL SEND ERROR] SMTP send failed:', error);
     logger.error('Failed to send borrowing claim email', {
       studentId: studentId || 'unknown',
       studentEmail: studentEmail || 'unknown',
@@ -440,8 +445,7 @@ This is an automated email. Please do not reply to this message.
       to: studentEmail,
       subject: `SPIST Library - Book Return Confirmed: ${bookTitle}`,
       text: textContent,
-      html: htmlContent,
-      replyTo: 'library-support@spist.edu.ph'
+      html: htmlContent
     };
 
     const info = await transporter.sendMail(mailOptions);

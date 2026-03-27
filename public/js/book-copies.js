@@ -363,6 +363,27 @@ class BookCopyManager {
 
     const qrCloseBtn = document.getElementById('qrCloseBtn');
     const qrCloseIconBtn = document.getElementById('qrModalCloseIconBtn');
+    const editBookForm = document.getElementById('editBookForm');
+    const statusEdit = document.getElementById('statusEdit');
+
+    if (editBookForm && !editBookForm.dataset.boundSubmit) {
+      editBookForm.addEventListener('submit', (event) => {
+        if (typeof handleEditBook === 'function') {
+          handleEditBook(event);
+        }
+      });
+      editBookForm.dataset.boundSubmit = 'true';
+    }
+
+    if (statusEdit && !statusEdit.dataset.boundChange) {
+      statusEdit.addEventListener('change', (event) => {
+        if (typeof handleStatusChange === 'function') {
+          handleStatusChange(event);
+        }
+      });
+      statusEdit.dataset.boundChange = 'true';
+    }
+
     if (qrCloseBtn) qrCloseBtn.addEventListener('click', () => this.closeQrModal());
     if (qrCloseIconBtn) qrCloseIconBtn.addEventListener('click', () => this.closeQrModal());
     if (this.qrPrintBtn) this.qrPrintBtn.addEventListener('click', () => this.printQrModal());

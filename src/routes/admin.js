@@ -467,61 +467,31 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
       LIMIT 5
     `,
     recentActivities: `
-      (SELECT 
-        CAST('book_borrowed' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci as type,
-        CONCAT(
-          CAST(COALESCE(b.title, 'Unknown Book') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci,
-          ' borrowed by ' COLLATE utf8mb4_unicode_ci,
-          CAST(COALESCE(s.fullname, 'Unknown Student') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
-        ) COLLATE utf8mb4_unicode_ci as detail,
-        bb.borrow_date as timestamp
+      SELECT
+        CASE
+          WHEN bb.status = 'returned' THEN 'book_returned'
+          WHEN bb.status = 'overdue' THEN 'book_overdue'
+          ELSE 'book_borrowed'
+        END AS type,
+        CASE
+          WHEN bb.status = 'returned' THEN CONCAT(COALESCE(b.title, 'Unknown Book'), ' returned by ', COALESCE(s.fullname, 'Unknown Student'))
+          WHEN bb.status = 'overdue' THEN CONCAT(COALESCE(b.title, 'Unknown Book'), ' overdue from ', COALESCE(s.fullname, 'Unknown Student'))
+          ELSE CONCAT(COALESCE(b.title, 'Unknown Book'), ' borrowed by ', COALESCE(s.fullname, 'Unknown Student'))
+        END AS detail,
+        CASE
+          WHEN bb.status = 'returned' THEN bb.return_date
+          WHEN bb.status = 'overdue' THEN bb.due_date
+          ELSE bb.borrow_date
+        END AS timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
       INNER JOIN students s
         ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
-      WHERE bb.status = 'borrowed'
-      AND bb.borrow_date IS NOT NULL
-      ORDER BY bb.borrow_date DESC
-      LIMIT 5)
-      
-      UNION ALL
-      
-      (SELECT 
-        CAST('book_returned' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci as type,
-        CONCAT(
-          CAST(COALESCE(b.title, 'Unknown Book') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci,
-          ' returned by ' COLLATE utf8mb4_unicode_ci,
-          CAST(COALESCE(s.fullname, 'Unknown Student') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
-        ) COLLATE utf8mb4_unicode_ci as detail,
-        bb.return_date as timestamp
-      FROM book_borrowings bb
-      INNER JOIN books b ON bb.book_id = b.id
-      INNER JOIN students s
-        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
-      WHERE bb.status = 'returned'
-      AND bb.return_date IS NOT NULL
-      ORDER BY bb.return_date DESC
-      LIMIT 5)
-      
-      UNION ALL
-      
-      (SELECT 
-        CAST('book_overdue' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci as type,
-        CONCAT(
-          CAST(COALESCE(b.title, 'Unknown Book') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci,
-          ' overdue from ' COLLATE utf8mb4_unicode_ci,
-          CAST(COALESCE(s.fullname, 'Unknown Student') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
-        ) COLLATE utf8mb4_unicode_ci as detail,
-        bb.due_date as timestamp
-      FROM book_borrowings bb
-      INNER JOIN books b ON bb.book_id = b.id
-      INNER JOIN students s
-        ON bb.student_id COLLATE utf8mb4_unicode_ci = s.student_id COLLATE utf8mb4_unicode_ci
-      WHERE bb.status = 'overdue'
-      AND bb.due_date IS NOT NULL
-      ORDER BY bb.due_date DESC
-      LIMIT 5)
-      
+      WHERE (
+        (bb.status = 'borrowed' AND bb.borrow_date IS NOT NULL)
+        OR (bb.status = 'returned' AND bb.return_date IS NOT NULL)
+        OR (bb.status = 'overdue' AND bb.due_date IS NOT NULL)
+      )
       ORDER BY timestamp DESC
       LIMIT 10
     `,

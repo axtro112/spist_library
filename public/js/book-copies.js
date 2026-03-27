@@ -280,6 +280,57 @@ class BookCopyManager {
         </div>
         </div>
       </div>
+
+      <!-- ═══════════════ Edit Condition Modal ═══════════════ -->
+      <div id="editConditionModal" class="modal sa-modal">
+        <div class="sa-modal-dialog sa-modal-sm">
+        <div class="sa-modal-content">
+          <div class="sa-modal-header">
+            <h2>
+              <span class="material-symbols-outlined">edit</span>
+              <span>Update Condition</span>
+            </h2>
+            <button class="sa-modal-close sa-modal-close-btn" type="button"
+                    onclick="bookCopyManager.closeEditConditionModal()">✕</button>
+          </div>
+          <div class="sa-modal-body">
+            <div style="margin-bottom:12px;">
+              <div style="font-size:12px;color:#6b7280;font-weight:500;margin-bottom:4px;">Accession Number</div>
+              <div id="editCondAccession" style="font-size:14px;font-weight:600;color:#1b5e20;letter-spacing:0.5px;"></div>
+            </div>
+            <div style="margin-bottom:16px;">
+              <div style="font-size:12px;color:#6b7280;font-weight:500;margin-bottom:4px;">Current Condition</div>
+              <div id="editCondCurrent" style="font-size:13px;color:#374151;padding:8px;background:#f3f4f6;border-radius:6px;text-transform:capitalize;"></div>
+            </div>
+            <form id="editConditionForm" onsubmit="bookCopyManager.submitEditCondition(event)" style="margin-bottom:8px;">
+              <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#374151;">New Condition</label>
+              <select id="editCondSelect" name="condition" required style="
+                width:100%;
+                padding:8px 12px;
+                border:1.5px solid #d1d5db;
+                border-radius:8px;
+                font-size:13px;
+                background:#fff;
+                color:#111827;
+                cursor:pointer;
+                transition:border-color 0.2s;
+              ">
+                <option value="">-- Select --</option>
+                <option value="excellent">Excellent — Brand new</option>
+                <option value="good">Good — Normal wear</option>
+                <option value="fair">Fair — Some damage</option>
+                <option value="poor">Poor — Heavy wear</option>
+                <option value="damaged">Damaged — Needs repair</option>
+              </select>
+            </form>
+          </div>
+          <div class="sa-modal-footer">
+            <button type="submit" form="editConditionForm" class="sa-btn sa-btn-success">Update</button>
+            <button type="button" class="sa-btn sa-btn-outline" onclick="bookCopyManager.closeEditConditionModal()">Cancel</button>
+          </div>
+        </div>
+        </div>
+      </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
@@ -293,6 +344,7 @@ class BookCopyManager {
     this.qrPrintBtn = document.getElementById('qrPrintBtn');
     this.qrDownloadBtn = document.getElementById('qrDownloadBtn');
     this.auditModal = document.getElementById('auditModal');
+    this.editConditionModal = document.getElementById('editConditionModal');
   }
 
   bindEvents() {
@@ -521,7 +573,7 @@ class BookCopyManager {
 
     } catch (error) {
       console.error('Error loading copies:', error);
-      alert('Failed to load book copies. Please try again.');
+      showToast('Failed to load book copies. Please try again.', 'error');
       this.closeModal();
     }
   }
@@ -669,7 +721,7 @@ class BookCopyManager {
       
       const qrDataUrl = result?.data?.qr_code_data_url;
       const qrImageUrl = result?.data?.qr_code_image_url;
-      alert(`✅ New copy added: ${result.data.accession_number}`);
+      showToast(`✅ New copy added: ${result.data.accession_number}`, 'success');
       this.showQrPreview(result.data.accession_number, qrDataUrl, qrImageUrl);
       
       // Close add modal and refresh copies list
@@ -683,7 +735,7 @@ class BookCopyManager {
       
     } catch (error) {
       console.error('Error adding copy:', error);
-      alert('Failed to add copy: ' + error.message);
+      showToast('Failed to add copy: ' + error.message, 'error');
     }
   }
 
@@ -863,7 +915,7 @@ class BookCopyManager {
     this._qrCurrentBookTitle = (copy && copy.title) || '';
     const opened = await this._openQrModal(accessionNumber);
     if (!opened) {
-      alert('Unable to open QR preview right now. Please try again.');
+      showToast('Unable to open QR preview. Please try again.', 'error');
     }
   }
 
@@ -872,7 +924,7 @@ class BookCopyManager {
     this._qrCurrentBookTitle = (titleEl && titleEl.textContent.trim() !== 'Loading…') ? titleEl.textContent.trim() : '';
     const opened = await this._openQrModal(accessionNumber, qrDataUrl, qrImageUrl);
     if (!opened) {
-      alert('Unable to show QR preview right now. Please try again.');
+      showToast('Unable to show QR preview. Please try again.', 'error');
     }
   }
 
@@ -1011,28 +1063,53 @@ class BookCopyManager {
   async editCopy(accessionNumber) {
     const copy = this.currentCopies.find(c => c.accession_number === accessionNumber);
     if (!copy) return;
+    this.openEditConditionModal(accessionNumber);
+  }
+
+  closeEditConditionModal() {
+    if (this.editConditionModal) this.editConditionModal.style.display = 'none';
+  }
+
+  openEditConditionModal(accessionNumber) {
+    const copy = this.currentCopies.find(c => c.accession_number === accessionNumber);
+    if (!copy) return;
     
-    const newCondition = prompt(
-      `Update condition for ${accessionNumber}\n\nCurrent: ${copy.condition_status}\n\nOptions: excellent, good, fair, poor, damaged`,
-      copy.condition_status
-    );
+    const accEl = document.getElementById('editCondAccession');
+    const currEl = document.getElementById('editCondCurrent');
+    const selectEl = document.getElementById('editCondSelect');
     
-    if (newCondition && ['excellent', 'good', 'fair', 'poor', 'damaged'].includes(newCondition.toLowerCase())) {
-      try {
-        const response = await fetchWithCsrf(`/api/book-copies/${accessionNumber}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ condition_status: newCondition.toLowerCase() })
-        });
-        
-        if (!response.ok) throw new Error('Update failed');
-        
-        alert('✅ Copy updated successfully');
-        await this.showCopies(this.currentBookId);
-        
-      } catch (error) {
-        alert('Failed to update copy: ' + error.message);
-      }
+    accEl.textContent = accessionNumber;
+    currEl.textContent = copy.condition_status || 'Unknown';
+    selectEl.value = copy.condition_status || '';
+    
+    this.editConditionModal.style.display = 'flex';
+  }
+
+  async submitEditCondition(event) {
+    event.preventDefault();
+    const selectEl = document.getElementById('editCondSelect');
+    const accessionNumber = document.getElementById('editCondAccession').textContent;
+    const newCondition = selectEl.value;
+    
+    if (!newCondition) {
+      showToast('Please select a condition', 'warning');
+      return;
+    }
+    
+    try {
+      const response = await fetchWithCsrf(`/api/book-copies/${accessionNumber}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ condition_status: newCondition })
+      });
+      
+      if (!response.ok) throw new Error('Update failed');
+      
+      showToast('✅ Copy updated successfully', 'success');
+      this.closeEditConditionModal();
+      await this.showCopies(this.currentBookId);
+    } catch (error) {
+      showToast('Failed to update copy: ' + error.message, 'error');
     }
   }
 
@@ -1135,13 +1212,13 @@ class BookCopyManager {
   bulkPrintQrLabels(selectedOnly = false) {
     const copies = selectedOnly ? this._getSelectedCopies() : (this.currentCopies || []);
     if (!Array.isArray(copies) || copies.length === 0) {
-      alert(selectedOnly ? 'No copies selected. Use the checkboxes to select copies first.' : 'No copies available to print.');
+      showToast(selectedOnly ? 'No copies selected. Use the checkboxes to select copies first.' : 'No copies available to print.', 'warning');
       return;
     }
 
     const printWindow = window.open('', '_blank', 'width=980,height=760');
     if (!printWindow) {
-      alert('Unable to open print window. Please allow popups for printing.');
+      showToast('Unable to open print window. Please allow popups for printing.', 'error');
       return;
     }
 

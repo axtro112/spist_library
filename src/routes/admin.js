@@ -468,8 +468,12 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
     `,
     recentActivities: `
       (SELECT 
-        'book_borrowed' as type,
-        CONCAT(b.title, ' borrowed by ', s.fullname) as detail,
+        CAST('book_borrowed' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci as type,
+        CONCAT(
+          CAST(COALESCE(b.title, 'Unknown Book') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci,
+          ' borrowed by ' COLLATE utf8mb4_unicode_ci,
+          CAST(COALESCE(s.fullname, 'Unknown Student') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci as detail,
         bb.borrow_date as timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
@@ -483,8 +487,12 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
       UNION ALL
       
       (SELECT 
-        'book_returned' as type,
-        CONCAT(b.title, ' returned by ', s.fullname) as detail,
+        CAST('book_returned' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci as type,
+        CONCAT(
+          CAST(COALESCE(b.title, 'Unknown Book') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci,
+          ' returned by ' COLLATE utf8mb4_unicode_ci,
+          CAST(COALESCE(s.fullname, 'Unknown Student') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci as detail,
         bb.return_date as timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id
@@ -498,8 +506,12 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
       UNION ALL
       
       (SELECT 
-        'book_overdue' as type,
-        CONCAT(b.title, ' overdue from ', s.fullname) as detail,
+        CAST('book_overdue' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci as type,
+        CONCAT(
+          CAST(COALESCE(b.title, 'Unknown Book') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci,
+          ' overdue from ' COLLATE utf8mb4_unicode_ci,
+          CAST(COALESCE(s.fullname, 'Unknown Student') AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci as detail,
         bb.due_date as timestamp
       FROM book_borrowings bb
       INNER JOIN books b ON bb.book_id = b.id

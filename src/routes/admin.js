@@ -1961,7 +1961,7 @@ router.post('/borrowings/:id/cancel', requireAdmin, async (req, res) => {
 
     const record = borrowings[0];
 
-    const cancellableStatuses = new Set(['pending_pickup', 'borrowed']);
+    const cancellableStatuses = new Set(['pending', 'approved', 'pending_pickup', 'borrowed']);
     if (!cancellableStatuses.has(record.status) || record.picked_up_at) {
       return response.validationError(res, 'Only pending (not yet picked up) requests can be cancelled');
     }
@@ -1971,7 +1971,7 @@ router.post('/borrowings/:id/cancel', requireAdmin, async (req, res) => {
         `UPDATE book_borrowings
          SET status = 'cancelled',
              notes = CONCAT(COALESCE(notes, ''), CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE ' | ' END, 'Cancelled by admin')
-         WHERE id = ? AND status IN ('pending_pickup', 'borrowed') AND picked_up_at IS NULL`,
+         WHERE id = ? AND status IN ('pending', 'approved', 'pending_pickup', 'borrowed') AND picked_up_at IS NULL`,
         [borrowingId]
       );
 

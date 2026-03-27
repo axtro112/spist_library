@@ -422,11 +422,19 @@ const systemAdminPageRoutes = {
   "admin-books": "system-admin/books",
   "admin-borrowed-books": "system-admin/borrowed-books",
   "admin-qr-scanner": "system-admin/qr-scanner",
-  "admin-pickup-terminal": "system-admin/pickup-terminal",
   "admin-users": "system-admin/users",
   "admin-admins": "system-admin/admins",
   "admin-trash-bin": "system-admin/trash-bin",
 };
+
+// Legacy URL: pickup terminal is removed from the system admin panel.
+app.get('/admin-pickup-terminal', (req, res) => {
+  const user = req.session && req.session.user;
+  if (!user || user.userRole !== 'admin') {
+    return res.redirect('/login');
+  }
+  return res.redirect('/admin-dashboard');
+});
 
 app.get('/admin-books-trash', (req, res) => {
   const user = req.session && req.session.user;

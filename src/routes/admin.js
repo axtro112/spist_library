@@ -460,7 +460,7 @@ router.get("/dashboard/stats", requireAdmin, async (req, res) => {
         COALESCE(b.category, 'Uncategorized') as category, 
         COUNT(DISTINCT bb.id) as count
       FROM books b
-      LEFT JOIN book_borrowings bb ON b.id = bb.book_id
+      INNER JOIN book_borrowings bb ON b.id = bb.book_id
       WHERE b.status != 'deleted'
       GROUP BY b.category
       ORDER BY count DESC

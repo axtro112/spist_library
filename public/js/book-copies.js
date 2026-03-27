@@ -131,7 +131,7 @@ class BookCopyManager {
 
             <!-- ── Tab: Edit Book ── -->
             <div id="tabPaneEdit" class="bcm-tab-pane">
-              <form id="editBookForm" class="sa-modal-form bcm-edit-form">
+              <form id="editBookForm" class="sa-modal-form bcm-edit-form" onsubmit="bookCopyManager.submitEditBook(event)">
                 <div class="sa-form-group">
                   <label for="titleEdit">Title</label>
                   <input type="text" id="titleEdit" name="title" required />
@@ -154,7 +154,7 @@ class BookCopyManager {
                 </div>
                 <div class="sa-form-group">
                   <label for="statusEdit">Status</label>
-                  <select id="statusEdit" name="status" required>
+                  <select id="statusEdit" name="status" required onchange="bookCopyManager.handleEditStatusChange(event)">
                     <option value="available">Available</option>
                     <option value="borrowed">Borrowed</option>
                   </select>

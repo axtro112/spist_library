@@ -1797,7 +1797,13 @@ function showDetailsModal(borrowingId) {
 // ===========================
 
 async function cancelBorrowing(borrowingId) {
-  if (!confirm('Cancel this borrow request? The book will be returned to the available pool.')) return;
+  const confirmed = await showAppConfirm(
+    'Cancel this borrow request? The book will be returned to the available pool.',
+    'Cancel Borrow Request',
+    'Cancel Request',
+    'Keep Request'
+  );
+  if (!confirmed) return;
   try {
     const response = await fetchWithCsrf(`/api/admin/borrowings/${borrowingId}/cancel`, { method: 'POST' });
     if (!response.ok) {
@@ -1833,7 +1839,13 @@ function formatApprovalToastMessage(payload) {
 }
 
 async function approveBorrowing(borrowingId) {
-  if (!confirm('Approve this borrow request and send the pickup QR email?')) return;
+  const confirmed = await showAppConfirm(
+    'Approve this borrow request and send the pickup QR email?',
+    'Approve Borrow Request',
+    'Approve',
+    'Not Now'
+  );
+  if (!confirmed) return;
 
   try {
     const response = await fetchWithCsrf(`/api/admin/borrowings/${borrowingId}/approve`, {

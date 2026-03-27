@@ -148,7 +148,14 @@
 
   async function bulkRestore() {
     const count = selectedIds.size;
-    if (!count || !confirm(`Restore ${count} user${count > 1 ? 's' : ''}? They will be able to access the system again.`)) return;
+    if (!count) return;
+    const confirmRestore = await showAppConfirm(
+      `Restore ${count} user${count > 1 ? 's' : ''}? They will be able to access the system again.`,
+      'Restore Users',
+      'Restore',
+      'Cancel'
+    );
+    if (!confirmRestore) return;
     let ok = 0, fail = 0;
     for (const id of selectedIds) { if (await trashManager.restore(id)) ok++; else fail++; }
     if (ok)   showToast(`${ok} user${ok > 1 ? 's' : ''} restored successfully!`, 'success');
@@ -158,8 +165,16 @@
 
   async function bulkDelete() {
     const count = selectedIds.size;
-    if (!count || !confirm(`⚠️ PERMANENTLY DELETE ${count} user${count > 1 ? 's' : ''}?\n\nNote: Only users without borrowing history can be deleted.\n\nThis action CANNOT be undone!`)) return;
-    if (prompt('Type DELETE to confirm:') !== 'DELETE') return;
+    if (!count) return;
+    const confirmDelete = await showAppConfirm(
+      `Permanently delete ${count} user${count > 1 ? 's' : ''}? Only users without borrowing history can be deleted. This action cannot be undone.`,
+      'Permanent Delete',
+      'Delete Forever',
+      'Cancel'
+    );
+    if (!confirmDelete) return;
+    const typed = await showAppPrompt('Type DELETE to confirm this permanent action.', 'Final Confirmation', '', 'DELETE', 'Continue', 'Cancel');
+    if (typed !== 'DELETE') return;
     let ok = 0, fail = 0;
     for (const id of selectedIds) { if (await trashManager.permanentDelete(id)) ok++; else fail++; }
     if (ok)   showToast(`${ok} user${ok > 1 ? 's' : ''} permanently deleted`, 'success');
@@ -169,7 +184,13 @@
 
   /* ── public actions ── */
   async function restore(id, name) {
-    if (!confirm(`Restore user "${name}"? They will be able to access the system again.`)) return;
+    const confirmRestore = await showAppConfirm(
+      `Restore user "${name}"? They will be able to access the system again.`,
+      'Restore User',
+      'Restore',
+      'Cancel'
+    );
+    if (!confirmRestore) return;
     if (await trashManager.restore(id)) { showToast('User restored successfully!', 'success'); await loadTrash(); }
   }
 
@@ -178,8 +199,15 @@
       alert('⚠️ Cannot permanently delete this user.\n\nThis user has borrowing history in the system. For data integrity and audit purposes, users with borrowing records cannot be permanently deleted.');
       return;
     }
-    if (!confirm(`⚠️ PERMANENTLY DELETE user "${name}"?\n\nThis action CANNOT be undone!`)) return;
-    if (prompt('Type DELETE to confirm:') !== 'DELETE') return;
+    const confirmDelete = await showAppConfirm(
+      `Permanently delete user "${name}"? This action cannot be undone.`,
+      'Permanent Delete',
+      'Delete Forever',
+      'Cancel'
+    );
+    if (!confirmDelete) return;
+    const typed = await showAppPrompt('Type DELETE to confirm this permanent action.', 'Final Confirmation', '', 'DELETE', 'Continue', 'Cancel');
+    if (typed !== 'DELETE') return;
     if (await trashManager.permanentDelete(id)) { showToast('User permanently deleted', 'success'); await loadTrash(); }
   }
 

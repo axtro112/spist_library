@@ -324,6 +324,24 @@ if (!window.__customAlertInstalled) {
   };
 }
 
+if (!window.__customConfirmInstalled) {
+  window.__customConfirmInstalled = true;
+  window.confirm = function customAppConfirm(message) {
+    showAppConfirm(String(message || ''), 'Confirm Action', 'Confirm', 'Cancel');
+    // Legacy sync callers cannot await; default false avoids accidental destructive actions.
+    return false;
+  };
+}
+
+if (!window.__customPromptInstalled) {
+  window.__customPromptInstalled = true;
+  window.prompt = function customAppPrompt(message, defaultValue) {
+    showAppPrompt(String(message || ''), 'Input Required', String(defaultValue || ''));
+    // Legacy sync callers cannot await; return null to abort by default.
+    return null;
+  };
+}
+
 // Add CSS for animations
 const style = document.createElement('style');
 style.textContent = `

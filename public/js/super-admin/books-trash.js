@@ -187,7 +187,14 @@
 
   async function bulkRestore() {
     const count = selectedIds.size;
-    if (!count || !confirm(`Restore ${count} book${count > 1 ? 's' : ''}? They will return to the main books list.`)) return;
+    if (!count) return;
+    const confirmRestore = await showAppConfirm(
+      `Restore ${count} book${count > 1 ? 's' : ''}? They will return to the main books list.`,
+      'Restore Books',
+      'Restore',
+      'Cancel'
+    );
+    if (!confirmRestore) return;
     let ok = 0, fail = 0;
     for (const id of selectedIds) { if (await trashManager.restore(id)) ok++; else fail++; }
     if (ok)   showToast(`${ok} book${ok > 1 ? 's' : ''} restored successfully!`, 'success');
@@ -197,8 +204,16 @@
 
   async function bulkDelete() {
     const count = selectedIds.size;
-    if (!count || !confirm(`⚠️ PERMANENTLY DELETE ${count} book${count > 1 ? 's' : ''}?\n\nThis action CANNOT be undone!`)) return;
-    if (prompt('Type DELETE to confirm:') !== 'DELETE') return;
+    if (!count) return;
+    const confirmDelete = await showAppConfirm(
+      `Permanently delete ${count} book${count > 1 ? 's' : ''}? This action cannot be undone.`,
+      'Permanent Delete',
+      'Delete Forever',
+      'Cancel'
+    );
+    if (!confirmDelete) return;
+    const typed = await showAppPrompt('Type DELETE to confirm this permanent action.', 'Final Confirmation', '', 'DELETE', 'Continue', 'Cancel');
+    if (typed !== 'DELETE') return;
     let ok = 0, fail = 0;
     for (const id of selectedIds) { if (await trashManager.permanentDelete(id)) ok++; else fail++; }
     if (ok)   showToast(`${ok} book${ok > 1 ? 's' : ''} permanently deleted`, 'success');
@@ -208,13 +223,26 @@
 
   /* ── public actions ── */
   async function restore(id, title) {
-    if (!confirm(`Restore "${title}"? It will return to the main books list.`)) return;
+    const confirmRestore = await showAppConfirm(
+      `Restore "${title}"? It will return to the main books list.`,
+      'Restore Book',
+      'Restore',
+      'Cancel'
+    );
+    if (!confirmRestore) return;
     if (await trashManager.restore(id)) { showToast('Book restored successfully!', 'success'); await loadTrash(); }
   }
 
   async function permanentDelete(id, title) {
-    if (!confirm(`⚠️ PERMANENTLY DELETE "${title}"?\n\nThis action CANNOT be undone! The book and all its copies will be removed forever.`)) return;
-    if (prompt('Type DELETE to confirm:') !== 'DELETE') return;
+    const confirmDelete = await showAppConfirm(
+      `Permanently delete "${title}"? This action cannot be undone and all copies will be removed forever.`,
+      'Permanent Delete',
+      'Delete Forever',
+      'Cancel'
+    );
+    if (!confirmDelete) return;
+    const typed = await showAppPrompt('Type DELETE to confirm this permanent action.', 'Final Confirmation', '', 'DELETE', 'Continue', 'Cancel');
+    if (typed !== 'DELETE') return;
     if (await trashManager.permanentDelete(id)) { showToast('Book permanently deleted', 'success'); await loadTrash(); }
   }
 

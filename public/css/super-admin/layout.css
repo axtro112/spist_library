@@ -278,8 +278,7 @@ body::before {
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  overflow-y: visible; /* let .sa-content scroll — prevents dropdown clipping */
-  overflow-x: auto;   /* horizontal scrollbar if table is wider than viewport */
+  overflow: visible; /* avoid nested scroll/stacking artifacts on books table */
 }
 .sa-table-wrapper table,
 .user-table {
@@ -312,6 +311,26 @@ body::before {
 .user-table tr:hover td { background: #f9fbf9; }
 .sa-table-wrapper tr:last-child td,
 .user-table tr:last-child td { border-bottom: none; }
+
+/* Books page: keep actions dropdown above rows/cards and avoid clipping artifacts. */
+body[data-active-page="books"] .sa-table-wrapper,
+body[data-active-page="books"] .sa-table-wrapper td,
+body[data-active-page="books"] .sa-table-wrapper th {
+  overflow: visible;
+}
+
+body[data-active-page="books"] .actions-dropdown {
+  position: relative;
+  z-index: 2;
+}
+
+body[data-active-page="books"] .actions-dropdown.show {
+  z-index: 300;
+}
+
+body[data-active-page="books"] .actions-menu {
+  z-index: 500;
+}
 
 /* ── BORROW KANBAN BOARD ── */
 .borrow-kanban-board {

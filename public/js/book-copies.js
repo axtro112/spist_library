@@ -351,6 +351,8 @@ class BookCopyManager {
     window.addEventListener('click', (e) => {
       if (e.target === this.modal) this.closeModal();
       if (e.target === this.qrModal) this.closeQrModal();
+      if (e.target === this.auditModal) this.closeAuditModal();
+      if (e.target === this.editConditionModal) this.closeEditConditionModal();
     });
 
     document.addEventListener('keydown', (e) => {
@@ -406,7 +408,9 @@ class BookCopyManager {
     const addCopyModal = document.getElementById('addCopyModal');
     const hasOpenModal = this._isModalVisible(this.modal)
       || this._isModalVisible(addCopyModal)
-      || this._isModalVisible(this.qrModal);
+      || this._isModalVisible(this.qrModal)
+      || this._isModalVisible(this.auditModal)
+      || this._isModalVisible(this.editConditionModal);
     document.body.classList.toggle('modal-open', hasOpenModal);
   }
 
@@ -421,6 +425,16 @@ class BookCopyManager {
 
     if (this._isModalVisible(addCopyModal)) {
       this.closeAddCopyModal();
+      return true;
+    }
+
+    if (this._isModalVisible(this.editConditionModal)) {
+      this.closeEditConditionModal();
+      return true;
+    }
+
+    if (this._isModalVisible(this.auditModal)) {
+      this.closeAuditModal();
       return true;
     }
 
@@ -624,15 +638,17 @@ class BookCopyManager {
           <td>${borrowedBy}</td>
           <td>${dueDate}</td>
           <td>
-            <button class="action-btn btn-view" onclick="bookCopyManager.openCopyQr('${copy.accession_number}')" title="View QR Code">
-              <span class="material-symbols-outlined">qr_code_2</span>
-            </button>
-            <button class="action-btn btn-edit" onclick="bookCopyManager.editCopy('${copy.accession_number}')" title="Edit">
-              <span class="material-symbols-outlined">edit</span>
-            </button>
-            <button class="action-btn btn-view" onclick="bookCopyManager.viewAudit('${copy.accession_number}')" title="History">
-              <span class="material-symbols-outlined">history</span>
-            </button>
+            <div class="bcm-row-actions">
+              <button class="action-btn btn-view" onclick="bookCopyManager.openCopyQr('${copy.accession_number}')" title="View QR Code">
+                <span class="material-symbols-outlined">qr_code_2</span>
+              </button>
+              <button class="action-btn btn-edit" onclick="bookCopyManager.editCopy('${copy.accession_number}')" title="Edit">
+                <span class="material-symbols-outlined">edit</span>
+              </button>
+              <button class="action-btn btn-view" onclick="bookCopyManager.viewAudit('${copy.accession_number}')" title="History">
+                <span class="material-symbols-outlined">history</span>
+              </button>
+            </div>
           </td>
         </tr>
       `;
@@ -1067,7 +1083,10 @@ class BookCopyManager {
   }
 
   closeEditConditionModal() {
-    if (this.editConditionModal) this.editConditionModal.style.display = 'none';
+    if (!this.editConditionModal) return;
+    this.editConditionModal.classList.remove('show');
+    this.editConditionModal.style.display = 'none';
+    this._syncBodyModalOpenState();
   }
 
   openEditConditionModal(accessionNumber) {
@@ -1081,8 +1100,10 @@ class BookCopyManager {
     accEl.textContent = accessionNumber;
     currEl.textContent = copy.condition_status || 'Unknown';
     selectEl.value = copy.condition_status || '';
-    
+    this.editConditionModal.classList.add('show');
     this.editConditionModal.style.display = 'flex';
+    this._syncBodyModalOpenState();
+    setTimeout(() => selectEl.focus(), 0);
   }
 
   async submitEditCondition(event) {
@@ -1114,7 +1135,10 @@ class BookCopyManager {
   }
 
   closeAuditModal() {
-    if (this.auditModal) this.auditModal.style.display = 'none';
+    if (!this.auditModal) return;
+    this.auditModal.classList.remove('show');
+    this.auditModal.style.display = 'none';
+    this._syncBodyModalOpenState();
   }
 
   async viewAudit(accessionNumber) {
@@ -1127,7 +1151,9 @@ class BookCopyManager {
     accessionEl.textContent = accessionNumber;
     titleEl.textContent = 'Audit History';
     bodyEl.innerHTML = '<div class="notif-loading">Loading&#8230;</div>';
+    modal.classList.add('show');
     modal.style.display = 'flex';
+    this._syncBodyModalOpenState();
 
     try {
       const response = await fetchWithCsrf(`/api/book-copies/audit/${accessionNumber}`);
